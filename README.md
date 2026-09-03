@@ -1,64 +1,68 @@
 # second-brain-rag 🧠
 
-**给散落在十几个目录里的项目文档、笔记、聊天记录，装一个可问答的「第二大脑」。**
+**A queryable "second brain" for the project docs, notes, and chat logs scattered across a dozen directories.**
 
-本地文档 → 切分 → 向量化 → 检索 → LLM 回答（带引用来源）。纯本地索引，数据不出门；LLM 走任意 OpenAI 兼容 API（智谱 / DeepSeek / Kimi / OpenAI 均可）。
+Local files → chunking → embeddings → retrieval → LLM answer with citations. The index lives entirely on your machine; only the embedding/chat calls go out, to any OpenAI-compatible API (Zhipu / DeepSeek / Kimi / OpenAI / …).
 
-> 为什么不用 LangChain？核心链路只有 300 行，原生实现意味着每个环节可控可改可学。等需要复杂编排时再上框架不迟。
+> **Why no LangChain?** The whole pipeline is ~300 lines of plain Python, which means every stage stays readable, hackable, and learnable. Reach for a framework when you actually need the orchestration — not before.
 >
-> **和 Obsidian 什么关系？** 不冲突，分层协作：Obsidian 是笔记前端（写作/双链/浏览），本项目是**全域检索引擎**——`sources` 里配任意目录（Obsidian vault、项目文档、代码仓库手册、聊天记录导出），一句命令问遍所有知识，并计划通过 MCP server 供 Agent 程序化调用（见 Roadmap）。纯"笔记内问答"用 Obsidian 的 AI 插件即可，本项目解决的是**插件管不到的那部分**。
+> **How does it relate to Obsidian?** It doesn't compete — the two layer up: Obsidian is the note-taking frontend (writing, backlinks, browsing), while this project is the **cross-vault search engine**. Point `sources` at any directories (Obsidian vaults, project docs, code-repo manuals, chat exports) and ask across all of them in one command. An MCP server is planned so agents can query it programmatically (see Roadmap). For Q&A inside a single vault, Obsidian's AI plugins already do the job — this covers what those plugins can't reach.
 
-## 架构
+## Architecture
 
 ```
-本地文档目录 (markdown/txt, 递归)
+local document dirs (markdown/txt, recursive)
         │  ingest
         ▼
-loaders ──► chunker (按标题切 + 滑窗兜底) ──► embedder ──► store (ChromaDB 持久化)
+loaders ──► chunker (heading-aware split + sliding-window fallback) ──► embedder ──► store (ChromaDB, persistent)
         │  ask
         ▼
-retriever (top-k 相似度) ──► answer (LLM 组装回答 + 引用来源)
+retriever (top-k similarity) ──► answer (LLM synthesis + cited sources)
 ```
 
-## 快速开始
+## Quick start
+
+Requires Python 3.11+ (uses the stdlib `tomllib`).
 
 ```bash
 pip install -r requirements.txt
 
-# 1. 配置：复制示例并改成你的
+# 1. Configure: copy the example and fill in your values
 cp config.example.toml config.toml
-#    填入 API key、模型、以及你要灌进去的文档目录
+#    API keys, models, and the directories you want to index
 
-# 2. 灌数据（增量，按内容 hash 去重，重复跑安全）
+# 2. Ingest (incremental — deduplicated by content hash, safe to re-run)
 python main.py ingest
 
-# 3. 纯检索（看看切分和召回效果）
-python main.py search "ComfyAgent 的零依赖是怎么做到的"
+# 3. Plain retrieval (check chunking and recall quality, no LLM call)
+python main.py search "how does the project keep dependencies minimal"
 
-# 4. 问答（带引用来源）
-python main.py ask "H3 在 2080Ti 上为什么必须用 W4A8"
+# 4. Ask (retrieval + LLM answer with citations)
+python main.py ask "why does the index track files by content hash"
 ```
 
-## 配置说明
+## Configuration
 
-| 配置项 | 说明 |
+| Key | Meaning |
 |---|---|
-| `llm` 段 | base_url / api_key / model —— 任意 OpenAI 兼容端点 |
-| `embed` 段 | 同上；模型需为 embedding 类（如 `embedding-3`） |
-| `sources` | 文档目录列表，递归扫描 `.md` `.txt` |
-| `chunk` | 切分参数（默认 800 字符 / 重叠 100） |
-| `top_k` | 检索条数（默认 5） |
+| `[llm]` | base_url / api_key / model — any OpenAI-compatible endpoint |
+| `[embed]` | same; the model must be an embedding model (e.g. `embedding-3`) |
+| `[[sources]]` | list of document directories, scanned recursively for `.md` / `.txt` |
+| `[chunk]` | chunking params (default 800 chars / 100 overlap) |
+| `[top_k]` | number of hits per search (default 5) |
 
-## 设计决定
+API keys can also come from the environment variables `BRAIN_LLM_API_KEY` / `BRAIN_EMBED_API_KEY` (these override the config file).
 
-- **ChromaDB 本地持久化**：零服务、零运维，`pip install` 即用；数据量大再换 Milvus
-- **增量索引**：文件按内容 hash 记账，改了才重灌，删除自动清理
-- **回答必带引用**：每条回答附来源文件路径与切分位置，可溯源、可验证
-- **密钥不落码**：key 走 config.toml（已 gitignore）或环境变量
+## Design decisions
+
+- **ChromaDB, local & persistent**: zero services, zero ops, works right after `pip install`; swap in Milvus when the corpus outgrows it
+- **Incremental indexing**: files are tracked by content hash — only changed files get re-embedded, deletions are cleaned up automatically
+- **Answers always cite**: every answer ends with source file paths, so claims stay traceable and verifiable
+- **Keys never in code**: keys live in `config.toml` (gitignored) or environment variables
 
 ## Roadmap
 
-见 [docs/roadmap.md](docs/roadmap.md) —— MCP server、Web UI、混合检索、rerank、图片索引。
+See [docs/roadmap.md](docs/roadmap.md) — MCP server, web UI, hybrid retrieval (BM25), reranking, PDF support.
 
 ## License
 

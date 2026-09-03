@@ -1,4 +1,4 @@
-"""文档加载：递归扫描目录，读取 .md/.txt。"""
+"""Document loading: recursively scan directories for .md/.txt files."""
 from __future__ import annotations
 
 import hashlib
@@ -12,12 +12,12 @@ def file_hash(content: str) -> str:
 
 
 def scan_sources(sources: list[dict]) -> list[dict]:
-    """返回 [{path, content, hash}]，path 为绝对路径字符串。"""
+    """Return [{path, content, hash}] with absolute path strings."""
     docs, seen = [], set()
     for src in sources:
         root = Path(src["path"]).expanduser()
         if not root.exists():
-            print(f"[warn] 目录不存在，跳过: {root}")
+            print(f"[warn] directory not found, skipping: {root}")
             continue
         for p in sorted(root.rglob("*")):
             if not p.is_file() or p.suffix.lower() not in SUFFIXES:
@@ -29,7 +29,7 @@ def scan_sources(sources: list[dict]) -> list[dict]:
             try:
                 content = p.read_text(encoding="utf-8")
             except UnicodeDecodeError:
-                print(f"[warn] 非 UTF-8，跳过: {p.name}")
+                print(f"[warn] not UTF-8, skipping: {p.name}")
                 continue
             if content.strip():
                 docs.append({"path": ap, "content": content, "hash": file_hash(content)})

@@ -1,26 +1,26 @@
-# ==== 复制为 config.toml 并填入你的值 ====
+# ==== Copy to config.toml and fill in your values ====
 
 [llm]
-base_url = "https://open.bigmodel.cn/api/paas/v4"   # 智谱；DeepSeek/Kimi/OpenAI 换成对应端点
-api_key = "your-api-key-here"                        # 或设环境变量 BRAIN_LLM_API_KEY
-model = "glm-4.6"                                    # 对话模型
+base_url = "https://open.bigmodel.cn/api/paas/v4"   # Zhipu; swap for DeepSeek / Kimi / OpenAI endpoints
+api_key = "your-api-key-here"                        # or set the env var BRAIN_LLM_API_KEY
+model = "glm-4.6"                                    # chat model
 
 [embed]
 base_url = "https://open.bigmodel.cn/api/paas/v4"
-api_key = "your-api-key-here"                        # 或设环境变量 BRAIN_EMBED_API_KEY
-model = "embedding-3"                                # 向量模型
+api_key = "your-api-key-here"                        # or set the env var BRAIN_EMBED_API_KEY
+model = "embedding-3"                                # embedding model
 
-# 要灌入的文档目录（递归扫描 .md / .txt）
+# Directories to index (scanned recursively for .md / .txt)
 [[sources]]
-path = "D:/notes"                                    # 改成你的目录
-# path = "E:/work/gitee/minimax-h3-turing/docs"     # 可配多个
+path = "D:/notes"                                    # change to your directory
+# path = "C:/Users/me/Documents/project-docs"       # add as many as you like
 
 [chunk]
-size = 800        # 切分目标长度（字符）
-overlap = 100     # 相邻切分重叠
+size = 800        # target chunk length (characters)
+overlap = 100     # overlap between neighboring chunks
 
 [top_k]
-search = 5        # 检索条数
+search = 5        # number of hits per search
 
 [store]
-path = "./chroma_db"   # 向量库落盘位置
+path = "./chroma_db"   # where the vector store lives on disk

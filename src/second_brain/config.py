@@ -1,4 +1,4 @@
-"""配置加载：config.toml（推荐）+ 环境变量覆盖密钥。"""
+"""Config loading: config.toml (recommended) + env-var overrides for keys."""
 from __future__ import annotations
 
 import os
@@ -29,13 +29,13 @@ class Config:
     def validate(self) -> None:
         problems = []
         if not self.llm.get("api_key"):
-            problems.append("llm.api_key 未配置（config.toml 或环境变量 BRAIN_LLM_API_KEY）")
+            problems.append('llm.api_key is not set (config.toml or env var BRAIN_LLM_API_KEY)')
         if not self.embed.get("api_key"):
-            problems.append("embed.api_key 未配置（或 BRAIN_EMBED_API_KEY）")
+            problems.append("embed.api_key is not set (or BRAIN_EMBED_API_KEY)")
         if not self.sources:
-            problems.append("sources 未配置任何文档目录")
+            problems.append("no sources configured — add at least one document directory")
         if problems:
-            raise SystemExit("配置缺失：\n  " + "\n  ".join(problems))
+            raise SystemExit("Missing configuration:\n  " + "\n  ".join(problems))
 
 
 def load(path: str = "config.toml") -> Config:
@@ -50,9 +50,10 @@ def load(path: str = "config.toml") -> Config:
             getattr(cfg, section).update(raw.get(section, {}))
         cfg.sources = raw.get("sources", [])
     else:
-        print(f"[warn] 未找到 {path}，使用默认配置（首次使用请 cp config.example.toml config.toml）")
+        print(f"[warn] {path} not found — using defaults "
+              f"(first run: cp config.example.toml config.toml)")
 
-    # 环境变量覆盖密钥，避免明文进文件
+    # env vars override keys so plaintext secrets never have to sit in the file
     if v := os.environ.get("BRAIN_LLM_API_KEY"):
         cfg.llm["api_key"] = v
     if v := os.environ.get("BRAIN_EMBED_API_KEY"):

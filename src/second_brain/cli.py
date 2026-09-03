@@ -1,4 +1,4 @@
-"""CLI：ingest / search / ask。"""
+"""CLI: ingest / search / ask."""
 from __future__ import annotations
 
 import argparse
@@ -21,7 +21,7 @@ def cmd_ingest(cfg) -> None:
     embedder, store = build(cfg)
     docs = loaders.scan_sources(cfg.sources)
     if not docs:
-        print("没有扫到任何 .md/.txt 文档，检查 config.toml 的 sources")
+        print("No .md/.txt documents found — check the sources entries in config.toml")
         return
     added = updated = skipped = 0
     for doc in docs:
@@ -39,9 +39,9 @@ def cmd_ingest(cfg) -> None:
             continue
         vectors = embedder.embed(chunks)
         store.upsert_chunks(chunks, vectors, doc["path"], doc["hash"])
-        print(f"  + {Path(doc['path']).name}: {len(chunks)} 片段")
-    print(f"完成: 新增 {added} / 更新 {updated} / 未变 {skipped}，"
-          f"库中共 {store.count()} 片段")
+        print(f"  + {Path(doc['path']).name}: {len(chunks)} chunks")
+    print(f"Done: {added} added / {updated} updated / {skipped} unchanged — "
+          f"{store.count()} chunks in store")
 
 
 def cmd_search(cfg, query: str) -> None:
@@ -49,10 +49,10 @@ def cmd_search(cfg, query: str) -> None:
     from second_brain.retriever import Retriever
     hits = Retriever(embedder, store, cfg.top_k["search"]).search(query)
     if not hits:
-        print("（无结果）")
+        print("(no results)")
         return
     for i, h in enumerate(hits, 1):
-        print(f"[{i}] {h['source']}  (相似度 {1 - h['distance']:.3f})")
+        print(f"[{i}] {h['source']}  (similarity {1 - h['distance']:.3f})")
         print(f"    {h['text'][:120].replace(chr(10), ' ')}...")
 
 
@@ -62,19 +62,20 @@ def cmd_ask(cfg, question: str) -> None:
     embedder, store = build(cfg)
     hits = Retriever(embedder, store, cfg.top_k["search"]).search(question)
     if not hits:
-        print("（知识库里没有相关内容）")
+        print("(nothing relevant in the knowledge base)")
         return
-    print("回答:\n")
+    print("Answer:\n")
     print(answer(cfg.llm, question, hits))
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="second-brain-rag 个人知识库问答")
+    parser = argparse.ArgumentParser(
+        description="second-brain-rag — Q&A over your personal knowledge base")
     sub = parser.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("ingest", help="扫描目录，增量灌入知识库")
-    p_search = sub.add_parser("search", help="纯检索（不调 LLM）")
+    sub.add_parser("ingest", help="scan source directories and incrementally index them")
+    p_search = sub.add_parser("search", help="retrieval only (no LLM call)")
     p_search.add_argument("query")
-    p_ask = sub.add_parser("ask", help="检索 + LLM 回答")
+    p_ask = sub.add_parser("ask", help="retrieval + LLM answer with citations")
     p_ask.add_argument("question")
     args = parser.parse_args()
 

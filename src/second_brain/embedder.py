@@ -1,4 +1,4 @@
-"""向量化：OpenAI 兼容 embeddings 端点（智谱/DeepSeek/OpenAI 均适用）。"""
+"""Embeddings via any OpenAI-compatible endpoint (Zhipu / DeepSeek / OpenAI / …)."""
 from __future__ import annotations
 
 from openai import OpenAI
@@ -10,7 +10,7 @@ class Embedder:
         self.model = model
 
     def embed(self, texts: list[str], batch: int = 16) -> list[list[float]]:
-        """批量向量化；自动分批避免超长请求。"""
+        """Embed in batches to keep requests within length limits."""
         vectors: list[list[float]] = []
         for i in range(0, len(texts), batch):
             part = [t.replace("\n", " ")[:4000] for t in texts[i:i + batch]]

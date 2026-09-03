@@ -1,4 +1,4 @@
-"""向量库：ChromaDB 持久化封装 + 增量记账（按文件内容 hash）。"""
+"""Vector store: ChromaDB persistence wrapper + incremental bookkeeping (by file content hash)."""
 from __future__ import annotations
 
 import chromadb
@@ -10,7 +10,7 @@ class Store:
         self.collection = self.client.get_or_create_collection(
             "brain", metadata={"hnsw:space": "cosine"})
 
-    # ---- 记账：文件级增量 ----
+    # ---- bookkeeping: per-file incrementality ----
 
     def indexed_hash(self, path: str) -> str | None:
         got = self.collection.get(where={"source": path}, include=["metadatas"], limit=1)
@@ -20,7 +20,7 @@ class Store:
     def delete_file(self, path: str) -> None:
         self.collection.delete(where={"source": path})
 
-    # ---- 写入 ----
+    # ---- writes ----
 
     def upsert_chunks(self, chunks: list[str], vectors: list[list[float]],
                       path: str, file_hash: str) -> None:
@@ -34,7 +34,7 @@ class Store:
     def count(self) -> int:
         return self.collection.count()
 
-    # ---- 检索 ----
+    # ---- retrieval ----
 
     def query(self, vector: list[float], top_k: int) -> list[dict]:
         got = self.collection.query(query_embeddings=[vector], n_results=top_k)

@@ -1,11 +1,13 @@
-"""检索与问答。"""
+"""Retrieval and question answering."""
 from __future__ import annotations
 
 from openai import OpenAI
 
 SYSTEM_PROMPT = (
-    "你是用户个人知识库的问答助手。只依据提供的资料回答，"
-    "资料里没有的就直说没有，不要编造。回答末尾用 [来源: 文件路径] 列出引用。"
+    "You are a Q&A assistant over the user's personal knowledge base. "
+    "Answer only from the provided excerpts; if they don't contain the answer, "
+    "say so plainly — do not invent. End your reply with a list of citations "
+    "in the form [source: file path]."
 )
 
 
@@ -20,7 +22,7 @@ class Retriever:
 
 def answer(llm_cfg: dict, question: str, hits: list[dict]) -> str:
     context = "\n\n---\n\n".join(
-        f"[片段 {i + 1} | 来源: {h['source']}]\n{h['text']}"
+        f"[chunk {i + 1} | source: {h['source']}]\n{h['text']}"
         for i, h in enumerate(hits))
     client = OpenAI(base_url=llm_cfg["base_url"], api_key=llm_cfg["api_key"])
     resp = client.chat.completions.create(
@@ -28,7 +30,7 @@ def answer(llm_cfg: dict, question: str, hits: list[dict]) -> str:
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user",
-             "content": f"资料：\n\n{context}\n\n---\n\n问题：{question}"},
+             "content": f"Excerpts:\n\n{context}\n\n---\n\nQuestion: {question}"},
         ],
         temperature=0.3,
     )

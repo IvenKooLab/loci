@@ -1,4 +1,4 @@
-"""切分：markdown 按标题层级切；超长段落滑窗兜底。"""
+"""Chunking: split markdown along headings; sliding window for oversized sections."""
 from __future__ import annotations
 
 import re
@@ -7,9 +7,10 @@ _HEADING = re.compile(r"^(#{1,6})\s+", re.M)
 
 
 def split_markdown(text: str, size: int, overlap: int) -> list[str]:
-    """先按标题切段，超长段再按滑窗切。返回切分列表。"""
+    """Split by headings first, then apply a sliding window to oversized sections."""
     sections = _HEADING.split(text)
-    # re.split 带捕获组时输出 [前置, 分隔, 内容, 分隔, 内容...]，把标题名拼回内容
+    # re.split with a capture group yields [lead, sep, content, sep, content, ...];
+    # re-attach each heading marker to the section that follows it
     chunks: list[str] = []
     if sections and sections[0].strip():
         chunks.append(sections[0])
@@ -25,7 +26,7 @@ def split_markdown(text: str, size: int, overlap: int) -> list[str]:
             result.append(sec)
         else:
             result.extend(_sliding_window(sec, size, overlap))
-    return [c for c in result if len(c) >= 30]  # 过滤碎片
+    return [c for c in result if len(c) >= 30]  # drop tiny fragments
 
 
 def _sliding_window(text: str, size: int, overlap: int) -> list[str]:

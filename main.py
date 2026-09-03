@@ -1,4 +1,4 @@
-"""入口：python main.py ingest|search|ask"""
+"""Entry point: python main.py ingest|search|ask"""
 import sys
 from pathlib import Path
 
