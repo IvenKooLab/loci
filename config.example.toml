@@ -22,5 +22,12 @@ overlap = 100     # overlap between neighboring chunks
 [top_k]
 search = 5        # number of hits per search
 
+[retrieval]
+hybrid = true     # fuse vector search with BM25 (Reciprocal Rank Fusion)
+rrf_k = 60        # RRF smoothing constant; higher = flatter fusion weights
+
+[watch]
+interval = 30     # seconds between scans in `watch` mode
+
 [store]
 path = "./chroma_db"   # where the vector store lives on disk

@@ -13,6 +13,8 @@ DEFAULTS = {
               "api_key": "", "model": "embedding-3"},
     "chunk": {"size": 800, "overlap": 100},
     "top_k": {"search": 5},
+    "retrieval": {"hybrid": True, "rrf_k": 60},
+    "watch": {"interval": 30},
     "store": {"path": "./chroma_db"},
 }
 
@@ -23,6 +25,8 @@ class Config:
     embed: dict = field(default_factory=dict)
     chunk: dict = field(default_factory=dict)
     top_k: dict = field(default_factory=dict)
+    retrieval: dict = field(default_factory=dict)
+    watch: dict = field(default_factory=dict)
     store: dict = field(default_factory=dict)
     sources: list = field(default_factory=list)
 
@@ -46,8 +50,9 @@ def load(path: str = "config.toml") -> Config:
     p = Path(path)
     if p.exists():
         raw = tomllib.loads(p.read_text(encoding="utf-8"))
-        for section in ("llm", "embed", "chunk", "top_k", "store"):
-            getattr(cfg, section).update(raw.get(section, {}))
+        for section in DEFAULTS:
+            if isinstance(getattr(cfg, section), dict):
+                getattr(cfg, section).update(raw.get(section, {}))
         cfg.sources = raw.get("sources", [])
     else:
         print(f"[warn] {path} not found — using defaults "
