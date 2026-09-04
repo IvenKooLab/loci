@@ -1,26 +1,63 @@
 # second-brain-rag 🧠
 
-**A queryable "second brain" for the project docs, notes, and chat logs scattered across a dozen directories.**
+![CI](https://github.com/IvenKooLab/second-brain-rag/actions/workflows/ci.yml/badge.svg)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)
 
-Local files → chunking → embeddings → retrieval → LLM answer with citations. The index lives entirely on your machine; only the embedding/chat calls go out, to any OpenAI-compatible API (Zhipu / DeepSeek / Kimi / OpenAI / …).
+**A queryable "second brain" for the project docs, notes, and chat logs scattered
+across a dozen directories — and an MCP server so your AI agents can use it too.**
 
-> **Why no LangChain?** The whole pipeline is ~300 lines of plain Python, which means every stage stays readable, hackable, and learnable. Reach for a framework when you actually need the orchestration — not before.
->
-> **How does it relate to Obsidian?** It doesn't compete — the two layer up: Obsidian is the note-taking frontend (writing, backlinks, browsing), while this project is the **cross-vault search engine**. Point `sources` at any directories (Obsidian vaults, project docs, code-repo manuals, chat exports) and ask across all of them in one command. An MCP server is planned so agents can query it programmatically (see Roadmap). For Q&A inside a single vault, Obsidian's AI plugins already do the job — this covers what those plugins can't reach.
+Local files → heading-aware chunking → embeddings → hybrid retrieval (vector +
+BM25) → LLM answer with section-level citations. The index lives entirely on
+your machine; only embedding/chat calls go out, to any OpenAI-compatible API
+(Zhipu / DeepSeek / Kimi / OpenAI / …).
 
-## Architecture
+> **The thesis** (from studying the 90k-star platforms and the graveyard of
+> dead lightweight tools — see
+> [our competitive landscape study](docs/research/competitive-landscape.md)):
+> don't build another chat app. Build the **memory layer that every chat app
+> can mount**. Claude Desktop, Cursor, Cline, or any MCP host becomes this
+> project's UI, for free.
+
+## Demo
+
+Real session, indexed against the docs of
+[minimax-h3-turing](https://github.com/IvenKooLab/minimax-h3-turing)
+(paths shortened for display):
 
 ```
-local document dirs (markdown/txt, recursive)
-        │  ingest
-        ▼
-loaders ──► chunker (heading-aware split + sliding-window fallback) ──► embedder ──► store (ChromaDB, persistent)
-        │  ask
-        ▼
-retriever (top-k similarity) ──► answer (LLM synthesis + cited sources)
+$ python main.py search "T8 threshold 1.0 speedup" -k 3
+
+[1] minimax-h3-turing/docs/en/08-t8-blockcache-4step.md > The Data            (similarity 0.620)
+[2] minimax-h3-turing/docs/08-t8-blockcache-4step.md > 数据                    (similarity 0.599)
+[3] minimax-h3-turing/docs/en/08-t8-blockcache-4step.md > Practical Advice    (similarity 0.600)
+
+$ python main.py ask "T8 激进档和成片档分别怎么选？为什么"
+
+Answer:
+* T8 激进档：草稿/预览/选镜头用，最快、比常规快 43%（2.7 分钟/镜）
+* 成片档（无 T8）：为保证可复现性与审片一致性——T8 会让采样轨迹分叉，
+  同 seed 也产出内容偏移的不同视频
+
+[source: docs/08-t8-blockcache-4step.md > 实操建议（4 步 Turbo 路线）]
+[source: docs/09-pdd-backport.md > 档位体系]
+[source: docs/08-t8-blockcache-4step.md > 质量分析（重要）]
 ```
 
-## Quick start
+Hybrid retrieval means a Chinese query still finds the English doc (and vice
+versa) — keyword evidence (`BM25`) catches what embeddings miss, and every
+citation points at a **section**, not just a file.
+
+## How it relates to Obsidian / your note app
+
+It doesn't compete — the two layer up. Obsidian (or any editor) is the
+note-taking frontend; this is the **cross-vault search engine**: point
+`sources` at any directories (Obsidian vaults, project docs, chat exports)
+and query all of them at once — from your terminal, your scripts, or your AI
+agent via MCP. Frontmatter `tags:` are understood, code blocks are never cut
+mid-block, and one-line notes stay searchable.
+
+## Install & quick start
 
 Requires Python 3.11+ (uses the stdlib `tomllib`).
 
@@ -29,17 +66,50 @@ pip install -r requirements.txt
 
 # 1. Configure: copy the example and fill in your values
 cp config.example.toml config.toml
-#    API keys, models, and the directories you want to index
 
 # 2. Ingest (incremental — deduplicated by content hash, safe to re-run)
 python main.py ingest
 
-# 3. Plain retrieval (check chunking and recall quality, no LLM call)
-python main.py search "how does the project keep dependencies minimal"
-
-# 4. Ask (retrieval + LLM answer with citations)
-python main.py ask "why does the index track files by content hash"
+# 3. Ask
+python main.py ask "what did I write about X?"
 ```
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `ingest` | scan sources, index new/changed files, prune deleted ones (`--force` re-embeds everything) |
+| `search "query"` | retrieval only — ranked excerpts with `path > section` breadcrumbs (`--tag foo` filters by frontmatter tag, `-k N` overrides top_k) |
+| `ask "question"` | retrieval + LLM answer with `[source: path > section]` citations |
+| `chat` | multi-turn Q&A loop with conversation memory (`/clear`, `/exit`) |
+| `watch` | keep the index current by polling sources (interval in `[watch]`) |
+| `stats` | what's in the index: chunks per source, models, retrieval settings |
+| `doctor` | health check: config, source dirs, embed/LLM endpoints, store (exit code 1 on failure — CI-friendly) |
+| `python mcp_server.py` | MCP server over stdio (see below) |
+
+## Mount it in any MCP host
+
+Add to `claude_desktop_config.json` (Claude Desktop) or your MCP client's
+config:
+
+```json
+{
+  "mcpServers": {
+    "second-brain": {
+      "command": "python",
+      "args": ["/path/to/second-brain-rag/mcp_server.py"]
+    }
+  }
+}
+```
+
+The server exposes three tools (zero dependencies beyond the core):
+
+| Tool | Purpose |
+|---|---|
+| `brain_search(query, k?, tag?)` | ranked excerpts with breadcrumbs |
+| `brain_ask(question)` | grounded answer with citations |
+| `brain_ingest(force?)` | incremental re-index |
 
 ## Configuration
 
@@ -47,22 +117,47 @@ python main.py ask "why does the index track files by content hash"
 |---|---|
 | `[llm]` | base_url / api_key / model — any OpenAI-compatible endpoint |
 | `[embed]` | same; the model must be an embedding model (e.g. `embedding-3`) |
-| `[[sources]]` | list of document directories, scanned recursively for `.md` / `.txt` |
+| `[[sources]]` | list of document directories, scanned recursively for `.md` / `.txt` (`.pdf` too, if `pypdf` is installed) |
 | `[chunk]` | chunking params (default 800 chars / 100 overlap) |
 | `[top_k]` | number of hits per search (default 5) |
+| `[retrieval]` | `hybrid` (vector+BM25 fusion, default on) and `rrf_k` |
+| `[watch]` | poll `interval` seconds |
 
-API keys can also come from the environment variables `BRAIN_LLM_API_KEY` / `BRAIN_EMBED_API_KEY` (these override the config file).
+API keys can also come from the environment variables `BRAIN_LLM_API_KEY` /
+`BRAIN_EMBED_API_KEY` (these override the config file).
 
 ## Design decisions
 
-- **ChromaDB, local & persistent**: zero services, zero ops, works right after `pip install`; swap in Milvus when the corpus outgrows it
-- **Incremental indexing**: files are tracked by content hash — only changed files get re-embedded, deletions are cleaned up automatically
-- **Answers always cite**: every answer ends with source file paths, so claims stay traceable and verifiable
-- **Keys never in code**: keys live in `config.toml` (gitignored) or environment variables
+- **~300 lines of core, no LangChain** — every stage is readable, hackable,
+  and learnable. The whole engine fits in one sitting.
+- **MCP-first** — the agent ecosystem is the UI layer. No web app to maintain.
+- **Hybrid retrieval on by default** — vector search fused with a native
+  ~60-line BM25 (CJK-aware tokenizer) via Reciprocal Rank Fusion.
+- **Citations always, with breadcrumbs** — `path > section`, so claims are
+  verifiable at a glance.
+- **Robust, inspectable indexing** — defensive loaders (skip what can't be
+  parsed, never hang), content-hash incrementality, real pruning, `stats` and
+  `doctor` so the index is never a black box.
+- **Tiny notes stay searchable** — no minimum-chunk filter; a one-line note is
+  still indexed (a lesson from watching other tools drop or choke on them).
+- **Keys never in code** — `config.toml` (gitignored) or env vars.
+
+## Where it sits
+
+| | second-brain-rag | AnythingLLM (65k★) | Khoj (37k★) | RAGFlow (90k★) |
+|---|---|---|---|---|
+| Positioning | personal retrieval **backend** + MCP | all-in-one chat platform | self-hosted AI assistant | enterprise RAG engine |
+| Footprint | 2 runtime deps, no Docker | desktop app / Docker | Django server + workers | Docker, DeepDoc models |
+| UI | your terminal & your agents | built-in web/desktop | web + Obsidian/Emacs | web |
+| MCP server | ✅ native | consumer | — | — |
+| Hackable core | ✅ ~300 lines | ❌ | ❌ | ❌ |
+| Multi-user | by design, no | ✅ | ✅ | ✅ |
+
+(Full data and reasoning: [competitive landscape study](docs/research/competitive-landscape.md).)
 
 ## Roadmap
 
-See [docs/roadmap.md](docs/roadmap.md) — MCP server, web UI, hybrid retrieval (BM25), reranking, PDF support.
+See [docs/roadmap.md](docs/roadmap.md) — reranking, GraphRAG experiments, more loaders.
 
 ## License
 
