@@ -1,9 +1,16 @@
-"""Document loading: recursively scan directories for .md/.txt files,
-peel off Obsidian-style YAML frontmatter (tags/aliases subset)."""
+"""Document loading: recursively scan directories for .md/.txt (and .pdf when
+the optional pypdf package is installed), peeling off Obsidian-style YAML
+frontmatter (tags/aliases subset)."""
 from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+
+try:
+    from pypdf import PdfReader
+    HAS_PDF = True
+except ImportError:
+    HAS_PDF = False
 
 SUFFIXES = {".md", ".txt"}
 
@@ -62,6 +69,27 @@ def tags_of(meta: dict) -> str:
     return ",".join(t for t in items if t)
 
 
+def _read_text(p: Path) -> str | None:
+    """Read a document as text; returns None when it can't be handled."""
+    suffix = p.suffix.lower()
+    if suffix in SUFFIXES:
+        try:
+            return p.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            print(f"[warn] not UTF-8, skipping: {p.name}")
+            return None
+    if suffix == ".pdf":
+        if not HAS_PDF:
+            return None  # silently skip; `doctor` mentions the optional extra
+        try:
+            reader = PdfReader(str(p))
+            return "\n\n".join((page.extract_text() or "") for page in reader.pages)
+        except Exception as e:
+            print(f"[warn] pdf unreadable, skipping: {p.name} ({e})")
+            return None
+    return None
+
+
 def scan_sources(sources: list[dict]) -> list[dict]:
     """Return [{path, content, hash, tags}] with absolute path strings."""
     docs, seen = [], set()
@@ -71,20 +99,19 @@ def scan_sources(sources: list[dict]) -> list[dict]:
             print(f"[warn] directory not found, skipping: {root}")
             continue
         for p in sorted(root.rglob("*")):
-            if not p.is_file() or p.suffix.lower() not in SUFFIXES:
+            if not p.is_file():
+                continue
+            suffix = p.suffix.lower()
+            if suffix not in SUFFIXES and suffix != ".pdf":
                 continue
             ap = str(p.resolve())
             if ap in seen:
                 continue
             seen.add(ap)
-            try:
-                raw = p.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
-                print(f"[warn] not UTF-8, skipping: {p.name}")
+            text = _read_text(p)
+            if text is None or not text.strip():
                 continue
-            if not raw.strip():
-                continue
-            meta, body = parse_frontmatter(raw)
-            docs.append({"path": ap, "content": body, "hash": file_hash(raw),
+            meta, body = parse_frontmatter(text)
+            docs.append({"path": ap, "content": body, "hash": file_hash(text),
                          "tags": tags_of(meta)})
     return docs
