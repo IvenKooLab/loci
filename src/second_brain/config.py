@@ -13,7 +13,7 @@ DEFAULTS = {
               "api_key": "", "model": "embedding-3"},
     "chunk": {"size": 800, "overlap": 100},
     "top_k": {"search": 5},
-    "retrieval": {"hybrid": True, "rrf_k": 60},
+    "retrieval": {"hybrid": True, "rrf_k": 60, "rerank": False},
     "watch": {"interval": 30},
     "store": {"path": "./chroma_db"},
 }

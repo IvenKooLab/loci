@@ -48,6 +48,17 @@ Hybrid retrieval means a Chinese query still finds the English doc (and vice
 versa) — keyword evidence (`BM25`) catches what embeddings miss, and every
 citation points at a **section**, not just a file.
 
+### Does hybrid actually help? (mini-eval, 10 bilingual queries)
+
+```
+$ python scripts/eval_retrieval.py scripts/eval_cases.example.jsonl
+vector-only: 9/10  →  hybrid: 10/10
+```
+
+Hybrid also fixed the #1 ranking on keyword-ish queries (e.g. "T8 block cache
+threshold speedup": vector put an FAQ first, hybrid puts the actual T8
+writeup first). Run it against your own corpus with your own cases file.
+
 ## How it relates to Obsidian / your note app
 
 It doesn't compete — the two layer up. Obsidian (or any editor) is the
@@ -62,16 +73,20 @@ mid-block, and one-line notes stay searchable.
 Requires Python 3.11+ (uses the stdlib `tomllib`).
 
 ```bash
+# option A: install as a package (adds `second-brain` and `second-brain-mcp` commands)
+pip install -e ".[pdf]"        # [pdf] pulls optional pypdf for PDF sources
+
+# option B: zero-install quickstart
 pip install -r requirements.txt
 
 # 1. Configure: copy the example and fill in your values
 cp config.example.toml config.toml
 
 # 2. Ingest (incremental — deduplicated by content hash, safe to re-run)
-python main.py ingest
+second-brain ingest            # or: python main.py ingest
 
 # 3. Ask
-python main.py ask "what did I write about X?"
+second-brain ask "what did I write about X?"
 ```
 
 ## Commands
@@ -79,8 +94,8 @@ python main.py ask "what did I write about X?"
 | Command | What it does |
 |---|---|
 | `ingest` | scan sources, index new/changed files, prune deleted ones (`--force` re-embeds everything) |
-| `search "query"` | retrieval only — ranked excerpts with `path > section` breadcrumbs (`--tag foo` filters by frontmatter tag, `-k N` overrides top_k) |
-| `ask "question"` | retrieval + LLM answer with `[source: path > section]` citations |
+| `search "query"` | retrieval only — ranked excerpts with `path > section` breadcrumbs (`--tag foo` filters by frontmatter tag, `-k N` overrides top_k, `--rerank` LLM-reranks candidates) |
+| `ask "question"` | retrieval + LLM answer with `[source: path > section]` citations (`--rerank` supported) |
 | `chat` | multi-turn Q&A loop with conversation memory (`/clear`, `/exit`) |
 | `watch` | keep the index current by polling sources (interval in `[watch]`) |
 | `stats` | what's in the index: chunks per source, models, retrieval settings |
@@ -120,7 +135,7 @@ The server exposes three tools (zero dependencies beyond the core):
 | `[[sources]]` | list of document directories, scanned recursively for `.md` / `.txt` (`.pdf` too, if `pypdf` is installed) |
 | `[chunk]` | chunking params (default 800 chars / 100 overlap) |
 | `[top_k]` | number of hits per search (default 5) |
-| `[retrieval]` | `hybrid` (vector+BM25 fusion, default on) and `rrf_k` |
+| `[retrieval]` | `hybrid` (vector+BM25 fusion, default on), `rrf_k`, `rerank` (LLM reranking, default off) |
 | `[watch]` | poll `interval` seconds |
 
 API keys can also come from the environment variables `BRAIN_LLM_API_KEY` /

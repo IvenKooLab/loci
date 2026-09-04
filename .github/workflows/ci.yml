@@ -21,3 +21,8 @@ jobs:
         run: pip install -r requirements.txt -r requirements-dev.txt
       - name: Run tests (offline — no API keys needed)
         run: pytest -q
+      - name: Packaging smoke (install + entry points)
+        run: |
+          pip install -e .
+          second-brain --help
+          echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}' | second-brain-mcp | grep serverInfo

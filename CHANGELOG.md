@@ -10,6 +10,16 @@ The "memory layer" release: hybrid retrieval, MCP server, and a test suite.
   Desktop, Cursor, Cline, or any MCP host
 - **Hybrid retrieval**: native ~60-line BM25 (CJK-aware tokenizer) fused with
   vector search via Reciprocal Rank Fusion; on by default (`[retrieval]` in config)
+- **Optional LLM reranking** (`[retrieval] rerank` or `--rerank`): pointwise
+  0–3 relevance scoring of fused candidates; fails open to the fused order on
+  any error
+- **Packaging** (`pyproject.toml`): `pip install second-brain-rag` installs
+  `second-brain` and `second-brain-mcp` console commands
+- **Retrieval eval harness** (`scripts/eval_retrieval.py`): hit@k comparison of
+  vector-only vs hybrid on your own labeled queries — the README number comes
+  from running it on a real 174-chunk corpus (10 bilingual queries: 9/10 → 10/10)
+- **CONTRIBUTING.md** and **docs/ARCHITECTURE.md**: module map, invariants,
+  and extension recipes
 - **Heading breadcrumbs**: chunks carry their heading path; search results and
   citations now show `file > section`
 - **Frontmatter tags**: Obsidian-style `tags:` are indexed; `search --tag` filters

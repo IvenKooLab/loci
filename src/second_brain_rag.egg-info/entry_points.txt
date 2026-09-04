@@ -1,0 +1,3 @@
+[console_scripts]
+second-brain = second_brain.cli:main
+second-brain-mcp = second_brain.mcp_server:serve

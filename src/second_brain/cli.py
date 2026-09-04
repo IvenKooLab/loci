@@ -20,7 +20,8 @@ def build(cfg):
 def make_retriever(cfg, embedder, store):
     from second_brain.retriever import Retriever
     return Retriever(embedder, store, cfg.top_k["search"],
-                     hybrid=cfg.retrieval["hybrid"], rrf_k=cfg.retrieval["rrf_k"])
+                     hybrid=cfg.retrieval["hybrid"], rrf_k=cfg.retrieval["rrf_k"],
+                     rerank=cfg.retrieval.get("rerank", False), llm_cfg=cfg.llm)
 
 
 def cmd_ingest(cfg, force: bool = False) -> None:
@@ -53,9 +54,9 @@ def cmd_ingest(cfg, force: bool = False) -> None:
           f"{store.count()} chunks in store")
 
 
-def cmd_search(cfg, query: str, tag: str | None = None) -> None:
+def cmd_search(cfg, query: str, tag: str | None = None, rerank: bool | None = None) -> None:
     embedder, store = build(cfg)
-    hits = make_retriever(cfg, embedder, store).search(query, tag=tag)
+    hits = make_retriever(cfg, embedder, store).search(query, tag=tag, rerank=rerank)
     if not hits:
         print("(no results)")
         return
@@ -66,10 +67,11 @@ def cmd_search(cfg, query: str, tag: str | None = None) -> None:
         print(f"    {h['text'][:120].replace(chr(10), ' ')}...")
 
 
-def cmd_ask(cfg, question: str) -> None:
+def cmd_ask(cfg, question: str, rerank: bool | None = None) -> None:
     from second_brain.retriever import Retriever, answer
     embedder, store = build(cfg)
-    hits = make_retriever(cfg, embedder, store).search(question)
+    retriever = make_retriever(cfg, embedder, store)
+    hits = retriever.search(question, rerank=rerank)
     if not hits:
         print("(nothing relevant in the knowledge base)")
         return
@@ -149,6 +151,14 @@ def cmd_doctor(cfg) -> int:
     except Exception as e:  # pragma: no cover
         checks.append(("chromadb import", False, str(e)))
 
+    from second_brain import loaders
+    if loaders.HAS_PDF:
+        checks.append(("pdf support", True, "pypdf installed"))
+    else:
+        checks.append(("pdf support", None,
+                       "pypdf not installed — .pdf sources are skipped "
+                       "(pip install 'second-brain-rag[pdf]')"))
+
     if cfg.embed.get("api_key"):
         try:
             embedder, store = build(cfg)
@@ -171,9 +181,12 @@ def cmd_doctor(cfg) -> int:
 
     failed = 0
     for name, ok, detail in checks:
-        mark = "✓" if ok else "✗"
-        if not ok:
-            failed += 1
+        if ok is None:  # advisory, not a failure
+            mark = "i"
+        else:
+            mark = "✓" if ok else "✗"
+            if not ok:
+                failed += 1
         print(f"  {mark} {name:<16} {detail}")
     print(f"\n{len(checks) - failed}/{len(checks)} checks passed"
           + ("" if not failed else " — fix the ✗ items above"))
@@ -193,13 +206,18 @@ def main() -> None:
     p_search.add_argument("query")
     p_search.add_argument("--tag", help="filter hits by frontmatter tag")
     p_search.add_argument("-k", type=int, help="override top_k")
+    p_search.add_argument("--rerank", action="store_true",
+                          help="LLM-rerank candidates before returning them")
 
     p_ask = sub.add_parser("ask", help="retrieval + LLM answer with citations")
     p_ask.add_argument("question")
     p_ask.add_argument("-k", type=int, help="override top_k")
+    p_ask.add_argument("--rerank", action="store_true",
+                       help="LLM-rerank candidates before answering")
 
     sub.add_parser("chat", help="multi-turn Q&A loop with conversation memory")
     sub.add_parser("watch", help="keep the index current by polling sources")
+    sub.add_parser("serve", help="run the MCP server over stdio (alias for mcp_server.py)")
     sub.add_parser("stats", help="show what is in the index")
     sub.add_parser("doctor", help="check config, endpoints, and store health")
 
@@ -207,22 +225,26 @@ def main() -> None:
     cfg = config.load()
     if getattr(args, "k", None):
         cfg.top_k["search"] = args.k
+    wants_rerank = getattr(args, "rerank", False)
 
     if args.cmd == "ingest":
         cfg.validate()
         cmd_ingest(cfg, force=args.force)
     elif args.cmd == "search":
         cfg.validate()
-        cmd_search(cfg, args.query, tag=args.tag)
+        cmd_search(cfg, args.query, tag=args.tag, rerank=wants_rerank or None)
     elif args.cmd == "ask":
         cfg.validate()
-        cmd_ask(cfg, args.question)
+        cmd_ask(cfg, args.question, rerank=wants_rerank or None)
     elif args.cmd == "chat":
         cfg.validate()
         cmd_chat(cfg)
     elif args.cmd == "watch":
         cfg.validate()
         cmd_watch(cfg)
+    elif args.cmd == "serve":
+        from second_brain.mcp_server import serve
+        serve()
     elif args.cmd == "stats":
         cmd_stats(cfg)
     elif args.cmd == "doctor":

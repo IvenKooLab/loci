@@ -1,0 +1,8 @@
+openai>=1.50
+chromadb>=0.5
+
+[dev]
+pytest>=8
+
+[pdf]
+pypdf>=4
