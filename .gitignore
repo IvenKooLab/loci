@@ -4,3 +4,5 @@ data/
 __pycache__/
 *.pyc
 .env
+src/*.egg-info/
+*.egg-info/
