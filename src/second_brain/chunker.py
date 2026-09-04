@@ -28,9 +28,14 @@ def split_markdown(text: str, size: int, overlap: int) -> list[dict]:
                 # never slice inside a fenced block, even if it overflows `size`
                 out.append({"text": seg, "section": crumb})
             else:
+                pieces = _sliding_window(seg, size, overlap)
+                # merge a tiny tail window into its neighbor instead of dropping it
+                if len(pieces) > 1 and len(pieces[-1]) < 30:
+                    pieces[-2] += pieces.pop()
                 out.extend({"text": piece, "section": crumb}
-                           for piece in _sliding_window(seg, size, overlap))
-    return [c for c in out if len(c["text"]) >= 30]  # drop tiny fragments
+                           for piece in pieces)
+    # every natural block survives, however short — tiny notes must stay searchable
+    return [c for c in out if c["text"].strip()]
 
 
 def _blocks_with_breadcrumbs(text: str) -> list[tuple[str, str]]:
