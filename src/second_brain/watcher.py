@@ -24,7 +24,8 @@ def ingest_once(cfg) -> int:
         if not chunks:
             continue
         vectors = embedder.embed([c["text"] for c in chunks])
-        store.upsert_chunks(chunks, vectors, doc["path"], doc["hash"], doc["tags"])
+        store.upsert_chunks(chunks, vectors, doc["path"], doc["hash"],
+                            doc["tags"], doc["links"])
         changed += 1
         print(f"  [{_now()}] re-indexed: {doc['path']}")
     return changed

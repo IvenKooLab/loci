@@ -33,10 +33,11 @@ def test_ping():
     assert handle_message(msg(2, "ping"), brain())["result"] == {}
 
 
-def test_tools_list_has_three_tools():
+def test_tools_list_has_five_tools():
     resp = handle_message(msg(3, "tools/list"), brain())
     names = [t["name"] for t in resp["result"]["tools"]]
-    assert names == ["brain_search", "brain_ask", "brain_ingest"]
+    assert names == ["brain_search", "brain_ask", "brain_links",
+                     "brain_stats", "brain_ingest"]
     for tool in TOOLS:
         assert tool["inputSchema"]["type"] == "object"
 

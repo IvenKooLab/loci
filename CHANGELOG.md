@@ -28,6 +28,9 @@ The "memory layer" release: hybrid retrieval, MCP server, and a test suite.
 - **`stats`**: chunks per source, models, retrieval settings
 - **`doctor`**: health check for config, source dirs, embed/LLM endpoints and store;
   exits 1 when something is broken
+- **Wikilink graph**: `[[wikilink]]` targets are indexed; the new `links`
+  command (and `brain_links` MCP tool) shows what a note links to and what
+  links back — Obsidian's graph view, queryable from anywhere
 - **`ingest --force`**: re-embed everything, ignoring content hashes
 - **Optional PDF loading**: install `pypdf` and `.pdf` files in sources are indexed
 - **Tests**: 59-test offline suite (hash-based fake embedder + real ChromaDB in temp

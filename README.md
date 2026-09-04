@@ -65,8 +65,9 @@ It doesn't compete — the two layer up. Obsidian (or any editor) is the
 note-taking frontend; this is the **cross-vault search engine**: point
 `sources` at any directories (Obsidian vaults, project docs, chat exports)
 and query all of them at once — from your terminal, your scripts, or your AI
-agent via MCP. Frontmatter `tags:` are understood, code blocks are never cut
-mid-block, and one-line notes stay searchable.
+agent via MCP. Obsidian-native details are understood: frontmatter `tags:`
+(filter with `search --tag`), `[[wikilinks]]` (walk the graph with `links`),
+code blocks are never cut mid-block, and one-line notes stay searchable.
 
 ## Install & quick start
 
@@ -96,6 +97,7 @@ second-brain ask "what did I write about X?"
 | `ingest` | scan sources, index new/changed files, prune deleted ones (`--force` re-embeds everything) |
 | `search "query"` | retrieval only — ranked excerpts with `path > section` breadcrumbs (`--tag foo` filters by frontmatter tag, `-k N` overrides top_k, `--rerank` LLM-reranks candidates) |
 | `ask "question"` | retrieval + LLM answer with `[source: path > section]` citations (`--rerank` supported) |
+| `links "note"` | show the `[[wikilink]]` graph around a note — outbound and inbound |
 | `chat` | multi-turn Q&A loop with conversation memory (`/clear`, `/exit`) |
 | `watch` | keep the index current by polling sources (interval in `[watch]`) |
 | `stats` | what's in the index: chunks per source, models, retrieval settings |
@@ -124,6 +126,8 @@ The server exposes three tools (zero dependencies beyond the core):
 |---|---|
 | `brain_search(query, k?, tag?)` | ranked excerpts with breadcrumbs |
 | `brain_ask(question)` | grounded answer with citations |
+| `brain_links(note)` | outbound/inbound `[[wikilink]]` graph around a note |
+| `brain_stats()` | index overview (chunks per source) |
 | `brain_ingest(force?)` | incremental re-index |
 
 ## Configuration

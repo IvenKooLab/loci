@@ -8,6 +8,7 @@
 - [x] **MCP server** (pulled forward from v0.3): `brain_search` / `brain_ask` / `brain_ingest` over stdio
 - [x] Heading-breadcrumb chunks and section-level citations
 - [x] Obsidian frontmatter tags + `search --tag`
+- [x] `[[wikilink]]` graph: `links` command + `brain_links` MCP tool
 - [x] `watch` mode (pure polling, no watchdog dependency)
 - [x] `chat` multi-turn loop with conversation memory
 - [x] PDF loading (optional `pypdf` extra)

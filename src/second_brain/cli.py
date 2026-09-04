@@ -47,7 +47,8 @@ def cmd_ingest(cfg, force: bool = False) -> None:
         if not chunks:
             continue
         vectors = embedder.embed([c["text"] for c in chunks])
-        store.upsert_chunks(chunks, vectors, doc["path"], doc["hash"], doc["tags"])
+        store.upsert_chunks(chunks, vectors, doc["path"], doc["hash"],
+                            doc["tags"], doc["links"])
         print(f"  + {Path(doc['path']).name}: {len(chunks)} chunks")
     mode = " (forced)" if force else ""
     print(f"Done{mode}: {added} added / {updated} updated / {skipped} unchanged — "
@@ -113,6 +114,38 @@ def cmd_chat(cfg) -> None:
 def cmd_watch(cfg) -> None:
     from second_brain.watcher import cmd_watch as watch
     watch(cfg)
+
+
+def cmd_links(cfg, name: str) -> None:
+    _, store = build(cfg)
+    graph = store.link_map()
+
+    def note_stem(path: str) -> str:
+        return Path(path).stem.lower()
+
+    matches = [p for p in graph if name.lower() in note_stem(p) or name.lower() == note_stem(p)]
+    if not matches:
+        matches = [p for p, links in graph.items()
+                   if any(name.lower() in t.lower() for t in links.split(",") if t)]
+    if not matches:
+        print(f"(no note matching '{name}' in the index)")
+        return
+    for path in matches:
+        outbound = [t for t in graph.get(path, "").split(",") if t]
+        stem = note_stem(path)
+        inbound = [p for p, links in graph.items() if p != path and any(
+            stem in t.lower() for t in links.split(",") if t)]
+        print(f"{path}")
+        if outbound:
+            print("  links to:")
+            for t in outbound:
+                print(f"    -> {t}")
+        if inbound:
+            print("  linked from:")
+            for p in sorted(inbound):
+                print(f"    <- {p}")
+        if not outbound and not inbound:
+            print("  (no links either way)")
 
 
 def cmd_stats(cfg) -> None:
@@ -215,6 +248,9 @@ def main() -> None:
     p_ask.add_argument("--rerank", action="store_true",
                        help="LLM-rerank candidates before answering")
 
+    p_links = sub.add_parser("links", help="show [[wikilink]] outbound/inbound links for a note")
+    p_links.add_argument("note", help="note name (stem) to look up")
+
     sub.add_parser("chat", help="multi-turn Q&A loop with conversation memory")
     sub.add_parser("watch", help="keep the index current by polling sources")
     sub.add_parser("serve", help="run the MCP server over stdio (alias for mcp_server.py)")
@@ -239,6 +275,8 @@ def main() -> None:
     elif args.cmd == "chat":
         cfg.validate()
         cmd_chat(cfg)
+    elif args.cmd == "links":
+        cmd_links(cfg, args.note)
     elif args.cmd == "watch":
         cfg.validate()
         cmd_watch(cfg)

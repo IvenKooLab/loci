@@ -53,6 +53,22 @@ TOOLS = [
         },
     },
     {
+        "name": "brain_links",
+        "description": "Show the [[wikilink]] graph around a note: which notes it "
+                       "links to and which notes link back to it.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"note": {"type": "string",
+                                    "description": "note name (file stem) to look up"}},
+            "required": ["note"],
+        },
+    },
+    {
+        "name": "brain_stats",
+        "description": "Index overview: total chunks, chunks per source file.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "brain_ingest",
         "description": "Incrementally (re)index the configured source directories. "
                        "Safe to call repeatedly; only changed files are re-embedded.",
@@ -111,12 +127,32 @@ class Brain:
         lines = [l for l in buf.getvalue().splitlines() if l.strip()]
         return "\n".join(lines[-3:]) or "ingest finished"
 
+    def links(self, note: str) -> str:
+        self._ensure()
+        from second_brain.cli import cmd_links
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            cmd_links(self._cfg, note)
+        return buf.getvalue().strip() or f"(no note matching '{note}')"
+
+    def stats(self) -> str:
+        self._ensure()
+        from second_brain.cli import cmd_stats
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            cmd_stats(self._cfg)
+        return buf.getvalue().strip()
+
 
 def _call_tool(brain: Brain, name: str, args: dict) -> str:
     if name == "brain_search":
         return brain.search(args["query"], k=args.get("k"), tag=args.get("tag"))
     if name == "brain_ask":
         return brain.ask(args["question"])
+    if name == "brain_links":
+        return brain.links(args["note"])
+    if name == "brain_stats":
+        return brain.stats()
     if name == "brain_ingest":
         return brain.ingest(force=bool(args.get("force")))
     raise ValueError(f"unknown tool: {name}")

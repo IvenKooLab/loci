@@ -36,14 +36,16 @@ class Store:
     # ---- writes ----
 
     def upsert_chunks(self, chunks: list[dict], vectors: list[list[float]],
-                      path: str, file_hash: str, tags: str = "") -> None:
+                      path: str, file_hash: str,
+                      tags: str = "", links: str = "") -> None:
         """chunks: [{"text", "section"}] as produced by chunker.split_markdown."""
         self.delete_file(path)
         self.collection.add(
             ids=[f"{path}::{i}" for i in range(len(chunks))],
             documents=[c["text"] for c in chunks], embeddings=vectors,
             metadatas=[{"source": path, "hash": file_hash, "chunk": i,
-                        "section": c.get("section", ""), "tags": tags}
+                        "section": c.get("section", ""), "tags": tags,
+                        "links": links}
                        for i, c in enumerate(chunks)])
 
     def count(self) -> int:
@@ -84,3 +86,11 @@ class Store:
         for m in got.get("metadatas") or []:
             counts[m["source"]] = counts.get(m["source"], 0) + 1
         return dict(sorted(counts.items()))
+
+    def link_map(self) -> dict[str, str]:
+        """{source path: comma-joined outbound [[wikilink]] targets}."""
+        got = self.collection.get(include=["metadatas"])
+        out: dict[str, str] = {}
+        for m in got.get("metadatas") or []:
+            out.setdefault(m["source"], m.get("links", ""))
+        return out

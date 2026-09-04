@@ -1,9 +1,10 @@
 """Document loading: recursively scan directories for .md/.txt (and .pdf when
 the optional pypdf package is installed), peeling off Obsidian-style YAML
-frontmatter (tags/aliases subset)."""
+frontmatter (tags/aliases subset) and collecting [[wikilinks]]."""
 from __future__ import annotations
 
 import hashlib
+import re
 from pathlib import Path
 
 try:
@@ -13,6 +14,17 @@ except ImportError:
     HAS_PDF = False
 
 SUFFIXES = {".md", ".txt"}
+_WIKILINK = re.compile(r"\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]")
+
+
+def extract_wikilinks(body: str) -> str:
+    """Collect [[wikilink]] targets as a comma-joined string (deduplicated)."""
+    seen: list[str] = []
+    for m in _WIKILINK.finditer(body):
+        target = m.group(1).strip()
+        if target and target.lower() not in (t.lower() for t in seen):
+            seen.append(target)
+    return ",".join(seen)
 
 
 def file_hash(content: str) -> str:
@@ -91,7 +103,7 @@ def _read_text(p: Path) -> str | None:
 
 
 def scan_sources(sources: list[dict]) -> list[dict]:
-    """Return [{path, content, hash, tags}] with absolute path strings."""
+    """Return [{path, content, hash, tags, links}] with absolute path strings."""
     docs, seen = [], set()
     for src in sources:
         root = Path(src["path"]).expanduser()
@@ -113,5 +125,5 @@ def scan_sources(sources: list[dict]) -> list[dict]:
                 continue
             meta, body = parse_frontmatter(text)
             docs.append({"path": ap, "content": body, "hash": file_hash(text),
-                         "tags": tags_of(meta)})
+                         "tags": tags_of(meta), "links": extract_wikilinks(body)})
     return docs
