@@ -1,4 +1,4 @@
-from second_brain import config
+from loci import config
 
 
 def test_defaults_applied_without_file(tmp_path, capsys):

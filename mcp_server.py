@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
-from second_brain.mcp_server import serve  # noqa: E402
+from loci.mcp_server import serve  # noqa: E402
 
 if __name__ == "__main__":
     serve()

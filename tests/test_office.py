@@ -3,7 +3,7 @@ installed; CI installs `.[pdf]` and `.[docx]` so they run there too."""
 
 import pytest
 
-from second_brain import loaders
+from loci import loaders
 
 pytestmark_table = pytest.mark.skipif(not loaders.HAS_PDF_TABLES,
                                       reason="pymupdf4llm extra not installed")
@@ -38,7 +38,7 @@ def test_pdf_tables_become_readable_text(tmp_path):
 
 
 def test_pdf_table_survives_chunking_with_breadcrumb(tmp_path):
-    from second_brain.chunker import split_markdown
+    from loci.chunker import split_markdown
     pdf = make_table_pdf(tmp_path / "table.pdf")
     text = loaders._read_text(pdf)
     chunks = split_markdown(text, 800, 100)

@@ -8,9 +8,9 @@ can mount it:
 
     {
       "mcpServers": {
-        "second-brain": {
+        "loci": {
           "command": "python",
-          "args": ["/path/to/second-brain-rag/mcp_server.py"]
+          "args": ["/path/to/loci/mcp_server.py"]
         }
       }
     }
@@ -26,7 +26,7 @@ from urllib.parse import quote, unquote
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from second_brain import __version__, config  # noqa: E402
+from loci import __version__, config  # noqa: E402
 
 PROTOCOL_VERSION = "2024-11-05"
 
@@ -130,7 +130,7 @@ class Brain:
 
     def _ensure(self):
         if self._retriever is None:
-            from second_brain.cli import build, make_retriever
+            from loci.cli import build, make_retriever
             cfg = config.load()
             cfg.validate()
             embedder, store = build(cfg)
@@ -156,7 +156,7 @@ class Brain:
         hits = retriever.search(question)
         if not hits:
             return "(nothing relevant in the knowledge base)"
-        from second_brain.retriever import answer, verify_answer
+        from loci.retriever import answer, verify_answer
         reply = answer(cfg.llm, question, hits)
         if verify:
             reply += "\n\n" + verify_answer(cfg.llm, question, reply, hits)
@@ -164,7 +164,7 @@ class Brain:
 
     def ingest(self, force: bool = False) -> str:
         cfg, _ = self._ensure()
-        from second_brain.cli import cmd_ingest
+        from loci.cli import cmd_ingest
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):  # keep the protocol stream clean
             cmd_ingest(cfg, force=force)
@@ -173,7 +173,7 @@ class Brain:
 
     def links(self, note: str) -> str:
         self._ensure()
-        from second_brain.cli import cmd_links
+        from loci.cli import cmd_links
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             cmd_links(self._cfg, note)
@@ -181,7 +181,7 @@ class Brain:
 
     def stats(self) -> str:
         self._ensure()
-        from second_brain.cli import cmd_stats
+        from loci.cli import cmd_stats
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             cmd_stats(self._cfg)
@@ -258,7 +258,7 @@ def handle_message(msg: dict, brain: Brain) -> dict | None:
             return _ok(req_id, {
                 "protocolVersion": version,
                 "capabilities": {"tools": {}, "resources": {}, "prompts": {}},
-                "serverInfo": {"name": "second-brain-rag", "version": __version__},
+                "serverInfo": {"name": "loci", "version": __version__},
             })
         if method == "ping":
             return _ok(req_id, {})

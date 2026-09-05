@@ -38,9 +38,9 @@ def test_since_filter_excludes_old_files(tmp_path):
     })
     # make one file look two years old, then force a re-index pass
     age_file(tmp_path / "notes" / "old.md")
-    from second_brain import loaders, chunker
+    from loci import loaders, chunker
     from conftest import FakeEmbedder
-    from second_brain.store import Store
+    from loci.store import Store
     store = Store(r.store.path)
     embedder = FakeEmbedder()
     for doc in loaders.scan_sources([{"path": str(tmp_path / "notes")}]):
@@ -75,7 +75,7 @@ def test_filters_combine_with_tag(tmp_path):
 
 
 def test_parse_since_accepts_both_formats():
-    from second_brain.cli import parse_since
+    from loci.cli import parse_since
     mid_month = parse_since("2026-08-15")
     month_start = parse_since("2026-08")
     assert mid_month > month_start > 0  # YYYY-MM resolves to the 1st, 00:00

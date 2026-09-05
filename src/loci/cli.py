@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from second_brain import config, loaders, chunker  # noqa: E402
+from loci import config, loaders, chunker  # noqa: E402
 
 
 def parse_since(text: str) -> float:
@@ -22,14 +22,14 @@ def parse_since(text: str) -> float:
 
 
 def build(cfg):
-    from second_brain.embedder import Embedder
-    from second_brain.store import Store
+    from loci.embedder import Embedder
+    from loci.store import Store
     return Embedder(cfg.embed["base_url"], cfg.embed["api_key"], cfg.embed["model"]), \
         Store(cfg.store["path"])
 
 
 def make_retriever(cfg, embedder, store):
-    from second_brain.retriever import Retriever
+    from loci.retriever import Retriever
     return Retriever(embedder, store, cfg.top_k["search"],
                      hybrid=cfg.retrieval["hybrid"], rrf_k=cfg.retrieval["rrf_k"],
                      rerank=cfg.retrieval.get("rerank", False), llm_cfg=cfg.llm,
@@ -89,7 +89,7 @@ def cmd_search(cfg, query: str, tag: str | None = None, rerank: bool | None = No
 def cmd_ask(cfg, question: str, rerank: bool | None = None,
             path_contains: str | None = None, since: float | None = None,
             verify: bool = False, rerank_with: str | None = None) -> None:
-    from second_brain.retriever import Retriever, answer, verify_answer
+    from loci.retriever import Retriever, answer, verify_answer
     embedder, store = build(cfg)
     retriever = make_retriever(cfg, embedder, store)
     hits = retriever.search(question, rerank=rerank,
@@ -106,7 +106,7 @@ def cmd_ask(cfg, question: str, rerank: bool | None = None,
 
 
 def cmd_chat(cfg) -> None:
-    from second_brain.retriever import answer
+    from loci.retriever import answer
     embedder, store = build(cfg)
     retriever = make_retriever(cfg, embedder, store)
     history: list[dict] = []
@@ -137,7 +137,7 @@ def cmd_chat(cfg) -> None:
 
 
 def cmd_watch(cfg) -> None:
-    from second_brain.watcher import cmd_watch as watch
+    from loci.watcher import cmd_watch as watch
     watch(cfg)
 
 
@@ -209,23 +209,23 @@ def cmd_doctor(cfg) -> int:
     except Exception as e:  # pragma: no cover
         checks.append(("chromadb import", False, str(e)))
 
-    from second_brain import loaders
+    from loci import loaders
     if loaders.HAS_PDF_TABLES:
         checks.append(("pdf tables", True, "pymupdf4llm installed — tables become markdown"))
     elif loaders.HAS_PDF:
         checks.append(("pdf tables", None,
                        "pymupdf4llm not installed — plain text only, no tables "
-                       "(pip install 'second-brain-rag[pdf]')"))
+                       "(pip install 'loci[pdf]')"))
     else:
         checks.append(("pdf support", None,
                        "no pdf loader installed — .pdf sources are skipped "
-                       "(pip install 'second-brain-rag[pdf]')"))
+                       "(pip install 'loci[pdf]')"))
     if loaders.HAS_DOCX:
         checks.append(("docx support", True, "python-docx installed"))
     else:
         checks.append(("docx support", None,
                        "python-docx not installed — .docx sources are skipped "
-                       "(pip install 'second-brain-rag[docx]')"))
+                       "(pip install 'loci[docx]')"))
 
     if cfg.embed.get("api_key"):
         try:
@@ -263,7 +263,7 @@ def cmd_doctor(cfg) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="second-brain-rag — Q&A over your personal knowledge base")
+        description="loci — Q&A over your personal knowledge base")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_ingest = sub.add_parser("ingest", help="scan source directories and incrementally index them")
@@ -337,7 +337,7 @@ def main() -> None:
         cfg.validate()
         cmd_watch(cfg)
     elif args.cmd == "serve":
-        from second_brain.mcp_server import serve
+        from loci.mcp_server import serve
         serve()
     elif args.cmd == "stats":
         cmd_stats(cfg)

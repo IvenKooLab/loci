@@ -6,11 +6,11 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from second_brain import chunker, config  # noqa: E402
-from second_brain.bm25 import tokenize  # noqa: E402
-from second_brain.embedder import Embedder  # noqa: E402
-from second_brain.retriever import Retriever  # noqa: E402
-from second_brain.store import Store  # noqa: E402
+from loci import chunker, config  # noqa: E402
+from loci.bm25 import tokenize  # noqa: E402
+from loci.embedder import Embedder  # noqa: E402
+from loci.retriever import Retriever  # noqa: E402
+from loci.store import Store  # noqa: E402
 
 
 class FakeEmbedder(Embedder):
@@ -61,7 +61,7 @@ def write_corpus(tmp_path, files: dict[str, str]) -> list[dict]:
 
 def build_index(cfg, hybrid: bool = True):
     """Ingest the configured sources offline; returns (embedder, store, retriever)."""
-    from second_brain import loaders
+    from loci import loaders
     store = Store(cfg.store["path"])
     embedder = FakeEmbedder()
     retriever = Retriever(embedder, store, cfg.top_k["search"],
@@ -80,7 +80,7 @@ def build_index(cfg, hybrid: bool = True):
 def patch_brain_config(monkeypatch, tmp_path):
     """Brain._ensure calls config.load()+validate() — give tests a valid offline
     cfg so MCP tests never depend on a real config.toml (CI has none)."""
-    import second_brain.mcp_server as mcp
+    import loci.mcp_server as mcp
     fake = make_cfg(tmp_path, [{"path": str(tmp_path)}])
     fake.llm["api_key"] = "test-key"
     fake.embed["api_key"] = "test-key"

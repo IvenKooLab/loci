@@ -1,4 +1,4 @@
-from second_brain.bm25 import BM25, tokenize
+from loci.bm25 import BM25, tokenize
 
 
 def test_tokenize_latin_and_cjk():

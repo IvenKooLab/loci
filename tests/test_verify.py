@@ -1,5 +1,5 @@
-import second_brain.retriever as retriever_module
-from second_brain.retriever import verify_answer
+import loci.retriever as retriever_module
+from loci.retriever import verify_answer
 
 LLM = {"base_url": "x", "api_key": "y", "model": "m"}
 

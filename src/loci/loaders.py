@@ -8,7 +8,7 @@ import hashlib
 import re
 from pathlib import Path
 
-from second_brain.chatlog import CHATLOG_NAMES, parse_chatlog
+from loci.chatlog import CHATLOG_NAMES, parse_chatlog
 
 try:
     from pypdf import PdfReader

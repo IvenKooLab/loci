@@ -1,7 +1,7 @@
 import pytest
 
 from conftest import build_index, make_cfg, write_corpus
-from second_brain import chunker
+from loci import chunker
 
 
 def test_per_source_chunk_size_override(tmp_path):
@@ -28,7 +28,7 @@ def test_per_source_chunk_size_override(tmp_path):
 
 
 def test_scan_sources_attaches_overrides(tmp_path):
-    from second_brain import loaders
+    from loci import loaders
     (tmp_path / "n").mkdir()
     (tmp_path / "n" / "a.md").write_text("hello", encoding="utf-8")
     docs = loaders.scan_sources([{"path": str(tmp_path / "n"),
@@ -38,7 +38,7 @@ def test_scan_sources_attaches_overrides(tmp_path):
 
 
 def test_scan_sources_without_override_is_none(tmp_path):
-    from second_brain import loaders
+    from loci import loaders
     (tmp_path / "n").mkdir()
     (tmp_path / "n" / "a.md").write_text("hello", encoding="utf-8")
     docs = loaders.scan_sources([{"path": str(tmp_path / "n")}])

@@ -1,7 +1,7 @@
 import json
 
-from second_brain.chatlog import parse_chatlog
-from second_brain.loaders import scan_sources
+from loci.chatlog import parse_chatlog
+from loci.loaders import scan_sources
 
 CHATGPT_EXPORT = [
     {"title": "RAG design", "create_time": 1700000000,

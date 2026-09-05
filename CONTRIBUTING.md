@@ -7,7 +7,7 @@ core is ~300 lines and meant to be read.
 
 ```bash
 git clone <this repo>
-cd second-brain-rag
+cd loci
 pip install -e ".[dev,pdf]"   # runtime deps + pytest + optional PDF support
 pytest                        # fully offline — no API keys needed
 ```

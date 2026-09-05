@@ -1,4 +1,4 @@
-from second_brain.chunker import split_markdown
+from loci.chunker import split_markdown
 
 
 def test_empty_text_returns_no_chunks():

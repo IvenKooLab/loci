@@ -23,16 +23,16 @@ config.toml ──► loaders ──► chunker ──► embedder ──► sto
 
 | File | Lines-ish | Responsibility |
 |---|---|---|
-| `src/second_brain/config.py` | 60 | TOML + defaults + env-var key overrides, `validate()` |
-| `src/second_brain/loaders.py` | 100 | directory scan, encodings, frontmatter subset, PDF (optional) |
-| `src/second_brain/chunker.py` | 90 | heading-aware split, breadcrumbs, code-fence protection, windowing |
-| `src/second_brain/embedder.py` | 20 | OpenAI-compatible embeddings, batching, 4k-char truncation |
-| `src/second_brain/store.py` | 90 | ChromaDB wrapper: hash bookkeeping, prune, upsert, query |
-| `src/second_brain/bm25.py` | 60 | Okapi BM25 + CJK-aware tokenizer (native, no deps) |
-| `src/second_brain/retriever.py` | 130 | RRF fusion, optional LLM rerank (fail-open), answer synthesis |
-| `src/second_brain/cli.py` | 200 | argparse wiring + ingest/search/ask/chat/watch/stats/doctor |
-| `src/second_brain/watcher.py` | 50 | `watch` loop — periodic rescans reusing the hash bookkeeping |
-| `src/second_brain/mcp_server.py` | 170 | MCP over stdio: JSON-RPC framing, tool dispatch, lazy pipeline |
+| `src/loci/config.py` | 60 | TOML + defaults + env-var key overrides, `validate()` |
+| `src/loci/loaders.py` | 100 | directory scan, encodings, frontmatter subset, PDF (optional) |
+| `src/loci/chunker.py` | 90 | heading-aware split, breadcrumbs, code-fence protection, windowing |
+| `src/loci/embedder.py` | 20 | OpenAI-compatible embeddings, batching, 4k-char truncation |
+| `src/loci/store.py` | 90 | ChromaDB wrapper: hash bookkeeping, prune, upsert, query |
+| `src/loci/bm25.py` | 60 | Okapi BM25 + CJK-aware tokenizer (native, no deps) |
+| `src/loci/retriever.py` | 130 | RRF fusion, optional LLM rerank (fail-open), answer synthesis |
+| `src/loci/cli.py` | 200 | argparse wiring + ingest/search/ask/chat/watch/stats/doctor |
+| `src/loci/watcher.py` | 50 | `watch` loop — periodic rescans reusing the hash bookkeeping |
+| `src/loci/mcp_server.py` | 170 | MCP over stdio: JSON-RPC framing, tool dispatch, lazy pipeline |
 | `main.py` / `mcp_server.py` | 10 | entry points with the `sys.path` shim for the src layout |
 
 ## Invariants worth knowing before you touch anything

@@ -1,7 +1,7 @@
-import second_brain.cli as cli_module
+import loci.cli as cli_module
 from conftest import patch_brain_config
-from second_brain.mcp_server import Brain, handle_message
-from second_brain.store import Store
+from loci.mcp_server import Brain, handle_message
+from loci.store import Store
 
 
 class FakeStore:

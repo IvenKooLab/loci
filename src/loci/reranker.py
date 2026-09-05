@@ -1,5 +1,5 @@
 """Local cross-encoder reranking via sentence-transformers (optional extra:
-`pip install 'second-brain-rag[rerank]'`). Recommended model: BAAI/bge-reranker-base
+`pip install 'loci[rerank]'`). Recommended model: BAAI/bge-reranker-base
 (bilingual zh/en). Downloads from HuggingFace on first use — set HF_ENDPOINT
 if needed."""
 from __future__ import annotations
@@ -17,7 +17,7 @@ def _get_model(model_name: str):
             from sentence_transformers import CrossEncoder
         except ImportError:
             print("[rerank] sentence-transformers not installed — local rerank "
-                  "skipped (pip install 'second-brain-rag[rerank]')", file=sys.stderr)
+                  "skipped (pip install 'loci[rerank]')", file=sys.stderr)
             return None
         try:
             print(f"[rerank] loading local cross-encoder {model_name} "

@@ -1,7 +1,7 @@
 import json
 
-import second_brain.retriever as retriever_module
-from second_brain.retriever import rerank_hits
+import loci.retriever as retriever_module
+from loci.retriever import rerank_hits
 
 
 class _Msg:
@@ -94,7 +94,7 @@ def test_rerank_prompt_demands_json_only(monkeypatch):
 
 
 def test_rerank_off_by_default():
-    from second_brain import config
+    from loci import config
     cfg = config.Config()
     for section, values in config.DEFAULTS.items():
         getattr(cfg, section).update(values)

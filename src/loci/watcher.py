@@ -6,12 +6,12 @@ from __future__ import annotations
 import time
 from datetime import datetime
 
-from second_brain import chunker, config, loaders
+from loci import chunker, config, loaders
 
 
 def ingest_once(cfg) -> int:
     """One incremental pass. Returns the number of files re-indexed."""
-    from second_brain.cli import build
+    from loci.cli import build
     embedder, store = build(cfg)
     docs = loaders.scan_sources(cfg.sources)
     store.prune(keep={d["path"] for d in docs})

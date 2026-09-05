@@ -6,8 +6,8 @@ import json
 
 from openai import OpenAI
 
-from second_brain.bm25 import BM25
-from second_brain.reranker import local_rerank
+from loci.bm25 import BM25
+from loci.reranker import local_rerank
 
 SYSTEM_PROMPT = (
     "You are a Q&A assistant over the user's personal knowledge base. "

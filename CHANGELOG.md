@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.2.1 — 2026-09-05
+
+**Renamed to `loci`** — after the method of loci, the two-thousand-year-old
+memory technique: place knowledge in locations, recall it by walking the path.
+Python package, CLI (`loci`, `loci-mcp`), and repository are now `loci`;
+`brain://` resource URIs are unchanged. No behavior changes.
+
 ## v0.2.0 — 2026-09-05
 
 The "memory layer" release: hybrid retrieval, MCP server, and a test suite.
@@ -13,8 +20,8 @@ The "memory layer" release: hybrid retrieval, MCP server, and a test suite.
 - **Optional LLM reranking** (`[retrieval] rerank` or `--rerank`): pointwise
   0–3 relevance scoring of fused candidates; fails open to the fused order on
   any error
-- **Packaging** (`pyproject.toml`): `pip install second-brain-rag` installs
-  `second-brain` and `second-brain-mcp` console commands
+- **Packaging** (`pyproject.toml`): `pip install loci` installs
+  `loci` and `loci-mcp` console commands
 - **Local cross-encoder reranking** (`--rerank local`): BAAI/bge-reranker-base
   via the optional `rerank` extra (`sentence-transformers`); ~30–70 ms for 5
   pairs on GPU, offline and free vs the LLM provider's extra call. Provider

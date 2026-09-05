@@ -1,8 +1,8 @@
 import contextlib
 import io
 
-from second_brain.loaders import extract_wikilinks
-from second_brain.store import Store
+from loci.loaders import extract_wikilinks
+from loci.store import Store
 
 
 def test_extract_wikilinks_basic():
@@ -38,7 +38,7 @@ def test_link_map_roundtrip(tmp_path):
 
 
 def test_cmd_links_prints_outbound_and_inbound(tmp_path, monkeypatch):
-    import second_brain.cli as cli
+    import loci.cli as cli
     store = _store(tmp_path)
     store.upsert_chunks([{"text": "a", "section": ""}], [[0.0] * 4],
                         "/n/alpha.md", "h", links="beta,gamma")
@@ -57,7 +57,7 @@ def test_cmd_links_prints_outbound_and_inbound(tmp_path, monkeypatch):
 
 
 def test_cmd_links_unknown_note(tmp_path, monkeypatch):
-    import second_brain.cli as cli
+    import loci.cli as cli
     store = _store(tmp_path)
     cfg = type("C", (), {"store": {"path": str(tmp_path / "db")}})()
     monkeypatch.setattr(cli, "build", lambda c: (None, store))

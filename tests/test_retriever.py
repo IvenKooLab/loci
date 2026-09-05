@@ -1,5 +1,5 @@
-import second_brain.retriever as retriever_module
-from second_brain.retriever import Retriever, answer
+import loci.retriever as retriever_module
+from loci.retriever import Retriever, answer
 
 CORPUS = {
     "fox.md": "# Fox facts\nthe quick brown fox jumps over the lazy dog",

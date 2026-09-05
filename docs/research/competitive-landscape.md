@@ -64,7 +64,7 @@ agent workflows — from every host, for free, without shipping one.
 > **Don't build another chat app. Build the memory layer that every chat app
 > can mount.**
 
-Concretely, second-brain-rag's differentiation for v0.2:
+Concretely, loci's differentiation for v0.2:
 
 1. **MCP-first.** The second brain is a tool any agent can use (`serve` over
    stdio). Claude Desktop, Cursor, Cline, or any MCP host becomes its chat UI.

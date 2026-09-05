@@ -1,4 +1,4 @@
-from second_brain.loaders import file_hash, parse_frontmatter, scan_sources, tags_of
+from loci.loaders import file_hash, parse_frontmatter, scan_sources, tags_of
 
 
 def test_file_hash_is_stable():

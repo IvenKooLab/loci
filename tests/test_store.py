@@ -1,4 +1,4 @@
-from second_brain.store import Store
+from loci.store import Store
 
 
 def make_chunks(n):

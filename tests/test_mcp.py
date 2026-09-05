@@ -1,6 +1,6 @@
-import second_brain.cli as cli_module
+import loci.cli as cli_module
 from conftest import patch_brain_config
-from second_brain.mcp_server import PROTOCOL_VERSION, Brain, TOOLS, handle_message
+from loci.mcp_server import PROTOCOL_VERSION, Brain, TOOLS, handle_message
 
 
 def brain():
@@ -14,7 +14,7 @@ def msg(id, method, params=None):
 def test_initialize_returns_server_info():
     resp = handle_message(msg(1, "initialize",
                               {"protocolVersion": "2024-11-05"}), brain())
-    assert resp["result"]["serverInfo"]["name"] == "second-brain-rag"
+    assert resp["result"]["serverInfo"]["name"] == "loci"
     assert resp["result"]["protocolVersion"] == "2024-11-05"
     assert "tools" in resp["result"]["capabilities"]
 

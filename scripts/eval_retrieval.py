@@ -14,8 +14,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from second_brain import config  # noqa: E402
-from second_brain.cli import build, make_retriever  # noqa: E402
+from loci import config  # noqa: E402
+from loci.cli import build, make_retriever  # noqa: E402
 
 
 def _run_variant(retriever, hybrid, cases, k=5):

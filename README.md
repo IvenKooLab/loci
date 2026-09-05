@@ -1,6 +1,6 @@
-# second-brain-rag 🧠
+# loci 🧠
 
-![CI](https://github.com/IvenKooLab/second-brain-rag/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/IvenKooLab/loci/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)
 
@@ -67,7 +67,7 @@ writeup first). Run it against your own corpus with your own cases file.
 | Provider | How | Cost |
 |---|---|---|
 | `llm` (default) | pointwise 0–3 relevance scoring by your chat model | one extra LLM call |
-| `local` | cross-encoder, via `pip install 'second-brain-rag[rerank]'` | ~30–70 ms for 5 pairs on GPU — offline, free |
+| `local` | cross-encoder, via `pip install 'loci[rerank]'` | ~30–70 ms for 5 pairs on GPU — offline, free |
 
 ```bash
 python main.py search "T8 speedup" --rerank          # provider from config
@@ -101,7 +101,7 @@ code blocks are never cut mid-block, and one-line notes stay searchable.
 Requires Python 3.11+ (uses the stdlib `tomllib`).
 
 ```bash
-# option A: install as a package (adds `second-brain` and `second-brain-mcp` commands)
+# option A: install as a package (adds `loci` and `loci-mcp` commands)
 pip install -e ".[pdf,docx]"   # optional extras: PDF w/ tables, Word documents
 
 # option B: zero-install quickstart
@@ -111,10 +111,10 @@ pip install -r requirements.txt
 cp config.example.toml config.toml
 
 # 2. Ingest (incremental — deduplicated by content hash, safe to re-run)
-second-brain ingest            # or: python main.py ingest
+loci ingest            # or: python main.py ingest
 
 # 3. Ask
-second-brain ask "what did I write about X?"
+loci ask "what did I write about X?"
 ```
 
 ## Commands
@@ -150,9 +150,9 @@ config:
 ```json
 {
   "mcpServers": {
-    "second-brain": {
+    "loci": {
       "command": "python",
-      "args": ["/path/to/second-brain-rag/mcp_server.py"]
+      "args": ["/path/to/loci/mcp_server.py"]
     }
   }
 }
@@ -231,7 +231,7 @@ API keys can also come from the environment variables `BRAIN_LLM_API_KEY` /
 
 ## Where it sits
 
-| | second-brain-rag | AnythingLLM (65k★) | Khoj (37k★) | RAGFlow (90k★) |
+| | loci | AnythingLLM (65k★) | Khoj (37k★) | RAGFlow (90k★) |
 |---|---|---|---|---|
 | Positioning | personal retrieval **backend** + MCP | all-in-one chat platform | self-hosted AI assistant | enterprise RAG engine |
 | Footprint | 2 runtime deps, no Docker | desktop app / Docker | Django server + workers | Docker, DeepDoc models |

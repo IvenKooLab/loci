@@ -1,8 +1,8 @@
-import second_brain.cli as cli_module
+import loci.cli as cli_module
 from conftest import FakeEmbedder, write_corpus
-from second_brain import config
-from second_brain.store import Store
-from second_brain.watcher import ingest_once
+from loci import config
+from loci.store import Store
+from loci.watcher import ingest_once
 
 
 def make_cfg(tmp_path):
