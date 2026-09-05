@@ -4,6 +4,13 @@
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)
 
+> Two thousand years ago, orators stored their speeches in the rooms of a
+> palace and walked through them to remember. **loci does the same for your
+> files.**
+>
+> *Loci* is the method behind every memory palace: place knowledge in
+> locations, recall it by walking the path.
+
 **A queryable "second brain" for the project docs, notes, and chat logs scattered
 across a dozen directories — and an MCP server so your AI agents can use it too.**
 
