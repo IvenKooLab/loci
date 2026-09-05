@@ -1,4 +1,5 @@
 import second_brain.cli as cli_module
+from conftest import patch_brain_config
 from second_brain.mcp_server import PROTOCOL_VERSION, Brain, TOOLS, handle_message
 
 
@@ -43,7 +44,7 @@ def test_tools_list_has_five_tools():
 
 
 def test_unknown_method_is_method_not_found():
-    resp = handle_message(msg(4, "resources/read", {"uri": "x"}), brain())
+    resp = handle_message(msg(4, "sampling/createMessage", {"messages": []}), brain())
     assert resp["error"]["code"] == -32601
 
 
@@ -55,6 +56,7 @@ def test_unknown_tool_returns_is_error():
 
 
 def test_search_tool_with_fake_pipeline(monkeypatch, tmp_path):
+    patch_brain_config(monkeypatch, tmp_path)
     class FakeRetriever:
         top_k = 5
 
@@ -73,6 +75,7 @@ def test_search_tool_with_fake_pipeline(monkeypatch, tmp_path):
 
 
 def test_ingest_tool_keeps_protocol_stream_clean(monkeypatch, tmp_path):
+    patch_brain_config(monkeypatch, tmp_path)
     def fake_cmd_ingest(cfg, force=False):
         print("  + progress")
         print("Done: 1 added / 0 updated / 0 unchanged — 9 chunks in store")

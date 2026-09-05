@@ -13,7 +13,9 @@ DEFAULTS = {
               "api_key": "", "model": "embedding-3"},
     "chunk": {"size": 800, "overlap": 100},
     "top_k": {"search": 5},
-    "retrieval": {"hybrid": True, "rrf_k": 60, "rerank": False},
+    "retrieval": {"hybrid": True, "rrf_k": 60, "rerank": False,
+                  "rerank_provider": "llm",
+                  "local_rerank_model": "BAAI/bge-reranker-base"},
     "watch": {"interval": 30},
     "store": {"path": "./chroma_db"},
 }

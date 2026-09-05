@@ -7,6 +7,7 @@ import json
 from openai import OpenAI
 
 from second_brain.bm25 import BM25
+from second_brain.reranker import local_rerank
 
 SYSTEM_PROMPT = (
     "You are a Q&A assistant over the user's personal knowledge base. "
@@ -19,14 +20,19 @@ SYSTEM_PROMPT = (
 class Retriever:
     def __init__(self, embedder, store, top_k: int,
                  hybrid: bool = True, rrf_k: int = 60,
-                 rerank: bool = False, llm_cfg: dict | None = None):
+                 rerank: bool = False, llm_cfg: dict | None = None,
+                 rerank_provider: str = "llm",
+                 local_rerank_model: str = "BAAI/bge-reranker-base"):
         self.embedder, self.store, self.top_k = embedder, store, top_k
         self.hybrid, self.rrf_k = hybrid, rrf_k
         self.rerank, self.llm_cfg = rerank, llm_cfg
+        self.rerank_provider = rerank_provider
+        self.local_rerank_model = local_rerank_model
 
     def search(self, query: str, tag: str | None = None,
                rerank: bool | None = None, path_contains: str | None = None,
-               since: float | None = None, exact: str | None = None) -> list[dict]:
+               since: float | None = None, exact: str | None = None,
+               rerank_with: str | None = None) -> list[dict]:
         vec = self.embedder.embed([query])[0]
         filtered = bool(tag or path_contains or since or exact or rerank)
         # over-fetch so fusion and filtering still leave top_k results
@@ -45,8 +51,12 @@ class Retriever:
             e = exact.lower()
             fused = [h for h in fused if e in h["text"].lower()]
         use_rerank = self.rerank if rerank is None else rerank
-        if use_rerank and self.llm_cfg:
-            fused = rerank_hits(self.llm_cfg, query, fused)
+        if use_rerank:
+            provider = rerank_with or self.rerank_provider
+            if provider == "local":
+                fused = local_rerank(query, fused, self.local_rerank_model)
+            elif self.llm_cfg:
+                fused = rerank_hits(self.llm_cfg, query, fused)
         return fused[: self.top_k]
 
     def _fuse(self, vhits: list[dict], query: str, fetch: int) -> list[dict]:

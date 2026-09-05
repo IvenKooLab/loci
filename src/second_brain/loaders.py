@@ -1,11 +1,14 @@
 """Document loading: recursively scan directories for .md/.txt (and .pdf when
-the optional pypdf package is installed), peeling off Obsidian-style YAML
-frontmatter (tags/aliases subset) and collecting [[wikilinks]]."""
+the optional pypdf package is installed), peel off Obsidian-style YAML
+frontmatter (tags/aliases subset), collect [[wikilinks]], and expand chat-log
+exports (ChatGPT / Claude `conversations.json`) into per-conversation docs."""
 from __future__ import annotations
 
 import hashlib
 import re
 from pathlib import Path
+
+from second_brain.chatlog import CHATLOG_NAMES, parse_chatlog
 
 try:
     from pypdf import PdfReader
@@ -113,6 +116,23 @@ def scan_sources(sources: list[dict]) -> list[dict]:
         for p in sorted(root.rglob("*")):
             if not p.is_file():
                 continue
+            if p.name.lower() in CHATLOG_NAMES:
+                ap = str(p.resolve())
+                if ap in seen:
+                    continue
+                seen.add(ap)
+                conversations = parse_chatlog(p)
+                if conversations:
+                    mtime = p.stat().st_mtime
+                    for conv in conversations:
+                        docs.append({"path": f"{ap}::{conv['title']}",
+                                     "content": conv["text"],
+                                     "hash": file_hash(conv["text"]),
+                                     "tags": "chatlog", "links": "",
+                                     "mtime": mtime})
+                else:
+                    print(f"[warn] unrecognized chat export, skipping: {p.name}")
+                continue
             suffix = p.suffix.lower()
             if suffix not in SUFFIXES and suffix != ".pdf":
                 continue
@@ -120,6 +140,7 @@ def scan_sources(sources: list[dict]) -> list[dict]:
             if ap in seen:
                 continue
             seen.add(ap)
+
             text = _read_text(p)
             if text is None or not text.strip():
                 continue

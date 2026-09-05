@@ -96,3 +96,11 @@ class Store:
         for m in got.get("metadatas") or []:
             out.setdefault(m["source"], m.get("links", ""))
         return out
+
+    def texts_of(self, path: str) -> list[str]:
+        """All chunk texts of one source, in original order — feeds MCP resources."""
+        got = self.collection.get(where={"source": path},
+                                  include=["documents", "metadatas"])
+        pairs = sorted(zip(got.get("metadatas") or [], got.get("documents") or []),
+                       key=lambda m: m[0].get("chunk", 0))
+        return [doc for _, doc in pairs]

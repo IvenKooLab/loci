@@ -32,7 +32,10 @@ def make_retriever(cfg, embedder, store):
     from second_brain.retriever import Retriever
     return Retriever(embedder, store, cfg.top_k["search"],
                      hybrid=cfg.retrieval["hybrid"], rrf_k=cfg.retrieval["rrf_k"],
-                     rerank=cfg.retrieval.get("rerank", False), llm_cfg=cfg.llm)
+                     rerank=cfg.retrieval.get("rerank", False), llm_cfg=cfg.llm,
+                     rerank_provider=cfg.retrieval.get("rerank_provider", "llm"),
+                     local_rerank_model=cfg.retrieval.get(
+                         "local_rerank_model", "BAAI/bge-reranker-base"))
 
 
 def cmd_ingest(cfg, force: bool = False) -> None:
@@ -68,11 +71,11 @@ def cmd_ingest(cfg, force: bool = False) -> None:
 
 def cmd_search(cfg, query: str, tag: str | None = None, rerank: bool | None = None,
                path_contains: str | None = None, since: float | None = None,
-               exact: str | None = None) -> None:
+               exact: str | None = None, rerank_with: str | None = None) -> None:
     embedder, store = build(cfg)
     hits = make_retriever(cfg, embedder, store).search(
         query, tag=tag, rerank=rerank, path_contains=path_contains,
-        since=since, exact=exact)
+        since=since, exact=exact, rerank_with=rerank_with)
     if not hits:
         print("(no results)")
         return
@@ -85,12 +88,13 @@ def cmd_search(cfg, query: str, tag: str | None = None, rerank: bool | None = No
 
 def cmd_ask(cfg, question: str, rerank: bool | None = None,
             path_contains: str | None = None, since: float | None = None,
-            verify: bool = False) -> None:
+            verify: bool = False, rerank_with: str | None = None) -> None:
     from second_brain.retriever import Retriever, answer, verify_answer
     embedder, store = build(cfg)
     retriever = make_retriever(cfg, embedder, store)
     hits = retriever.search(question, rerank=rerank,
-                            path_contains=path_contains, since=since)
+                            path_contains=path_contains, since=since,
+                            rerank_with=rerank_with)
     if not hits:
         print("(nothing relevant in the knowledge base)")
         return
@@ -266,8 +270,9 @@ def main() -> None:
     p_search.add_argument("-e", "--exact", metavar="PHRASE",
                           help="only hits containing this exact phrase")
     p_search.add_argument("-k", type=int, help="override top_k")
-    p_search.add_argument("--rerank", action="store_true",
-                          help="LLM-rerank candidates before returning them")
+    p_search.add_argument("--rerank", nargs="?", const=True, default=None,
+                          metavar="PROVIDER", help="rerank candidates; optional "
+                          "value llm|local overrides [retrieval] rerank_provider")
 
     p_ask = sub.add_parser("ask", help="retrieval + LLM answer with citations")
     p_ask.add_argument("question")
@@ -276,8 +281,9 @@ def main() -> None:
     p_ask.add_argument("--since", metavar="DATE", type=parse_since,
                        help="only files modified on/after DATE (YYYY-MM-DD or YYYY-MM)")
     p_ask.add_argument("-k", type=int, help="override top_k")
-    p_ask.add_argument("--rerank", action="store_true",
-                       help="LLM-rerank candidates before answering")
+    p_ask.add_argument("--rerank", nargs="?", const=True, default=None,
+                       metavar="PROVIDER", help="rerank candidates; optional "
+                       "value llm|local overrides [retrieval] rerank_provider")
     p_ask.add_argument("--verify", action="store_true",
                        help="audit the answer claim-by-claim against the sources")
 
@@ -294,7 +300,9 @@ def main() -> None:
     cfg = config.load()
     if getattr(args, "k", None):
         cfg.top_k["search"] = args.k
-    wants_rerank = getattr(args, "rerank", False)
+    raw_rerank = getattr(args, "rerank", None)
+    rerank_flag = True if raw_rerank is not None else None  # None = follow config
+    rerank_with = raw_rerank if raw_rerank in ("llm", "local") else None
     wants_verify = getattr(args, "verify", False)
 
     if args.cmd == "ingest":
@@ -302,14 +310,14 @@ def main() -> None:
         cmd_ingest(cfg, force=args.force)
     elif args.cmd == "search":
         cfg.validate()
-        cmd_search(cfg, args.query, tag=args.tag, rerank=wants_rerank or None,
+        cmd_search(cfg, args.query, tag=args.tag, rerank=rerank_flag,
                    path_contains=args.path_contains, since=args.since,
-                   exact=args.exact)
+                   exact=args.exact, rerank_with=rerank_with)
     elif args.cmd == "ask":
         cfg.validate()
-        cmd_ask(cfg, args.question, rerank=wants_rerank or None,
+        cmd_ask(cfg, args.question, rerank=rerank_flag,
                 path_contains=args.path_contains, since=args.since,
-                verify=wants_verify)
+                rerank_with=rerank_with, verify=wants_verify)
     elif args.cmd == "chat":
         cfg.validate()
         cmd_chat(cfg)

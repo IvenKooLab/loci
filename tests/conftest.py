@@ -72,8 +72,20 @@ def build_index(cfg, hybrid: bool = True):
                                         cfg.chunk["size"], cfg.chunk["overlap"])
         if chunks:
             vectors = embedder.embed([c["text"] for c in chunks])
-            store.upsert_chunks(chunks, vectors, doc["path"], doc["hash"], doc["tags"])
+            store.upsert_chunks(chunks, vectors, doc["path"], doc["hash"],
+                                doc["tags"], doc["links"], doc["mtime"])
     return embedder, store, retriever
+
+
+def patch_brain_config(monkeypatch, tmp_path):
+    """Brain._ensure calls config.load()+validate() — give tests a valid offline
+    cfg so MCP tests never depend on a real config.toml (CI has none)."""
+    import second_brain.mcp_server as mcp
+    fake = make_cfg(tmp_path, [{"path": str(tmp_path)}])
+    fake.llm["api_key"] = "test-key"
+    fake.embed["api_key"] = "test-key"
+    monkeypatch.setattr(mcp.config, "load", lambda path="config.toml": fake)
+    return fake
 
 
 @pytest.fixture
