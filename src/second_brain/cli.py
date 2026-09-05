@@ -56,8 +56,8 @@ def cmd_ingest(cfg, force: bool = False) -> None:
             updated += 1
         else:
             added += 1
-        chunks = chunker.split_markdown(doc["content"],
-                                        cfg.chunk["size"], cfg.chunk["overlap"])
+        size, overlap = chunker.params_for(doc, cfg.chunk)
+        chunks = chunker.split_markdown(doc["content"], size, overlap)
         if not chunks:
             continue
         vectors = embedder.embed([c["text"] for c in chunks])
@@ -210,12 +210,22 @@ def cmd_doctor(cfg) -> int:
         checks.append(("chromadb import", False, str(e)))
 
     from second_brain import loaders
-    if loaders.HAS_PDF:
-        checks.append(("pdf support", True, "pypdf installed"))
+    if loaders.HAS_PDF_TABLES:
+        checks.append(("pdf tables", True, "pymupdf4llm installed — tables become markdown"))
+    elif loaders.HAS_PDF:
+        checks.append(("pdf tables", None,
+                       "pymupdf4llm not installed — plain text only, no tables "
+                       "(pip install 'second-brain-rag[pdf]')"))
     else:
         checks.append(("pdf support", None,
-                       "pypdf not installed — .pdf sources are skipped "
+                       "no pdf loader installed — .pdf sources are skipped "
                        "(pip install 'second-brain-rag[pdf]')"))
+    if loaders.HAS_DOCX:
+        checks.append(("docx support", True, "python-docx installed"))
+    else:
+        checks.append(("docx support", None,
+                       "python-docx not installed — .docx sources are skipped "
+                       "(pip install 'second-brain-rag[docx]')"))
 
     if cfg.embed.get("api_key"):
         try:

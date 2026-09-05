@@ -68,8 +68,8 @@ def build_index(cfg, hybrid: bool = True):
                           hybrid=hybrid, rrf_k=cfg.retrieval["rrf_k"])
     docs = loaders.scan_sources(cfg.sources)
     for doc in docs:
-        chunks = chunker.split_markdown(doc["content"],
-                                        cfg.chunk["size"], cfg.chunk["overlap"])
+        size, overlap = chunker.params_for(doc, cfg.chunk)
+        chunks = chunker.split_markdown(doc["content"], size, overlap)
         if chunks:
             vectors = embedder.embed([c["text"] for c in chunks])
             store.upsert_chunks(chunks, vectors, doc["path"], doc["hash"],

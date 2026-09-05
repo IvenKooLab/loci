@@ -19,7 +19,9 @@
 - [x] Chat-log loader: ChatGPT / Claude `conversations.json` exports
 - [x] MCP resources (`brain://note/…`, `brain://stats`) and prompts
       (brain-briefing / study-plan / contradiction-check)
-- [x] PDF loading (optional `pypdf` extra)
+- [x] PDF loading with table understanding (PyMuPDF4LLM → markdown pipe rows)
+- [x] `.docx` loader (paragraphs + tables, optional extra)
+- [x] Per-directory chunk config (`chunk_size` / `chunk_overlap` overrides)
 - [x] `stats` / `doctor` / `ingest --force`
 - [x] 59-test offline suite + GitHub Actions CI (Python 3.11–3.13)
 
@@ -32,9 +34,8 @@
 
 ## Next
 
-- [ ] More loaders: docx, HTML
-- [ ] Deeper PDF understanding (tables/scans — pymupdf4llm or docling as optional extra)
-- [ ] Per-source ingestion profiles (different chunk sizes per directory)
+- [ ] More loaders: HTML, org-mode, Notion/Markdown dumps
+- [ ] Scanned-PDF / OCR route (image-only pages still yield no text)
 - [ ] Incremental embedding cache (only re-embed changed chunks, not whole files)
 - [ ] Web UI — deliberately last: the MCP host ecosystem is the UI layer for now
 

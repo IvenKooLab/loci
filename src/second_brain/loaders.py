@@ -16,6 +16,18 @@ try:
 except ImportError:
     HAS_PDF = False
 
+try:
+    import pymupdf4llm
+    HAS_PDF_TABLES = True
+except ImportError:
+    HAS_PDF_TABLES = False
+
+try:
+    import docx as _docx  # python-docx
+    HAS_DOCX = True
+except ImportError:
+    HAS_DOCX = False
+
 SUFFIXES = {".md", ".txt"}
 _WIKILINK = re.compile(r"\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]")
 
@@ -85,7 +97,7 @@ def tags_of(meta: dict) -> str:
 
 
 def _read_text(p: Path) -> str | None:
-    """Read a document as text; returns None when it can't be handled."""
+    """Read a document as text/markdown; returns None when it can't be handled."""
     suffix = p.suffix.lower()
     if suffix in SUFFIXES:
         try:
@@ -94,25 +106,50 @@ def _read_text(p: Path) -> str | None:
             print(f"[warn] not UTF-8, skipping: {p.name}")
             return None
     if suffix == ".pdf":
-        if not HAS_PDF:
+        if HAS_PDF_TABLES:
+            try:
+                # markdown output: headings, lists, and tables as pipe rows
+                return pymupdf4llm.to_markdown(str(p))
+            except Exception as e:
+                print(f"[warn] pdf table extraction failed, falling back: {p.name} ({e})")
+        if HAS_PDF:
+            try:
+                reader = PdfReader(str(p))
+                return "\n\n".join((page.extract_text() or "") for page in reader.pages)
+            except Exception as e:
+                print(f"[warn] pdf unreadable, skipping: {p.name} ({e})")
+                return None
+        return None  # no pdf extra installed; `doctor` mentions it
+    if suffix == ".docx":
+        if not HAS_DOCX:
             return None  # silently skip; `doctor` mentions the optional extra
         try:
-            reader = PdfReader(str(p))
-            return "\n\n".join((page.extract_text() or "") for page in reader.pages)
+            document = _docx.Document(str(p))
+            parts = [para.text for para in document.paragraphs if para.text.strip()]
+            for table in document.tables:
+                for row in table.rows:
+                    cells = [c.text.strip() for c in row.cells]
+                    if any(cells):
+                        parts.append(" | ".join(cells))
+            return "\n\n".join(parts)
         except Exception as e:
-            print(f"[warn] pdf unreadable, skipping: {p.name} ({e})")
+            print(f"[warn] docx unreadable, skipping: {p.name} ({e})")
             return None
     return None
 
 
 def scan_sources(sources: list[dict]) -> list[dict]:
-    """Return [{path, content, hash, tags, links, mtime}] with absolute path strings."""
+    """Return [{path, content, hash, tags, links, mtime, chunk_size?, chunk_overlap?}].
+    Each [[sources]] entry may override `chunk_size` / `chunk_overlap`; absent
+    keys mean "use the global [chunk] defaults"."""
     docs, seen = [], set()
     for src in sources:
         root = Path(src["path"]).expanduser()
         if not root.exists():
             print(f"[warn] directory not found, skipping: {root}")
             continue
+        src_chunk_size = src.get("chunk_size")
+        src_chunk_overlap = src.get("chunk_overlap")
         for p in sorted(root.rglob("*")):
             if not p.is_file():
                 continue
@@ -129,12 +166,14 @@ def scan_sources(sources: list[dict]) -> list[dict]:
                                      "content": conv["text"],
                                      "hash": file_hash(conv["text"]),
                                      "tags": "chatlog", "links": "",
-                                     "mtime": mtime})
+                                     "mtime": mtime,
+                                     "chunk_size": src_chunk_size,
+                                     "chunk_overlap": src_chunk_overlap})
                 else:
                     print(f"[warn] unrecognized chat export, skipping: {p.name}")
                 continue
             suffix = p.suffix.lower()
-            if suffix not in SUFFIXES and suffix != ".pdf":
+            if suffix not in SUFFIXES and suffix not in (".pdf", ".docx"):
                 continue
             ap = str(p.resolve())
             if ap in seen:
@@ -147,5 +186,7 @@ def scan_sources(sources: list[dict]) -> list[dict]:
             meta, body = parse_frontmatter(text)
             docs.append({"path": ap, "content": body, "hash": file_hash(text),
                          "tags": tags_of(meta), "links": extract_wikilinks(body),
-                         "mtime": p.stat().st_mtime})
+                         "mtime": p.stat().st_mtime,
+                         "chunk_size": src_chunk_size,
+                         "chunk_overlap": src_chunk_overlap})
     return docs

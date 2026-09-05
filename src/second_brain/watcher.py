@@ -19,8 +19,8 @@ def ingest_once(cfg) -> int:
     for doc in docs:
         if store.indexed_hash(doc["path"]) == doc["hash"]:
             continue
-        chunks = chunker.split_markdown(doc["content"],
-                                        cfg.chunk["size"], cfg.chunk["overlap"])
+        size, overlap = chunker.params_for(doc, cfg.chunk)
+        chunks = chunker.split_markdown(doc["content"], size, overlap)
         if not chunks:
             continue
         vectors = embedder.embed([c["text"] for c in chunks])

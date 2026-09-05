@@ -21,6 +21,11 @@ The "memory layer" release: hybrid retrieval, MCP server, and a test suite.
   configurable via `[retrieval] rerank_provider`, per-call via `--rerank llm|local`
 - **Chat-log loader**: ChatGPT and Claude exports (`conversations.json`) in any
   source directory expand into one document per conversation, tagged `chatlog`
+- **Per-directory chunk config**: `[[sources]]` entries accept `chunk_size` /
+  `chunk_overlap` overrides (deliberate `overlap = 0` is honored)
+- **Office/PDF understanding**: `.pdf` pages extract as markdown with tables as
+  pipe rows via PyMuPDF4LLM (pypdf plain-text fallback); `.docx` paragraphs and
+  table rows via the `[docx]` extra
 - **MCP resources**: `resources/list` + `resources/read` expose `brain://stats`
   and one `brain://note/…` resource per indexed file (raw markdown)
 - **MCP prompts**: three ready-made templates — `brain-briefing`, `study-plan`,

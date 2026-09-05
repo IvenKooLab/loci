@@ -77,12 +77,14 @@ python main.py search "T8 speedup" --rerank local    # cross-encoder (BAAI/bge-r
 The local model downloads on first use (~1.1 GB; set `HF_ENDPOINT=https://hf-mirror.com`
 if HuggingFace is slow in your region). Measured on a 2080 Ti, bilingual query.
 
-### Chat logs, too
+### Office documents, PDF tables, chat logs
 
-Drop a ChatGPT or Claude export (`conversations.json`) into any source
-directory — it expands into one searchable document per conversation, tagged
-`chatlog`, so `search --tag chatlog` scopes queries to your chat history and
-citations point at the conversation title.
+- **PDFs**: with the `[pdf]` extra, PyMuPDF4LLM extracts pages as markdown —
+  **tables come through as pipe rows** (plain pypdf text is the fallback)
+- **Word**: with the `[docx]` extra, `.docx` paragraphs and table rows are indexed
+- **Chat exports**: drop a ChatGPT or Claude `conversations.json` into any
+  source directory — it becomes one searchable document per conversation,
+  tagged `chatlog` (`search --tag chatlog` scopes to chat history)
 
 ## How it relates to Obsidian / your note app
 
@@ -100,7 +102,7 @@ Requires Python 3.11+ (uses the stdlib `tomllib`).
 
 ```bash
 # option A: install as a package (adds `second-brain` and `second-brain-mcp` commands)
-pip install -e ".[pdf]"        # [pdf] pulls optional pypdf for PDF sources
+pip install -e ".[pdf,docx]"   # optional extras: PDF w/ tables, Word documents
 
 # option B: zero-install quickstart
 pip install -r requirements.txt
@@ -201,7 +203,8 @@ model-agnostic.
 |---|---|
 | `[llm]` | base_url / api_key / model — any OpenAI-compatible endpoint |
 | `[embed]` | same; the model must be an embedding model (e.g. `embedding-3`) |
-| `[[sources]]` | list of document directories, scanned recursively for `.md` / `.txt` (`.pdf` too, if `pypdf` is installed) |
+| `[[sources]]` | document directories, scanned recursively for `.md` / `.txt` (plus `.pdf`/`.docx` with the matching extras) |
+| `[[sources]] chunk_size` / `chunk_overlap` | optional per-directory chunking override — wins over the global `[chunk]` block |
 | `[chunk]` | chunking params (default 800 chars / 100 overlap) |
 | `[top_k]` | number of hits per search (default 5) |
 | `[retrieval]` | `hybrid` (vector+BM25 fusion, default on), `rrf_k`, `rerank` (LLM reranking, default off) |

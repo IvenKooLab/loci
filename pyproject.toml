@@ -30,7 +30,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-pdf = ["pypdf>=4"]
+pdf = ["pymupdf4llm>=0.0.21", "pypdf>=4"]
+docx = ["python-docx>=1.1"]
 rerank = ["sentence-transformers>=3"]
 dev = ["pytest>=8"]
 

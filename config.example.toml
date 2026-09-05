@@ -10,10 +10,15 @@ base_url = "https://open.bigmodel.cn/api/paas/v4"
 api_key = "your-api-key-here"                        # or set the env var BRAIN_EMBED_API_KEY
 model = "embedding-3"                                # embedding model
 
-# Directories to index (scanned recursively for .md / .txt)
+# Directories to index (scanned recursively: .md / .txt, plus .pdf and .docx
+# when the matching optional extras are installed)
 [[sources]]
 path = "D:/notes"                                    # change to your directory
-# path = "C:/Users/me/Documents/project-docs"       # add as many as you like
+# chunk_size = 1200                                  # optional per-directory override
+# chunk_overlap = 150                                # (0 is honored — no overlap)
+
+# [[sources]]
+# path = "C:/Users/me/Documents/project-docs"       # uses the global [chunk] defaults
 
 [chunk]
 size = 800        # target chunk length (characters)

@@ -9,6 +9,16 @@ _HEADING = re.compile(r"^(#{1,6})\s+(.*)$", re.M)
 _FENCE = re.compile(r"^\s*```")
 
 
+def params_for(doc: dict, defaults: dict) -> tuple[int, int]:
+    """Resolve per-source chunk params: doc-level chunk_size/chunk_overlap win
+    when present, otherwise the global [chunk] defaults. Uses None checks so a
+    deliberate `overlap = 0` is never swallowed by falsy-or fallbacks."""
+    size = doc.get("chunk_size")
+    overlap = doc.get("chunk_overlap")
+    return (size if size is not None else defaults["size"],
+            overlap if overlap is not None else defaults["overlap"])
+
+
 def split_markdown(text: str, size: int, overlap: int) -> list[dict]:
     """Return [{"text", "section"}] where section is a heading breadcrumb like
     "Install > Prerequisites" ("" for text before any heading)."""
@@ -31,7 +41,8 @@ def split_markdown(text: str, size: int, overlap: int) -> list[dict]:
                 pieces = _sliding_window(seg, size, overlap)
                 # merge a tiny tail window into its neighbor instead of dropping it
                 if len(pieces) > 1 and len(pieces[-1]) < 30:
-                    pieces[-2] += pieces.pop()
+                    tail = pieces.pop()
+                    pieces[-1] += tail
                 out.extend({"text": piece, "section": crumb}
                            for piece in pieces)
     # every natural block survives, however short — tiny notes must stay searchable
