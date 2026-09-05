@@ -26,22 +26,23 @@ Real session, indexed against the docs of
 (paths shortened for display):
 
 ```
-$ python main.py search "T8 threshold 1.0 speedup" -k 3
+$ python main.py search "what the 22G card can and cannot do" -k 3
 
-[1] minimax-h3-turing/docs/en/08-t8-blockcache-4step.md > The Data            (similarity 0.620)
-[2] minimax-h3-turing/docs/08-t8-blockcache-4step.md > 数据                    (similarity 0.599)
-[3] minimax-h3-turing/docs/en/08-t8-blockcache-4step.md > Practical Advice    (similarity 0.600)
+[1] minimax-h3-turing/docs/en/01-hardware-limits.md > 01 · What a 2080Ti 22G Can and Cannot Do    (similarity 0.562)
+[2] minimax-h3-turing/docs/en/02-w4a8-vs-w4a4.md > 02 · Quantization Measured > You Can Try Without 22G  (similarity 0.446)
+[3] minimax-h3-turing/docs/en/01-hardware-limits.md > ... > 3. VRAM is just barely enough — manage it  (similarity 0.504)
 
-$ python main.py ask "T8 激进档和成片档分别怎么选？为什么"
+$ python main.py ask "How should I choose between T8 aggressive mode and the final-render mode, and why?"
 
 Answer:
-* T8 激进档：草稿/预览/选镜头用，最快、比常规快 43%（2.7 分钟/镜）
-* 成片档（无 T8）：为保证可复现性与审片一致性——T8 会让采样轨迹分叉，
-  同 seed 也产出内容偏移的不同视频
+* Drafts / preview / shot selection: use T8 aggressive mode — a 43% speedup
+  (2.7 min/clip), and "a different picture of equal quality" is fine for picking shots.
+* Final shots: use final-render mode (no T8). T8 makes the numerical trajectory
+  fork, so re-running with the same seed produces a different clip — which breaks
+  the reproducibility final outputs need.
 
-[source: docs/08-t8-blockcache-4step.md > 实操建议（4 步 Turbo 路线）]
-[source: docs/09-pdd-backport.md > 档位体系]
-[source: docs/08-t8-blockcache-4step.md > 质量分析（重要）]
+[source: docs/en/08-t8-blockcache-4step.md > Practical Advice (4-step Turbo route)]
+[source: docs/en/06-faq.md > 12. Cache-style accelerators break "same-seed re-runs"]
 ```
 
 Hybrid retrieval means a Chinese query still finds the English doc (and vice
