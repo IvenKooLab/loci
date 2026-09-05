@@ -14,6 +14,11 @@
 - [x] Query operators: `--in` / `--since` / `-e "exact phrase"` / `--tag`
 - [x] `ask --verify`: claim-by-claim faithfulness audit of answers
 - [x] Fully-offline mode verified against local Ollama (embeddings + chat)
+- [x] Reranking, both providers: LLM pointwise scoring + local cross-encoder
+      (bge-reranker, optional extra)
+- [x] Chat-log loader: ChatGPT / Claude `conversations.json` exports
+- [x] MCP resources (`brain://note/…`, `brain://stats`) and prompts
+      (brain-briefing / study-plan / contradiction-check)
 - [x] PDF loading (optional `pypdf` extra)
 - [x] `stats` / `doctor` / `ingest --force`
 - [x] 59-test offline suite + GitHub Actions CI (Python 3.11–3.13)
@@ -27,9 +32,10 @@
 
 ## Next
 
-- [ ] Reranking (LLM-based first, local bge-reranker later) — RRF fusion covers the basics today
-- [ ] More loaders: docx, HTML, chat-export formats
+- [ ] More loaders: docx, HTML
+- [ ] Deeper PDF understanding (tables/scans — pymupdf4llm or docling as optional extra)
 - [ ] Per-source ingestion profiles (different chunk sizes per directory)
+- [ ] Incremental embedding cache (only re-embed changed chunks, not whole files)
 - [ ] Web UI — deliberately last: the MCP host ecosystem is the UI layer for now
 
 ## Explorations

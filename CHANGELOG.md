@@ -15,6 +15,16 @@ The "memory layer" release: hybrid retrieval, MCP server, and a test suite.
   any error
 - **Packaging** (`pyproject.toml`): `pip install second-brain-rag` installs
   `second-brain` and `second-brain-mcp` console commands
+- **Local cross-encoder reranking** (`--rerank local`): BAAI/bge-reranker-base
+  via the optional `rerank` extra (`sentence-transformers`); ~30–70 ms for 5
+  pairs on GPU, offline and free vs the LLM provider's extra call. Provider
+  configurable via `[retrieval] rerank_provider`, per-call via `--rerank llm|local`
+- **Chat-log loader**: ChatGPT and Claude exports (`conversations.json`) in any
+  source directory expand into one document per conversation, tagged `chatlog`
+- **MCP resources**: `resources/list` + `resources/read` expose `brain://stats`
+  and one `brain://note/…` resource per indexed file (raw markdown)
+- **MCP prompts**: three ready-made templates — `brain-briefing`, `study-plan`,
+  `contradiction-check` — via `prompts/list` + `prompts/get`
 - **Query operators** on `search` and `ask`: `--in` (path substring),
   `--since YYYY-MM[-DD]` (file modification time), `-e "exact phrase"`,
   combinable with `--tag` and `--rerank`; file mtimes are indexed metadata now

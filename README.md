@@ -60,6 +60,30 @@ Hybrid also fixed the #1 ranking on keyword-ish queries (e.g. "T8 block cache
 threshold speedup": vector put an FAQ first, hybrid puts the actual T8
 writeup first). Run it against your own corpus with your own cases file.
 
+### Reranking: two providers
+
+`--rerank` reorders the fused candidates for precision:
+
+| Provider | How | Cost |
+|---|---|---|
+| `llm` (default) | pointwise 0–3 relevance scoring by your chat model | one extra LLM call |
+| `local` | cross-encoder, via `pip install 'second-brain-rag[rerank]'` | ~30–70 ms for 5 pairs on GPU — offline, free |
+
+```bash
+python main.py search "T8 speedup" --rerank          # provider from config
+python main.py search "T8 speedup" --rerank local    # cross-encoder (BAAI/bge-reranker-base)
+```
+
+The local model downloads on first use (~1.1 GB; set `HF_ENDPOINT=https://hf-mirror.com`
+if HuggingFace is slow in your region). Measured on a 2080 Ti, bilingual query.
+
+### Chat logs, too
+
+Drop a ChatGPT or Claude export (`conversations.json`) into any source
+directory — it expands into one searchable document per conversation, tagged
+`chatlog`, so `search --tag chatlog` scopes queries to your chat history and
+citations point at the conversation title.
+
 ## How it relates to Obsidian / your note app
 
 It doesn't compete — the two layer up. Obsidian (or any editor) is the
@@ -136,11 +160,18 @@ The server exposes three tools (zero dependencies beyond the core):
 
 | Tool | Purpose |
 |---|---|
-| `brain_search(query, k?, tag?)` | ranked excerpts with breadcrumbs |
-| `brain_ask(question)` | grounded answer with citations |
+| `brain_search(query, k?, tag?, in?)` | ranked excerpts with breadcrumbs |
+| `brain_ask(question, verify?)` | grounded answer with citations; `verify=true` adds a claim-by-claim audit |
 | `brain_links(note)` | outbound/inbound `[[wikilink]]` graph around a note |
 | `brain_stats()` | index overview (chunks per source) |
 | `brain_ingest(force?)` | incremental re-index |
+
+Beyond tools, the server speaks the full protocol:
+
+- **Resources** — `resources/list` exposes `brain://stats` plus one
+  `brain://note/…` resource per indexed file (raw markdown via `resources/read`)
+- **Prompts** — three ready-made templates: `brain-briefing`, `study-plan`,
+  `contradiction-check`; hosts render them with your topic pre-filled
 
 ## Fully offline with Ollama
 
