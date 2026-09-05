@@ -96,8 +96,19 @@ second-brain ask "what did I write about X?"
 | Command | What it does |
 |---|---|
 | `ingest` | scan sources, index new/changed files, prune deleted ones (`--force` re-embeds everything) |
-| `search "query"` | retrieval only — ranked excerpts with `path > section` breadcrumbs (`--tag foo` filters by frontmatter tag, `-k N` overrides top_k, `--rerank` LLM-reranks candidates) |
-| `ask "question"` | retrieval + LLM answer with `[source: path > section]` citations (`--rerank` supported) |
+| `search "query"` | retrieval only — ranked excerpts with `path > section` breadcrumbs |
+| `ask "question"` | retrieval + LLM answer with `[source: path > section]` citations |
+| `ask "…" --verify` | additionally audit the answer claim-by-claim against the sources (✓ supported, ~ partial, ✗ unsupported) |
+
+Filter operators (combine freely, on `search` and `ask`):
+
+| Flag | Filters to |
+|---|---|
+| `--tag foo` | files whose frontmatter tags contain `foo` |
+| `--in docs/en` | files whose path contains the substring |
+| `--since 2026-08` / `--since 2026-08-15` | files modified on/after that date |
+| `-e "exact phrase"` | chunks containing the exact phrase |
+| `-k N` | return N hits (default 5) |
 | `links "note"` | show the `[[wikilink]]` graph around a note — outbound and inbound |
 | `chat` | multi-turn Q&A loop with conversation memory (`/clear`, `/exit`) |
 | `watch` | keep the index current by polling sources (interval in `[watch]`) |
@@ -130,6 +141,28 @@ The server exposes three tools (zero dependencies beyond the core):
 | `brain_links(note)` | outbound/inbound `[[wikilink]]` graph around a note |
 | `brain_stats()` | index overview (chunks per source) |
 | `brain_ingest(force?)` | incremental re-index |
+
+## Fully offline with Ollama
+
+The index is local by design — and the embedding/chat calls can be too. Any
+OpenAI-compatible server works; [Ollama](https://ollama.com) is verified
+end-to-end:
+
+```toml
+[llm]
+base_url = "http://localhost:11434/v1"
+api_key = "ollama"          # any non-empty placeholder
+model = "qwen2.5:0.5b"
+
+[embed]
+base_url = "http://localhost:11434/v1"
+api_key = "ollama"
+model = "all-minilm"
+```
+
+With this config, `ingest` / `search` / `ask` make zero cloud calls.
+Swap in a bigger local chat model for better answers — the pipeline is
+model-agnostic.
 
 ## Configuration
 

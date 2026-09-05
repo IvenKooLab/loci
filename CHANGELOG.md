@@ -15,6 +15,17 @@ The "memory layer" release: hybrid retrieval, MCP server, and a test suite.
   any error
 - **Packaging** (`pyproject.toml`): `pip install second-brain-rag` installs
   `second-brain` and `second-brain-mcp` console commands
+- **Query operators** on `search` and `ask`: `--in` (path substring),
+  `--since YYYY-MM[-DD]` (file modification time), `-e "exact phrase"`,
+  combinable with `--tag` and `--rerank`; file mtimes are indexed metadata now
+- **`ask --verify`** (and `brain_ask verify=true`): after answering, audit the
+  answer claim-by-claim against the retrieved excerpts — ✓ supported,
+  ~ partial, ✗ unsupported — to catch hallucinations the citations alone
+  don't reveal. Fails open: if the audit call fails, the answer still prints
+- **Verified fully-offline mode**: point `base_url` at a local Ollama
+  (`http://localhost:11434/v1`) and the whole pipeline — embeddings, hybrid
+  retrieval, answers — runs with zero cloud calls (end-to-end tested with
+  `all-minilm` + `qwen2.5:0.5b`)
 - **Retrieval eval harness** (`scripts/eval_retrieval.py`): hit@k comparison of
   vector-only vs hybrid on your own labeled queries — the README number comes
   from running it on a real 174-chunk corpus (10 bilingual queries: 9/10 → 10/10)

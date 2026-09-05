@@ -11,6 +11,9 @@
 - [x] `[[wikilink]]` graph: `links` command + `brain_links` MCP tool
 - [x] `watch` mode (pure polling, no watchdog dependency)
 - [x] `chat` multi-turn loop with conversation memory
+- [x] Query operators: `--in` / `--since` / `-e "exact phrase"` / `--tag`
+- [x] `ask --verify`: claim-by-claim faithfulness audit of answers
+- [x] Fully-offline mode verified against local Ollama (embeddings + chat)
 - [x] PDF loading (optional `pypdf` extra)
 - [x] `stats` / `doctor` / `ingest --force`
 - [x] 59-test offline suite + GitHub Actions CI (Python 3.11–3.13)
