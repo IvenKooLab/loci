@@ -103,7 +103,7 @@ def _read_text(p: Path) -> str | None:
 
 
 def scan_sources(sources: list[dict]) -> list[dict]:
-    """Return [{path, content, hash, tags, links}] with absolute path strings."""
+    """Return [{path, content, hash, tags, links, mtime}] with absolute path strings."""
     docs, seen = [], set()
     for src in sources:
         root = Path(src["path"]).expanduser()
@@ -125,5 +125,6 @@ def scan_sources(sources: list[dict]) -> list[dict]:
                 continue
             meta, body = parse_frontmatter(text)
             docs.append({"path": ap, "content": body, "hash": file_hash(text),
-                         "tags": tags_of(meta), "links": extract_wikilinks(body)})
+                         "tags": tags_of(meta), "links": extract_wikilinks(body),
+                         "mtime": p.stat().st_mtime})
     return docs

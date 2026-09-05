@@ -38,6 +38,8 @@ TOOLS = [
                 "query": {"type": "string", "description": "what to look for"},
                 "k": {"type": "integer", "description": "number of hits (default 5)"},
                 "tag": {"type": "string", "description": "filter by frontmatter tag"},
+                "in": {"type": "string",
+                       "description": "only hits whose source path contains this substring"},
             },
             "required": ["query"],
         },
@@ -45,10 +47,13 @@ TOOLS = [
     {
         "name": "brain_ask",
         "description": "Ask the knowledge base a question. Returns an LLM answer "
-                       "grounded in retrieved excerpts, with [source: path > section] citations.",
+                       "grounded in retrieved excerpts, with [source: path > section] citations. "
+                       "Set verify=true to append a claim-by-claim faithfulness audit.",
         "inputSchema": {
             "type": "object",
-            "properties": {"question": {"type": "string"}},
+            "properties": {"question": {"type": "string"},
+                           "verify": {"type": "boolean",
+                                      "description": "audit the answer against the sources"}},
             "required": ["question"],
         },
     },
@@ -99,24 +104,27 @@ class Brain:
         return self._cfg, self._retriever
 
     def search(self, query: str, k: int | None = None,
-               tag: str | None = None) -> str:
+               tag: str | None = None, path_contains: str | None = None) -> str:
         cfg, retriever = self._ensure()
         if k:
             retriever.top_k = k
-        hits = retriever.search(query, tag=tag)
+        hits = retriever.search(query, tag=tag, path_contains=path_contains)
         blocks = []
         for i, h in enumerate(hits, 1):
             where = h["source"] + (f" > {h['section']}" if h["section"] else "")
             blocks.append(f"[{i}] {where}\n{h['text'][:500]}")
         return "\n\n".join(blocks) or "(no results)"
 
-    def ask(self, question: str) -> str:
+    def ask(self, question: str, verify: bool = False) -> str:
         cfg, retriever = self._ensure()
         hits = retriever.search(question)
         if not hits:
             return "(nothing relevant in the knowledge base)"
-        from second_brain.retriever import answer
-        return answer(cfg.llm, question, hits)
+        from second_brain.retriever import answer, verify_answer
+        reply = answer(cfg.llm, question, hits)
+        if verify:
+            reply += "\n\n" + verify_answer(cfg.llm, question, reply, hits)
+        return reply
 
     def ingest(self, force: bool = False) -> str:
         cfg, _ = self._ensure()
@@ -146,9 +154,10 @@ class Brain:
 
 def _call_tool(brain: Brain, name: str, args: dict) -> str:
     if name == "brain_search":
-        return brain.search(args["query"], k=args.get("k"), tag=args.get("tag"))
+        return brain.search(args["query"], k=args.get("k"),
+                            tag=args.get("tag"), path_contains=args.get("in"))
     if name == "brain_ask":
-        return brain.ask(args["question"])
+        return brain.ask(args["question"], verify=bool(args.get("verify")))
     if name == "brain_links":
         return brain.links(args["note"])
     if name == "brain_stats":

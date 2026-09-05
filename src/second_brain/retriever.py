@@ -1,6 +1,8 @@
 """Retrieval: vector search fused with BM25 via Reciprocal Rank Fusion,
-and grounded answer synthesis with cited sources."""
+LLM reranking and answer verification, and grounded answer synthesis."""
 from __future__ import annotations
+
+import json
 
 from openai import OpenAI
 
@@ -23,15 +25,25 @@ class Retriever:
         self.rerank, self.llm_cfg = rerank, llm_cfg
 
     def search(self, query: str, tag: str | None = None,
-               rerank: bool | None = None) -> list[dict]:
+               rerank: bool | None = None, path_contains: str | None = None,
+               since: float | None = None, exact: str | None = None) -> list[dict]:
         vec = self.embedder.embed([query])[0]
-        # over-fetch so fusion and tag filtering still leave top_k results
-        fetch = self.top_k * 4 if (self.hybrid or tag or rerank) else self.top_k
+        filtered = bool(tag or path_contains or since or exact or rerank)
+        # over-fetch so fusion and filtering still leave top_k results
+        fetch = self.top_k * 4 if (self.hybrid or filtered) else self.top_k
         vhits = self.store.query(vec, fetch)
         fused = self._fuse(vhits, query, fetch)
         if tag:
             t = tag.lower()
             fused = [h for h in fused if t in h["tags"].lower()]
+        if path_contains:
+            p = path_contains.lower()
+            fused = [h for h in fused if p in h["source"].lower()]
+        if since:
+            fused = [h for h in fused if h.get("mtime", 0.0) >= since]
+        if exact:
+            e = exact.lower()
+            fused = [h for h in fused if e in h["text"].lower()]
         use_rerank = self.rerank if rerank is None else rerank
         if use_rerank and self.llm_cfg:
             fused = rerank_hits(self.llm_cfg, query, fused)
@@ -81,7 +93,6 @@ def rerank_hits(llm_cfg: dict, query: str, hits: list[dict]) -> list[dict]:
             ],
             temperature=0.0,
         )
-        import json
         pairs = json.loads(resp.choices[0].message.content or "[]")
         scores = {int(idx): float(s) for idx, s in pairs}
         if not scores:
@@ -91,6 +102,59 @@ def rerank_hits(llm_cfg: dict, query: str, hits: list[dict]) -> list[dict]:
             key=lambda t: (-t[0], t[1]))]
     except Exception:
         return hits
+
+
+VERIFY_PROMPT = (
+    "You audit RAG answers for faithfulness. You get a question, an answer, "
+    "and numbered source excerpts. Split the answer into its individual "
+    "factual claims. For each claim, decide whether the excerpts support it. "
+    'Reply with ONLY a JSON array like [{"claim": "...", "status": "supported", '
+    '"excerpt": 2}] — status is "supported", "partial" or "unsupported"; '
+    '"excerpt" is the best supporting excerpt number, or null when unsupported. '
+    "Do not use outside knowledge to judge claims."
+)
+
+_STATUS_MARK = {"supported": "✓", "partial": "~", "unsupported": "✗"}
+
+
+def verify_answer(llm_cfg: dict, question: str, answer_text: str,
+                  hits: list[dict]) -> str:
+    """Self-proving RAG: check every claim in the answer against the sources.
+    Fail-open — if the check itself fails, say so and return the note."""
+    if not answer_text.strip():
+        return "(nothing to verify)"
+    try:
+        client = OpenAI(base_url=llm_cfg["base_url"], api_key=llm_cfg["api_key"])
+        excerpts = "\n\n".join(
+            f"[excerpt {i + 1} | {h['source']}"
+            + (f" > {h['section']}" if h.get("section") else "")
+            + f"]\n{h['text']}"
+            for i, h in enumerate(hits))
+        resp = client.chat.completions.create(
+            model=llm_cfg["model"],
+            messages=[
+                {"role": "system", "content": VERIFY_PROMPT},
+                {"role": "user",
+                 "content": f"Question: {question}\n\nAnswer:\n{answer_text}"
+                            f"\n\nExcerpts:\n{excerpts}"},
+            ],
+            temperature=0.0,
+        )
+        claims = json.loads(resp.choices[0].message.content or "[]")
+        if not claims:
+            return "(verification returned no claims — answer not audited)"
+        lines = []
+        for c in claims:
+            claim = str(c.get("claim", "")).strip()
+            status = str(c.get("status", "unsupported")).lower()
+            mark = _STATUS_MARK.get(status, "?")
+            idx = c.get("excerpt")
+            where = f" [excerpt {idx}]" if isinstance(idx, int) and 0 < idx <= len(hits) else ""
+            lines.append(f"  {mark} {claim}{where}")
+        return ("Claim-by-claim check against the sources "
+                f"(✓ supported, ~ partial, ✗ unsupported):\n" + "\n".join(lines))
+    except Exception as e:
+        return f"(verification unavailable: {type(e).__name__}: {e})"
 
 
 def answer(llm_cfg: dict, question: str, hits: list[dict],

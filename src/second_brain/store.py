@@ -37,7 +37,7 @@ class Store:
 
     def upsert_chunks(self, chunks: list[dict], vectors: list[list[float]],
                       path: str, file_hash: str,
-                      tags: str = "", links: str = "") -> None:
+                      tags: str = "", links: str = "", mtime: float = 0.0) -> None:
         """chunks: [{"text", "section"}] as produced by chunker.split_markdown."""
         self.delete_file(path)
         self.collection.add(
@@ -45,7 +45,7 @@ class Store:
             documents=[c["text"] for c in chunks], embeddings=vectors,
             metadatas=[{"source": path, "hash": file_hash, "chunk": i,
                         "section": c.get("section", ""), "tags": tags,
-                        "links": links}
+                        "links": links, "mtime": mtime}
                        for i, c in enumerate(chunks)])
 
     def count(self) -> int:
@@ -63,7 +63,8 @@ class Store:
                                         got["metadatas"][0], got["distances"][0]):
             hits.append({"id": cid, "text": doc, "source": meta["source"],
                          "chunk": meta["chunk"], "section": meta.get("section", ""),
-                         "tags": meta.get("tags", ""), "distance": round(dist, 4)})
+                         "tags": meta.get("tags", ""), "links": meta.get("links", ""),
+                         "mtime": meta.get("mtime", 0.0), "distance": round(dist, 4)})
         return hits
 
     def all_chunks(self) -> tuple[list[str], list[str]]:
@@ -77,7 +78,8 @@ class Store:
         for cid, doc, meta in zip(got["ids"], got["documents"], got["metadatas"]):
             hits.append({"id": cid, "text": doc, "source": meta["source"],
                          "chunk": meta["chunk"], "section": meta.get("section", ""),
-                         "tags": meta.get("tags", ""), "distance": None})
+                         "tags": meta.get("tags", ""), "links": meta.get("links", ""),
+                         "mtime": meta.get("mtime", 0.0), "distance": None})
         return hits
 
     def per_source(self) -> dict[str, int]:

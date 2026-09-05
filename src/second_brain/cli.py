@@ -1,13 +1,24 @@
-"""CLI: ingest / search / ask / stats / doctor."""
+"""CLI: ingest / search / ask / links / chat / watch / stats / doctor."""
 from __future__ import annotations
 
 import argparse
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from second_brain import config, loaders, chunker  # noqa: E402
+
+
+def parse_since(text: str) -> float:
+    """Accept YYYY-MM-DD or YYYY-MM; return epoch seconds (raises on garbage)."""
+    for fmt in ("%Y-%m-%d", "%Y-%m"):
+        try:
+            return time.mktime(time.strptime(text, fmt))
+        except ValueError:
+            continue
+    raise ValueError(f"bad --since value '{text}' (use YYYY-MM-DD or YYYY-MM)")
 
 
 def build(cfg):
@@ -48,16 +59,20 @@ def cmd_ingest(cfg, force: bool = False) -> None:
             continue
         vectors = embedder.embed([c["text"] for c in chunks])
         store.upsert_chunks(chunks, vectors, doc["path"], doc["hash"],
-                            doc["tags"], doc["links"])
+                            doc["tags"], doc["links"], doc["mtime"])
         print(f"  + {Path(doc['path']).name}: {len(chunks)} chunks")
     mode = " (forced)" if force else ""
     print(f"Done{mode}: {added} added / {updated} updated / {skipped} unchanged — "
           f"{store.count()} chunks in store")
 
 
-def cmd_search(cfg, query: str, tag: str | None = None, rerank: bool | None = None) -> None:
+def cmd_search(cfg, query: str, tag: str | None = None, rerank: bool | None = None,
+               path_contains: str | None = None, since: float | None = None,
+               exact: str | None = None) -> None:
     embedder, store = build(cfg)
-    hits = make_retriever(cfg, embedder, store).search(query, tag=tag, rerank=rerank)
+    hits = make_retriever(cfg, embedder, store).search(
+        query, tag=tag, rerank=rerank, path_contains=path_contains,
+        since=since, exact=exact)
     if not hits:
         print("(no results)")
         return
@@ -68,16 +83,22 @@ def cmd_search(cfg, query: str, tag: str | None = None, rerank: bool | None = No
         print(f"    {h['text'][:120].replace(chr(10), ' ')}...")
 
 
-def cmd_ask(cfg, question: str, rerank: bool | None = None) -> None:
-    from second_brain.retriever import Retriever, answer
+def cmd_ask(cfg, question: str, rerank: bool | None = None,
+            path_contains: str | None = None, since: float | None = None,
+            verify: bool = False) -> None:
+    from second_brain.retriever import Retriever, answer, verify_answer
     embedder, store = build(cfg)
     retriever = make_retriever(cfg, embedder, store)
-    hits = retriever.search(question, rerank=rerank)
+    hits = retriever.search(question, rerank=rerank,
+                            path_contains=path_contains, since=since)
     if not hits:
         print("(nothing relevant in the knowledge base)")
         return
     print("Answer:\n")
-    print(answer(cfg.llm, question, hits))
+    reply = answer(cfg.llm, question, hits)
+    print(reply)
+    if verify:
+        print("\n" + verify_answer(cfg.llm, question, reply, hits))
 
 
 def cmd_chat(cfg) -> None:
@@ -238,15 +259,27 @@ def main() -> None:
     p_search = sub.add_parser("search", help="retrieval only (no LLM call)")
     p_search.add_argument("query")
     p_search.add_argument("--tag", help="filter hits by frontmatter tag")
+    p_search.add_argument("--in", dest="path_contains", metavar="PATH",
+                          help="only hits whose source path contains this substring")
+    p_search.add_argument("--since", metavar="DATE", type=parse_since,
+                          help="only files modified on/after DATE (YYYY-MM-DD or YYYY-MM)")
+    p_search.add_argument("-e", "--exact", metavar="PHRASE",
+                          help="only hits containing this exact phrase")
     p_search.add_argument("-k", type=int, help="override top_k")
     p_search.add_argument("--rerank", action="store_true",
                           help="LLM-rerank candidates before returning them")
 
     p_ask = sub.add_parser("ask", help="retrieval + LLM answer with citations")
     p_ask.add_argument("question")
+    p_ask.add_argument("--in", dest="path_contains", metavar="PATH",
+                       help="scope retrieval to paths containing this substring")
+    p_ask.add_argument("--since", metavar="DATE", type=parse_since,
+                       help="only files modified on/after DATE (YYYY-MM-DD or YYYY-MM)")
     p_ask.add_argument("-k", type=int, help="override top_k")
     p_ask.add_argument("--rerank", action="store_true",
                        help="LLM-rerank candidates before answering")
+    p_ask.add_argument("--verify", action="store_true",
+                       help="audit the answer claim-by-claim against the sources")
 
     p_links = sub.add_parser("links", help="show [[wikilink]] outbound/inbound links for a note")
     p_links.add_argument("note", help="note name (stem) to look up")
@@ -262,16 +295,21 @@ def main() -> None:
     if getattr(args, "k", None):
         cfg.top_k["search"] = args.k
     wants_rerank = getattr(args, "rerank", False)
+    wants_verify = getattr(args, "verify", False)
 
     if args.cmd == "ingest":
         cfg.validate()
         cmd_ingest(cfg, force=args.force)
     elif args.cmd == "search":
         cfg.validate()
-        cmd_search(cfg, args.query, tag=args.tag, rerank=wants_rerank or None)
+        cmd_search(cfg, args.query, tag=args.tag, rerank=wants_rerank or None,
+                   path_contains=args.path_contains, since=args.since,
+                   exact=args.exact)
     elif args.cmd == "ask":
         cfg.validate()
-        cmd_ask(cfg, args.question, rerank=wants_rerank or None)
+        cmd_ask(cfg, args.question, rerank=wants_rerank or None,
+                path_contains=args.path_contains, since=args.since,
+                verify=wants_verify)
     elif args.cmd == "chat":
         cfg.validate()
         cmd_chat(cfg)
