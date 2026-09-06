@@ -1,0 +1,22 @@
+{
+  "servers": [
+    {
+      "command": "loci-mcp",
+      "description": "Queryable second brain over your scattered notes, docs, PDFs and chat exports — hybrid retrieval (vector + BM25 fused with RRF), section-level citations with claim-by-claim verification, and an Obsidian-style wikilink graph. Local-first; works with any OpenAI-compatible API or fully offline via Ollama.",
+      "keywords": [
+        "rag",
+        "retrieval",
+        "memory",
+        "knowledge-base",
+        "second-brain",
+        "obsidian",
+        "local-first",
+        "hybrid-search",
+        "citations",
+        "chromadb"
+      ],
+      "license": "MIT",
+      "repository": "https://github.com/IvenKooLab/loci"
+    }
+  ]
+}
