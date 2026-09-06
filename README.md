@@ -1,5 +1,7 @@
 # loci 🧠
 
+<!-- mcp-name: io.github.IvenKooLab/loci -->
+
 ![CI](https://github.com/IvenKooLab/loci/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)

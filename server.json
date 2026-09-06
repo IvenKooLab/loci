@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.IvenKooLab/loci",
+  "title": "loci",
+  "description": "A queryable second brain over your scattered notes, docs, PDFs and chat exports - hybrid retrieval (vector + BM25 fused with RRF), section-level citations, and an MCP server so AI agents can use it. ~300 lines, no LangChain.",
+  "version": "0.2.4",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "loci-rag",
+      "version": "0.2.4",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ],
+  "repository": {
+    "url": "https://github.com/IvenKooLab/loci",
+    "source": "github"
+  }
+}
