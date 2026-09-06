@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.3 — 2026-09-06
+
+- **PyPI distribution name is `loci-rag`** (`pip install loci-rag`; the import
+  name stays `loci`) — `loci` itself was already taken on PyPI
+
 ## v0.2.2 — 2026-09-06
 
 Bug-hunt batch: nine confirmed bugs found by systematic edge-case review,
