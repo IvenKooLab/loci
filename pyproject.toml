@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "loci"
-version = "0.2.1"
+version = "0.2.2"
 description = "A local 'second brain': RAG over your scattered notes and docs, with an MCP server so AI agents can use it too."
 readme = "README.md"
 requires-python = ">=3.11"

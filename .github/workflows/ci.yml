@@ -17,12 +17,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - name: Install dependencies
-        run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Install dependencies (with file-format extras so their tests run)
+        run: |
+          pip install -e ".[pdf,docx]"
+          pip install -r requirements-dev.txt
       - name: Run tests (offline — no API keys needed)
         run: pytest -q
-      - name: Packaging smoke (install + entry points)
+      - name: Packaging smoke (console entry points)
         run: |
-          pip install -e .
           loci --help
           echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}' | loci-mcp | grep serverInfo

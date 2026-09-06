@@ -50,18 +50,24 @@ def split_markdown(text: str, size: int, overlap: int) -> list[dict]:
 
 
 def _blocks_with_breadcrumbs(text: str) -> list[tuple[str, str]]:
-    """Split into (breadcrumb, block) pairs at headings; blocks keep their heading line."""
+    """Split into (breadcrumb, block) pairs at headings; blocks keep their heading
+    line. Heading markers inside fenced code blocks are just code, not headings."""
     stack: dict[int, str] = {}  # heading level -> title
     blocks: list[tuple[str, str]] = []
     crumb = ""
     lines: list[str] = []
+    in_fence = False
 
     def flush() -> None:
         if lines and "\n".join(lines).strip():
             blocks.append((crumb, "\n".join(lines)))
 
     for line in text.splitlines():
-        m = _HEADING.match(line)
+        if _FENCE.match(line):
+            in_fence = not in_fence
+            lines.append(line)
+            continue
+        m = None if in_fence else _HEADING.match(line)
         if not m:
             lines.append(line)
             continue

@@ -59,6 +59,11 @@ def cmd_ingest(cfg, force: bool = False) -> None:
         size, overlap = chunker.params_for(doc, cfg.chunk)
         chunks = chunker.split_markdown(doc["content"], size, overlap)
         if not chunks:
+            # file still exists but yields nothing (e.g. frontmatter only):
+            # drop its old chunks so the index can't go stale
+            if store.indexed_hash(doc["path"]) is not None:
+                store.delete_file(doc["path"])
+                print(f"  - {Path(doc['path']).name}: now empty, removed old chunks")
             continue
         vectors = embedder.embed([c["text"] for c in chunks])
         store.upsert_chunks(chunks, vectors, doc["path"], doc["hash"],
@@ -158,8 +163,11 @@ def cmd_links(cfg, name: str) -> None:
     for path in matches:
         outbound = [t for t in graph.get(path, "").split(",") if t]
         stem = note_stem(path)
+        # inbound = notes whose link targets equal this note's stem exactly
+        # (Obsidian semantics); substring matching would make short stems
+        # like "a" match almost every target
         inbound = [p for p, links in graph.items() if p != path and any(
-            stem in t.lower() for t in links.split(",") if t)]
+            t.strip().lower() == stem for t in links.split(",") if t.strip())]
         print(f"{path}")
         if outbound:
             print("  links to:")

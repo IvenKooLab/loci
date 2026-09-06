@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.2.2 — 2026-09-06
+
+Bug-hunt batch: nine confirmed bugs found by systematic edge-case review,
+each pinned by a regression test.
+
+### Fixed
+- **Chunker**: heading markers inside fenced code blocks (`# comment`) no longer
+  split blocks or corrupt heading breadcrumbs
+- **`--tag`**: exact match against the tag list — `--tag rag` no longer matches
+  `storage`
+- **`--in`**: path filter is separator-agnostic — `--in docs/en` now works against
+  Windows backslash paths
+- **MCP**: `brain_search`'s `k` override no longer leaks into later calls; string
+  `k` from hosts is coerced
+- **Stale chunks**: a file that becomes chunkless (e.g. frontmatter only) now has
+  its old chunks deleted instead of lingering forever
+- **`links`**: inbound matching is exact (Obsidian semantics) — short note names
+  like `a.md` no longer substring-match unrelated link targets
+- **Wikilinks**: Obsidian embeds (`![[image.png]]`) are excluded from the link graph
+- **Chatlog loader**: duplicate conversation titles are disambiguated instead of
+  silently overwriting each other
+- **Config**: numeric sanity — string values are coerced, `overlap >= size` is
+  clamped (with a warning), garbage falls back to defaults
+
+### Changed
+- CI installs the `[pdf,docx]` extras so the office/PDF-table tests actually run
+  there (they were silently skipping)
+
 ## v0.2.1 — 2026-09-05
 
 **Renamed to `loci`** — after the method of loci, the two-thousand-year-old

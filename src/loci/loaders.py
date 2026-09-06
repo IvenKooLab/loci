@@ -29,11 +29,12 @@ except ImportError:
     HAS_DOCX = False
 
 SUFFIXES = {".md", ".txt"}
-_WIKILINK = re.compile(r"\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]")
+_WIKILINK = re.compile(r"(?<!!)\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]")
 
 
 def extract_wikilinks(body: str) -> str:
-    """Collect [[wikilink]] targets as a comma-joined string (deduplicated)."""
+    """Collect [[wikilink]] targets as a comma-joined string (deduplicated).
+    Obsidian embeds (![[...]]) are assets, not links — excluded."""
     seen: list[str] = []
     for m in _WIKILINK.finditer(body):
         target = m.group(1).strip()
@@ -161,7 +162,14 @@ def scan_sources(sources: list[dict]) -> list[dict]:
                 conversations = parse_chatlog(p)
                 if conversations:
                     mtime = p.stat().st_mtime
+                    seen_titles: set[str] = set()
                     for conv in conversations:
+                        title, n = conv["title"], 2
+                        while title.lower() in seen_titles:  # same-title convs would overwrite each other
+                            title = f"{conv['title']} ({n})"
+                            n += 1
+                        seen_titles.add(title.lower())
+                        conv["title"] = title
                         docs.append({"path": f"{ap}::{conv['title']}",
                                      "content": conv["text"],
                                      "hash": file_hash(conv["text"]),

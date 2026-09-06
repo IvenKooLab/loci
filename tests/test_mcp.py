@@ -60,7 +60,7 @@ def test_search_tool_with_fake_pipeline(monkeypatch, tmp_path):
     class FakeRetriever:
         top_k = 5
 
-        def search(self, query, tag=None, path_contains=None):
+        def search(self, query, tag=None, path_contains=None, k=None):
             return [{"id": "1", "text": "found it", "source": "a.md",
                      "chunk": 0, "section": "S", "tags": "", "distance": 0.1}]
 

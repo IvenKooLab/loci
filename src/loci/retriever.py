@@ -32,19 +32,24 @@ class Retriever:
     def search(self, query: str, tag: str | None = None,
                rerank: bool | None = None, path_contains: str | None = None,
                since: float | None = None, exact: str | None = None,
-               rerank_with: str | None = None) -> list[dict]:
+               rerank_with: str | None = None, k: int | None = None) -> list[dict]:
+        limit = max(k if k is not None else self.top_k, 0)
         vec = self.embedder.embed([query])[0]
         filtered = bool(tag or path_contains or since or exact or rerank)
-        # over-fetch so fusion and filtering still leave top_k results
-        fetch = self.top_k * 4 if (self.hybrid or filtered) else self.top_k
+        # over-fetch so fusion and filtering still leave `limit` results
+        fetch = max(limit * 4, 1) if (self.hybrid or filtered) else max(limit, 1)
         vhits = self.store.query(vec, fetch)
         fused = self._fuse(vhits, query, fetch)
         if tag:
             t = tag.lower()
-            fused = [h for h in fused if t in h["tags"].lower()]
+            # exact tag match against the comma-joined list — substring would
+            # let `--tag rag` hit "storage"
+            fused = [h for h in fused
+                     if t in [x.strip().lower() for x in h["tags"].split(",") if x.strip()]]
         if path_contains:
-            p = path_contains.lower()
-            fused = [h for h in fused if p in h["source"].lower()]
+            # normalize separators so `--in docs/en` works on Windows paths too
+            p = path_contains.lower().replace("\\", "/")
+            fused = [h for h in fused if p in h["source"].lower().replace("\\", "/")]
         if since:
             fused = [h for h in fused if h.get("mtime", 0.0) >= since]
         if exact:
@@ -57,7 +62,7 @@ class Retriever:
                 fused = local_rerank(query, fused, self.local_rerank_model)
             elif self.llm_cfg:
                 fused = rerank_hits(self.llm_cfg, query, fused)
-        return fused[: self.top_k]
+        return fused[:limit]
 
     def _fuse(self, vhits: list[dict], query: str, fetch: int) -> list[dict]:
         if not self.hybrid:

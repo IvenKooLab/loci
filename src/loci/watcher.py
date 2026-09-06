@@ -22,6 +22,8 @@ def ingest_once(cfg) -> int:
         size, overlap = chunker.params_for(doc, cfg.chunk)
         chunks = chunker.split_markdown(doc["content"], size, overlap)
         if not chunks:
+            if store.indexed_hash(doc["path"]) is not None:
+                store.delete_file(doc["path"])  # avoid stale chunks
             continue
         vectors = embedder.embed([c["text"] for c in chunks])
         store.upsert_chunks(chunks, vectors, doc["path"], doc["hash"],

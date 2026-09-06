@@ -65,4 +65,22 @@ def load(path: str = "config.toml") -> Config:
         cfg.llm["api_key"] = v
     if v := os.environ.get("BRAIN_EMBED_API_KEY"):
         cfg.embed["api_key"] = v
+
+    # numeric sanity: strings from sloppy TOML, negative or absurd values
+    for key in ("size", "overlap"):
+        try:
+            cfg.chunk[key] = int(cfg.chunk[key])
+        except (TypeError, ValueError):
+            print(f"[warn] chunk.{key}={cfg.chunk[key]!r} is not an int — "
+                  f"using {DEFAULTS['chunk'][key]}")
+            cfg.chunk[key] = DEFAULTS["chunk"][key]
+    cfg.chunk["size"] = max(cfg.chunk["size"], 1)
+    if cfg.chunk["overlap"] >= cfg.chunk["size"]:
+        print(f"[warn] chunk.overlap ({cfg.chunk['overlap']}) >= chunk.size "
+              f"({cfg.chunk['size']}) — clamping to size-1 to avoid 1-char steps")
+        cfg.chunk["overlap"] = cfg.chunk["size"] - 1
+    try:
+        cfg.top_k["search"] = max(int(cfg.top_k["search"]), 1)
+    except (TypeError, ValueError):
+        cfg.top_k["search"] = DEFAULTS["top_k"]["search"]
     return cfg

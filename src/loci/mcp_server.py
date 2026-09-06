@@ -142,9 +142,12 @@ class Brain:
     def search(self, query: str, k: int | None = None,
                tag: str | None = None, path_contains: str | None = None) -> str:
         cfg, retriever = self._ensure()
-        if k:
-            retriever.top_k = k
-        hits = retriever.search(query, tag=tag, path_contains=path_contains)
+        try:
+            k = int(k) if k is not None else None
+        except (TypeError, ValueError):
+            k = None
+        # k rides as a per-call override — never mutates retriever state
+        hits = retriever.search(query, tag=tag, path_contains=path_contains, k=k)
         blocks = []
         for i, h in enumerate(hits, 1):
             where = h["source"] + (f" > {h['section']}" if h["section"] else "")
