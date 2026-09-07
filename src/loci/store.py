@@ -2,6 +2,12 @@
 (by file content hash) with real pruning of files that disappear."""
 from __future__ import annotations
 
+import os
+
+# chromadb's first init posts telemetry and can hang for minutes behind
+# firewalls — off by default, this is a local-first tool
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
+
 import chromadb
 
 

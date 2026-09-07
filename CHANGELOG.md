@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.3.0 — 2026-09-07
+
+### Added
+- **Cross-session memory (write + recall)**: `brain_remember` (MCP tool) and
+  `loci remember` store durable notes as markdown files in a configurable
+  memories directory — written atomically, indexed immediately, and shared by
+  every MCP host that mounts loci (Claude Code, Qoder, Trae, Cursor, Cline …).
+  Write once, recall from anywhere: `brain_search` / `brain_ask` cover memories
+  and documents alike (memories carry a `memory` tag; filter with `--tag memory`).
+- **`brain_forget`** and soft-delete: matching memories move to a `.trash`
+  folder instead of being destroyed
+- Memories directory auto-joins the index ([memories] in config, default
+  ./memories) and is covered by `watch`
+- Verified cross-process: IDE A writes via one loci-mcp process, IDE B recalls
+  through a completely separate process
+
 ## v0.2.5 — 2026-09-07
 
 ### Fixed
