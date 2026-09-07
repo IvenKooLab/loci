@@ -123,25 +123,50 @@ TOOLS = [
 class Brain:
     """Lazily-built access to the pipeline; one instance per server process."""
 
+    NOT_CONFIGURED = (
+        "loci is running but not configured yet, so index-backed tools are "
+        "unavailable in this environment. Setup (locally, where the index "
+        "lives): copy config.example.toml to config.toml, fill in llm/embed "
+        "API keys and at least one [[sources]] directory, then run "
+        "`loci ingest`. After that all tools work."
+    )
+
     def __init__(self):
         self._cfg = None
         self._retriever = None
         self._store = None
+        self._config_error: str | None = None
 
     def _ensure(self):
-        if self._retriever is None:
-            from loci.cli import build, make_retriever
-            cfg = config.load()
-            cfg.validate()
-            embedder, store = build(cfg)
+        # never raises: an unconfigured environment leaves the server alive,
+        # answering tool calls with guidance instead of killing the process
+        if self._retriever is None and self._config_error is None:
+            try:
+                from loci.cli import build, make_retriever
+                cfg = config.load()
+                cfg.validate()
+                embedder, store = build(cfg)
+            except SystemExit as e:
+                self._config_error = str(e)
+                return self._cfg, None
+            except Exception as e:
+                self._config_error = f"{type(e).__name__}: {e}"
+                return self._cfg, None
             self._cfg = cfg
             self._store = store
             self._retriever = make_retriever(cfg, embedder, store)
         return self._cfg, self._retriever
 
+    def _guard(self) -> str | None:
+        """Guidance text when the pipeline is unavailable; None when ready."""
+        self._ensure()
+        return self.NOT_CONFIGURED if self._config_error else None
+
     def search(self, query: str, k: int | None = None,
                tag: str | None = None, path_contains: str | None = None) -> str:
-        cfg, retriever = self._ensure()
+        if err := self._guard():
+            return err
+        cfg, retriever = self._cfg, self._retriever
         try:
             k = int(k) if k is not None else None
         except (TypeError, ValueError):
@@ -155,7 +180,9 @@ class Brain:
         return "\n\n".join(blocks) or "(no results)"
 
     def ask(self, question: str, verify: bool = False) -> str:
-        cfg, retriever = self._ensure()
+        if err := self._guard():
+            return err
+        cfg, retriever = self._cfg, self._retriever
         hits = retriever.search(question)
         if not hits:
             return "(nothing relevant in the knowledge base)"
@@ -166,7 +193,9 @@ class Brain:
         return reply
 
     def ingest(self, force: bool = False) -> str:
-        cfg, _ = self._ensure()
+        if err := self._guard():
+            return err
+        cfg = self._cfg
         from loci.cli import cmd_ingest
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):  # keep the protocol stream clean
@@ -175,7 +204,8 @@ class Brain:
         return "\n".join(lines[-3:]) or "ingest finished"
 
     def links(self, note: str) -> str:
-        self._ensure()
+        if err := self._guard():
+            return err
         from loci.cli import cmd_links
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
@@ -183,7 +213,8 @@ class Brain:
         return buf.getvalue().strip() or f"(no note matching '{note}')"
 
     def stats(self) -> str:
-        self._ensure()
+        if err := self._guard():
+            return err
         from loci.cli import cmd_stats
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
@@ -200,6 +231,8 @@ class Brain:
             "description": "What is in the index: chunks per source, models, settings.",
             "mimeType": "text/plain",
         }]
+        if self._config_error:   # unconfigured: only the stats resource exists
+            return resources
         for path, n in sorted(self._store.per_source().items()):
             resources.append({
                 "uri": f"brain://note/{quote(path, safe='')}",
@@ -211,6 +244,8 @@ class Brain:
 
     def resource_read(self, uri: str) -> list[dict]:
         self._ensure()
+        if self._config_error and uri != "brain://stats":
+            raise KeyError(uri)   # per-note resources don't exist when unconfigured
         if uri == "brain://stats":
             return [{"uri": uri, "mimeType": "text/plain", "text": self.stats()}]
         prefix = "brain://note/"

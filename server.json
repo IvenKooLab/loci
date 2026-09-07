@@ -3,12 +3,12 @@
   "name": "io.github.IvenKooLab/loci",
   "title": "loci",
   "description": "Local-first second brain: hybrid RAG over your notes and docs, with cited and verifiable answers.",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "loci-rag",
-      "version": "0.2.4",
+      "version": "0.2.5",
       "transport": {
         "type": "stdio"
       }

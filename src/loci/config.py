@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import sys
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -58,7 +59,7 @@ def load(path: str = "config.toml") -> Config:
         cfg.sources = raw.get("sources", [])
     else:
         print(f"[warn] {path} not found — using defaults "
-              f"(first run: cp config.example.toml config.toml)")
+              f"(first run: cp config.example.toml config.toml)", file=sys.stderr)
 
     # env vars override keys so plaintext secrets never have to sit in the file
     if v := os.environ.get("BRAIN_LLM_API_KEY"):
@@ -72,12 +73,13 @@ def load(path: str = "config.toml") -> Config:
             cfg.chunk[key] = int(cfg.chunk[key])
         except (TypeError, ValueError):
             print(f"[warn] chunk.{key}={cfg.chunk[key]!r} is not an int — "
-                  f"using {DEFAULTS['chunk'][key]}")
+                  f"using {DEFAULTS['chunk'][key]}", file=sys.stderr)
             cfg.chunk[key] = DEFAULTS["chunk"][key]
     cfg.chunk["size"] = max(cfg.chunk["size"], 1)
     if cfg.chunk["overlap"] >= cfg.chunk["size"]:
         print(f"[warn] chunk.overlap ({cfg.chunk['overlap']}) >= chunk.size "
-              f"({cfg.chunk['size']}) — clamping to size-1 to avoid 1-char steps")
+              f"({cfg.chunk['size']}) — clamping to size-1 to avoid 1-char steps",
+              file=sys.stderr)
         cfg.chunk["overlap"] = cfg.chunk["size"] - 1
     try:
         cfg.top_k["search"] = max(int(cfg.top_k["search"]), 1)

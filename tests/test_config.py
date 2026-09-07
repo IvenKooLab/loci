@@ -6,7 +6,7 @@ def test_defaults_applied_without_file(tmp_path, capsys):
     assert cfg.chunk["size"] == 800
     assert cfg.retrieval["hybrid"] is True
     assert cfg.watch["interval"] == 30
-    assert "warn" in capsys.readouterr().out
+    assert "warn" in capsys.readouterr().err
 
 
 def test_file_overrides_defaults(tmp_path):
