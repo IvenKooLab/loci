@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.2.5 — 2026-09-07
+
+### Fixed
+- **The server no longer dies in unconfigured environments.** Found via Glama's
+  hosted inspection: the server started and answered introspection, but the first
+  tool call ran `config.validate()` → `SystemExit`, killing the process, so the
+  follow-up ping failed ("Connection closed"). All MCP tools now respond with
+  setup guidance instead; resources degrade to `brain://stats` only.
+- Config warnings now print to stderr — MCP hosts no longer see non-protocol
+  text on stdout.
+
 ## v0.2.3 — 2026-09-06
 
 - **PyPI distribution name is `loci-rag`** (`pip install loci-rag`; the import

@@ -194,7 +194,7 @@ def test_config_clamps_runaway_overlap(tmp_path, capsys):
     p.write_text("[chunk]\nsize = 100\noverlap = 800", encoding="utf-8")
     cfg = config.load(str(p))
     assert cfg.chunk["overlap"] == 99
-    assert "clamping" in capsys.readouterr().out
+    assert "clamping" in capsys.readouterr().err
 
 
 def test_config_rejects_garbage_numbers(tmp_path, capsys):
@@ -202,7 +202,7 @@ def test_config_rejects_garbage_numbers(tmp_path, capsys):
     p.write_text('[chunk]\nsize = "huge"', encoding="utf-8")
     cfg = config.load(str(p))
     assert cfg.chunk["size"] == 800                 # default restored
-    assert "not an int" in capsys.readouterr().out
+    assert "not an int" in capsys.readouterr().err
 
 
 # [10] same-title chatlog conversations don't overwrite each other
