@@ -64,25 +64,33 @@ PROMPTS: dict[str, dict] = {
 TOOLS = [
     {
         "name": "brain_search",
-        "description": "Search the personal knowledge base. Returns ranked excerpts "
-                       "with file path and section breadcrumbs.",
+        "description": "Search the personal knowledge base with hybrid retrieval "
+                       "(vector similarity fused with BM25 keyword matching). Behavior: "
+                       "returns up to k ranked excerpts, each with file path, heading "
+                       "breadcrumb and similarity score; no LLM call is made. Usage: reach "
+                       "for this when you need source material to quote, verify a claim, "
+                       "or see what exists on a topic; use brain_ask when you want a "
+                       "synthesized answer instead. Results are limited to the indexed "
+                       "sources — run brain_ingest first if recent files are missing.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "what to look for"},
-                "k": {"type": "integer", "description": "number of hits (default 5)"},
-                "tag": {"type": "string", "description": "filter by frontmatter tag"},
-                "in": {"type": "string",
-                       "description": "only hits whose source path contains this substring"},
+                "query": {"type": "string", "description": "what to look for, in any language"},
+                "k": {"type": "integer", "description": "number of hits to return, 1-20 (default 5)"},
+                "tag": {"type": "string", "description": "only results whose frontmatter tags contain this, e.g. 'rag' or 'memory'"},
+                "in": {"type": "string", "description": "only results whose source path contains this substring, e.g. 'docs/en' or 'projects'"},
             },
             "required": ["query"],
         },
     },
     {
         "name": "brain_ask",
-        "description": "Ask the knowledge base a question. Returns an LLM answer "
-                       "grounded in retrieved excerpts, with [source: path > section] citations. "
-                       "Set verify=true to append a claim-by-claim faithfulness audit.",
+        "description": "Ask the knowledge base a question. Behavior: retrieves the most "
+                       "relevant excerpts, then an LLM synthesizes an answer grounded ONLY in "
+                       "them, ending with [source: path > section] citations. Usage: prefer "
+                       "this over brain_search whenever a question needs synthesis or an "
+                       "explanation; set verify=true to get a claim-by-claim audit "
+                       "(supported / partial / unsupported) when accuracy matters more than speed.",
         "inputSchema": {
             "type": "object",
             "properties": {"question": {"type": "string"},
@@ -93,8 +101,11 @@ TOOLS = [
     },
     {
         "name": "brain_links",
-        "description": "Show the [[wikilink]] graph around a note: which notes it "
-                       "links to and which notes link back to it.",
+        "description": "Show the Obsidian-style [[wikilink]] graph around a note. Behavior: "
+                       "lists every note the given note links to (outbound) and every note "
+                       "that links back to it (inbound), based on the current index. Usage: "
+                       "use to explore how a topic connects to others before asking questions, "
+                       "or to find related notes when search keywords fail.",
         "inputSchema": {
             "type": "object",
             "properties": {"note": {"type": "string",
@@ -104,14 +115,25 @@ TOOLS = [
     },
     {
         "name": "brain_stats",
-        "description": "Index overview: total chunks, chunks per source file.",
+        "description": "Report what the index currently contains. Behavior: returns the "
+                       "store path, total chunk count, chunk count per source file, the "
+                       "embedding and chat models in use, and retrieval settings (hybrid, "
+                       "rrf_k, top_k). Reads local metadata only — no LLM or embedding calls. "
+                       "Usage: call before searching to see what is indexed, after "
+                       "brain_ingest to confirm what changed, or whenever answers seem to be "
+                       "missing a file you expected to be there. Takes no parameters.",
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
         "name": "brain_remember",
-        "description": "Store a durable memory (decision, fact, preference, lesson) "
-                       "into the shared knowledge base. Survives sessions and is shared "
-                       "by every MCP host that mounts loci — write here, recall from anywhere.",
+        "description": "Store a durable memory (decision, fact, preference, lesson learned) "
+                       "into the shared knowledge base. Behavior: writes a markdown note with "
+                       "frontmatter tags into the memories directory and indexes it immediately, "
+                       "so it is searchable within the same call. Memories persist across "
+                       "sessions and are shared by every MCP host that mounts loci — write "
+                       "from one IDE, recall from any other with brain_search or brain_ask. "
+                       "Usage: use for decisions, facts, preferences and lessons worth "
+                       "recording; do not use for ephemeral chit-chat.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -125,8 +147,11 @@ TOOLS = [
     },
     {
         "name": "brain_forget",
-        "description": "Soft-delete memories matching a query (moved to a .trash folder, "
-                       "never silently destroyed). Recall them again with brain_search.",
+        "description": "Retract memories that are wrong or outdated. Behavior: memory notes "
+                       "matching the query move to a .trash folder (recoverable by hand) and "
+                       "their chunks leave the index immediately; nothing is permanently "
+                       "destroyed. Usage: use when a remembered fact was superseded or was a "
+                       "mistake; check with brain_search first if you are unsure what matches.",
         "inputSchema": {
             "type": "object",
             "properties": {"query": {"type": "string",
