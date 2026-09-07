@@ -146,6 +146,20 @@ def cmd_watch(cfg) -> None:
     watch(cfg)
 
 
+def cmd_remember(cfg, text: str, title: str | None = None,
+                 tags: str | None = None) -> None:
+    from loci.memories import index_memory_file, write_memory
+    mem_dir = (cfg.memories or {}).get("path", "./memories")
+    tag_list = [t.strip() for t in (tags or "").split(",") if t.strip()]
+    path = write_memory(mem_dir, text, title=title, tags=tag_list)
+    try:
+        n = index_memory_file(cfg, path)
+        print(f"remembered: {path} ({n} chunks, searchable now)")
+    except Exception as e:
+        print(f"stored: {path}")
+        print(f"not indexed yet ({type(e).__name__}: {e}) — run `loci ingest` later")
+
+
 def cmd_links(cfg, name: str) -> None:
     _, store = build(cfg)
     graph = store.link_map()
@@ -308,6 +322,11 @@ def main() -> None:
     p_links = sub.add_parser("links", help="show [[wikilink]] outbound/inbound links for a note")
     p_links.add_argument("note", help="note name (stem) to look up")
 
+    p_remember = sub.add_parser("remember", help="store a durable memory note (write + index)")
+    p_remember.add_argument("text")
+    p_remember.add_argument("--title", help="short title (defaults to first line)")
+    p_remember.add_argument("--tags", help="comma-separated extra tags (a 'memory' tag is always added)")
+
     sub.add_parser("chat", help="multi-turn Q&A loop with conversation memory")
     sub.add_parser("watch", help="keep the index current by polling sources")
     sub.add_parser("serve", help="run the MCP server over stdio (alias for mcp_server.py)")
@@ -341,6 +360,8 @@ def main() -> None:
         cmd_chat(cfg)
     elif args.cmd == "links":
         cmd_links(cfg, args.note)
+    elif args.cmd == "remember":
+        cmd_remember(cfg, args.text, title=args.title, tags=args.tags)
     elif args.cmd == "watch":
         cfg.validate()
         cmd_watch(cfg)

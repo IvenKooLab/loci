@@ -108,6 +108,33 @@ TOOLS = [
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
+        "name": "brain_remember",
+        "description": "Store a durable memory (decision, fact, preference, lesson) "
+                       "into the shared knowledge base. Survives sessions and is shared "
+                       "by every MCP host that mounts loci — write here, recall from anywhere.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string", "description": "what to remember (plain text)"},
+                "title": {"type": "string", "description": "short title; defaults to first line"},
+                "tags": {"type": "array", "items": {"type": "string"},
+                         "description": "optional extra tags (a 'memory' tag is always added)"},
+            },
+            "required": ["text"],
+        },
+    },
+    {
+        "name": "brain_forget",
+        "description": "Soft-delete memories matching a query (moved to a .trash folder, "
+                       "never silently destroyed). Recall them again with brain_search.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"query": {"type": "string",
+                                     "description": "matches memory filenames or content"}},
+            "required": ["query"],
+        },
+    },
+    {
         "name": "brain_ingest",
         "description": "Incrementally (re)index the configured source directories. "
                        "Safe to call repeatedly; only changed files are re-embedded.",
@@ -144,7 +171,8 @@ class Brain:
             try:
                 from loci.cli import build, make_retriever
                 cfg = config.load()
-                cfg.validate()
+                self._cfg = cfg          # keep even when invalid: brain_remember
+                cfg.validate()           # still needs the memories path
                 embedder, store = build(cfg)
             except SystemExit as e:
                 self._config_error = str(e)
@@ -221,6 +249,34 @@ class Brain:
             cmd_stats(self._cfg)
         return buf.getvalue().strip()
 
+    # ---- cross-session memory (write + forget; recall = search/ask) ----
+
+    def remember(self, text: str, title: str | None = None,
+                 tags: list[str] | None = None) -> str:
+        from loci.memories import index_memory_file, write_memory
+        self._ensure()
+        mem_dir = (self._cfg.memories or {}).get("path", "./memories") \
+            if self._cfg else "./memories"
+        path = write_memory(mem_dir, text, title=title, tags=tags)
+        if self._config_error or self._retriever is None:
+            return (f"stored: {path}\n"
+                    "not indexed yet (no working embedder in this environment) — "
+                    "run brain_ingest or `loci ingest` where loci is configured")
+        n = index_memory_file(self._cfg, path)
+        return f"remembered: {path} ({n} chunks, searchable now)"
+
+    def forget(self, query: str) -> str:
+        if err := self._guard():
+            return err
+        from loci.memories import forget_memory
+        mem_dir = self._cfg.memories.get("path", "./memories")
+        moved = forget_memory(mem_dir, query)
+        for p in moved:
+            self._store.delete_file(str(Path(p).resolve()))
+        if not moved:
+            return f"(no memory matching '{query}')"
+        return "forgot:\n" + "\n".join(f"  - {m}" for m in moved)
+
     # ---- MCP resources ----
 
     def resources_list(self) -> list[dict]:
@@ -269,6 +325,11 @@ def _call_tool(brain: Brain, name: str, args: dict) -> str:
         return brain.links(args["note"])
     if name == "brain_stats":
         return brain.stats()
+    if name == "brain_remember":
+        return brain.remember(args["text"], title=args.get("title"),
+                              tags=args.get("tags"))
+    if name == "brain_forget":
+        return brain.forget(args["query"])
     if name == "brain_ingest":
         return brain.ingest(force=bool(args.get("force")))
     raise ValueError(f"unknown tool: {name}")

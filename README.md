@@ -152,6 +152,27 @@ Filter operators (combine freely, on `search` and `ask`):
 | `doctor` | health check: config, source dirs, embed/LLM endpoints, store (exit code 1 on failure — CI-friendly) |
 | `python mcp_server.py` | MCP server over stdio (see below) |
 
+## One memory, every IDE
+
+Because every MCP host mounts the *same* loci server (same `config.toml`, same
+index), memory written from one tool is recalled from every other:
+
+```bash
+# Claude Code
+claude mcp add loci -- loci-mcp
+```
+
+```jsonc
+// Cursor / Cline / Qoder / Trae (mcpServers JSON — same shape everywhere)
+{ "mcpServers": { "loci": { "command": "loci-mcp" } } }
+```
+
+Then, from any of them: *"remember that the staging password rotates on
+Mondays"* → `brain_remember` → later, from a *different* IDE:
+*"when does the staging password rotate?"* → answered, with the memory cited.
+Memories live as plain markdown in the `memories` directory (git-friendly, no
+lock-in) and are tagged `memory`, so `loci search --tag memory` scopes to them.
+
 ## Mount it in any MCP host
 
 Add to `claude_desktop_config.json` (Claude Desktop) or your MCP client's
@@ -176,6 +197,8 @@ The server exposes three tools (zero dependencies beyond the core):
 | `brain_ask(question, verify?)` | grounded answer with citations; `verify=true` adds a claim-by-claim audit |
 | `brain_links(note)` | outbound/inbound `[[wikilink]]` graph around a note |
 | `brain_stats()` | index overview (chunks per source) |
+| `brain_remember(text, title?, tags?)` | **write a memory** — durable, shared across sessions and IDEs |
+| `brain_forget(query)` | soft-delete matching memories (they go to a `.trash` folder) |
 | `brain_ingest(force?)` | incremental re-index |
 
 Beyond tools, the server speaks the full protocol:

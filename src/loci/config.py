@@ -18,6 +18,7 @@ DEFAULTS = {
                   "rerank_provider": "llm",
                   "local_rerank_model": "BAAI/bge-reranker-base"},
     "watch": {"interval": 30},
+    "memories": {"path": "./memories"},
     "store": {"path": "./chroma_db"},
 }
 
@@ -30,6 +31,7 @@ class Config:
     top_k: dict = field(default_factory=dict)
     retrieval: dict = field(default_factory=dict)
     watch: dict = field(default_factory=dict)
+    memories: dict = field(default_factory=dict)
     store: dict = field(default_factory=dict)
     sources: list = field(default_factory=list)
 
@@ -60,6 +62,17 @@ def load(path: str = "config.toml") -> Config:
     else:
         print(f"[warn] {path} not found — using defaults "
               f"(first run: cp config.example.toml config.toml)", file=sys.stderr)
+
+    # the memories directory is always part of the index (cross-session,
+    # cross-IDE memory) — appended unless the user already listed that path
+    mem_path = str(Path(cfg.memories["path"]).expanduser())
+    try:
+        mem_resolved = str(Path(mem_path).expanduser().resolve())
+        existing = {str(Path(s0["path"]).expanduser().resolve()) for s0 in cfg.sources}
+        if mem_resolved not in existing and Path(mem_resolved).exists():
+            cfg.sources.append({"path": mem_resolved})
+    except OSError:
+        pass
 
     # env vars override keys so plaintext secrets never have to sit in the file
     if v := os.environ.get("BRAIN_LLM_API_KEY"):
