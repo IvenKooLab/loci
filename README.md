@@ -173,6 +173,12 @@ Mondays"* → `brain_remember` → later, from a *different* IDE:
 Memories live as plain markdown in the `memories` directory (git-friendly, no
 lock-in) and are tagged `memory`, so `loci search --tag memory` scopes to them.
 
+> **Cross-IDE tip**: the default `store` / `memories` paths are relative to the
+> directory loci is launched from. If your IDEs start in different project
+> folders, point both at one absolute location in `config.toml` — e.g.
+> `store.path = "~/.loci/store"` and `memories.path = "~/.loci/memories"` —
+> and every IDE shares the exact same memory store.
+
 ## Mount it in any MCP host
 
 Add to `claude_desktop_config.json` (Claude Desktop) or your MCP client's
