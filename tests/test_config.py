@@ -15,7 +15,9 @@ def test_file_overrides_defaults(tmp_path):
     cfg = config.load(str(p))
     assert cfg.chunk["size"] == 400
     assert cfg.chunk["overlap"] == 100  # untouched default
-    assert cfg.sources == [{"path": "X"}]
+    # X is first; the generated dirs (memories/, wiki/) may auto-join if they
+    # exist relative to the working directory
+    assert cfg.sources[0] == {"path": "X"}
 
 
 def test_env_vars_override_keys(tmp_path, monkeypatch):
