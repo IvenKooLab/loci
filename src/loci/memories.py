@@ -15,7 +15,7 @@ from pathlib import Path
 _MEMORY_TAG = "memory"
 
 
-def _slug(title: str) -> str:
+def slugify(title: str) -> str:
     slug = re.sub(r"[^\w\u4e00-\u9fff-]+", "-", title.strip()).strip("-").lower()
     return slug[:48] or "memory"
 
@@ -27,7 +27,7 @@ def write_memory(mem_dir: str, text: str, title: str | None = None,
     d.mkdir(parents=True, exist_ok=True)
     title = (title or text.strip().splitlines()[0] or "memory").strip()[:80]
     ts = datetime.now()
-    base = f"{ts.strftime('%Y%m%d-%H%M%S')}-{_slug(title)}"
+    base = f"{ts.strftime('%Y%m%d-%H%M%S')}-{slugify(title)}"
     path = d / f"{base}.md"
     n = 2
     while path.exists():                       # two IDEs writing in the same second

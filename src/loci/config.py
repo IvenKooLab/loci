@@ -19,6 +19,7 @@ DEFAULTS = {
                   "local_rerank_model": "BAAI/bge-reranker-base"},
     "watch": {"interval": 30},
     "memories": {"path": "./memories"},
+    "wiki": {"path": "./wiki"},
     "store": {"path": "./chroma_db"},
 }
 
@@ -32,6 +33,7 @@ class Config:
     retrieval: dict = field(default_factory=dict)
     watch: dict = field(default_factory=dict)
     memories: dict = field(default_factory=dict)
+    wiki: dict = field(default_factory=dict)
     store: dict = field(default_factory=dict)
     sources: list = field(default_factory=list)
 
@@ -63,14 +65,15 @@ def load(path: str = "config.toml") -> Config:
         print(f"[warn] {path} not found — using defaults "
               f"(first run: cp config.example.toml config.toml)", file=sys.stderr)
 
-    # the memories directory is always part of the index (cross-session,
-    # cross-IDE memory) — appended unless the user already listed that path
-    mem_path = str(Path(cfg.memories["path"]).expanduser())
+    # generated/curated directories (memories, wiki) are always part of the
+    # index (cross-session, cross-IDE memory + consolidated wiki pages) —
+    # appended unless the user already listed that path
     try:
-        mem_resolved = str(Path(mem_path).expanduser().resolve())
         existing = {str(Path(s0["path"]).expanduser().resolve()) for s0 in cfg.sources}
-        if mem_resolved not in existing and Path(mem_resolved).exists():
-            cfg.sources.append({"path": mem_resolved})
+        for section in ("memories", "wiki"):
+            d = Path(str(getattr(cfg, section)["path"])).expanduser().resolve()
+            if str(d) not in existing and d.exists():
+                cfg.sources.append({"path": str(d)})
     except OSError:
         pass
 

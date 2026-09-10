@@ -160,6 +160,21 @@ def cmd_remember(cfg, text: str, title: str | None = None,
         print(f"not indexed yet ({type(e).__name__}: {e}) — run `loci ingest` later")
 
 
+def cmd_wiki(cfg, topic: str, k: int | None = None) -> None:
+    from loci.wiki import generate_wiki_page
+    embedder, store = build(cfg)
+    try:
+        r = generate_wiki_page(cfg, topic, k=k or 12)
+    except LookupError as e:
+        print(str(e))
+        return
+    print(f"wiki page: {r['path']}")
+    print(f"distilled {r['sources']} excerpts -> {r['chunks']} chunks (indexed)")
+    body = Path(r["path"]).read_text(encoding="utf-8")
+    print()
+    print("\n".join(body.splitlines()[:12]))
+
+
 def cmd_links(cfg, name: str) -> None:
     _, store = build(cfg)
     graph = store.link_map()
@@ -327,6 +342,10 @@ def main() -> None:
     p_remember.add_argument("--title", help="short title (defaults to first line)")
     p_remember.add_argument("--tags", help="comma-separated extra tags (a 'memory' tag is always added)")
 
+    p_wiki = sub.add_parser("wiki", help="distill everything the index knows about a topic into a wiki page")
+    p_wiki.add_argument("topic")
+    p_wiki.add_argument("-k", type=int, help="source excerpts to distill (default 12)")
+
     sub.add_parser("chat", help="multi-turn Q&A loop with conversation memory")
     sub.add_parser("watch", help="keep the index current by polling sources")
     sub.add_parser("serve", help="run the MCP server over stdio (alias for mcp_server.py)")
@@ -362,6 +381,8 @@ def main() -> None:
         cmd_links(cfg, args.note)
     elif args.cmd == "remember":
         cmd_remember(cfg, args.text, title=args.title, tags=args.tags)
+    elif args.cmd == "wiki":
+        cmd_wiki(cfg, args.topic, k=args.k)
     elif args.cmd == "watch":
         cfg.validate()
         cmd_watch(cfg)
