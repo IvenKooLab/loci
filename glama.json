@@ -1,3 +1,6 @@
 {
-  "$schema": "https://glama.ai/mcp/schemas/server"
+  "$schema": "https://glama.ai/mcp/schemas/server.json",
+  "maintainers": [
+    "IvenKooLab"
+  ]
 }
