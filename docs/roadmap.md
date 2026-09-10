@@ -13,6 +13,8 @@
 - [x] `chat` multi-turn loop with conversation memory
 - [x] Query operators: `--in` / `--since` / `-e "exact phrase"` / `--tag`
 - [x] `ask --verify`: claim-by-claim faithfulness audit of answers
+- [x] **Memory consolidation**: `loci wiki` / `brain_wiki` distills the index
+      into curated wiki pages (with [[wikilinks]] and sources)
 - [x] Fully-offline mode verified against local Ollama (embeddings + chat)
 - [x] Reranking, both providers: LLM pointwise scoring + local cross-encoder
       (bge-reranker, optional extra)

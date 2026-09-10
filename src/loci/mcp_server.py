@@ -125,6 +125,24 @@ TOOLS = [
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
+        "name": "brain_wiki",
+        "description": "Generate a wiki page about a topic by distilling everything the "
+                       "index knows into one curated, cross-linked markdown page. Behavior: "
+                       "retrieves up to k source excerpts, an LLM synthesizes a structured "
+                       "page, and the page is written to the wiki directory and indexed "
+                       "immediately (loci's memory-consolidation layer). Requires a working "
+                       "LLM. Usage: use when scattered notes about a topic should become one "
+                       "stable, searchable page; regenerate the same topic to update it.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "topic": {"type": "string", "description": "the topic to write the page about"},
+                "k": {"type": "integer", "description": "how many source excerpts to distill (default 12)"},
+            },
+            "required": ["topic"],
+        },
+    },
+    {
         "name": "brain_remember",
         "description": "Store a durable memory (decision, fact, preference, lesson learned) "
                        "into the shared knowledge base. Behavior: writes a markdown note with "
@@ -302,6 +320,18 @@ class Brain:
             return f"(no memory matching '{query}')"
         return "forgot:\n" + "\n".join(f"  - {m}" for m in moved)
 
+    def wiki(self, topic: str, k: int | None = None) -> str:
+        if err := self._guard():
+            return err
+        from loci.wiki import generate_wiki_page
+        try:
+            r = generate_wiki_page(self._cfg, topic, k=k or 12)
+        except LookupError as e:
+            return str(e)
+        return (f"wiki page written: {r['path']}\n"
+                f"distilled {r['sources']} excerpts into {r['chunks']} chunks — "
+                f"now searchable, linked via [[{r['topic']}]]")
+
     # ---- MCP resources ----
 
     def resources_list(self) -> list[dict]:
@@ -353,6 +383,8 @@ def _call_tool(brain: Brain, name: str, args: dict) -> str:
     if name == "brain_remember":
         return brain.remember(args["text"], title=args.get("title"),
                               tags=args.get("tags"))
+    if name == "brain_wiki":
+        return brain.wiki(args["topic"], k=args.get("k"))
     if name == "brain_forget":
         return brain.forget(args["query"])
     if name == "brain_ingest":

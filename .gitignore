@@ -8,3 +8,6 @@ src/*.egg-info/
 *.egg-info/
 
 .pytest_cache/
+
+# generated wiki pages (loci wiki output)
+/wiki/

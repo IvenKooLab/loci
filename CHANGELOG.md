@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.4.0 — 2026-09-08
+
+### Added
+- **`brain_wiki` / `loci wiki "topic"` — memory consolidation**: distills
+  everything the index knows about a topic into one curated, cross-linked wiki
+  page (stored in `wiki/`, indexed immediately, retrievable like any source).
+  Pages cite their sources, link related topics via [[wikilinks]], and
+  regenerating a topic updates its page in place (self-citations excluded so
+  pages cannot grow without bound — caught by tests)
+- The wiki directory auto-joins the index ([wiki] in config), alongside
+  memories
+- **Verified on a real corpus**: generated a Chinese wiki page on "acceleration
+  routes for H3 on 2080Ti" from 12 excerpts across the minimax-h3-turing docs
+  (115 s end-to-end), with accurate facts and [[wikilinks]] — see
+  docs/marketing/wiki-demo-cn.md
+- **Fixed during development**: wiki regeneration cited the wiki's own previous
+  version as material, growing the page without bound (self-references are now
+  excluded from wiki material)
+
+
 ## v0.3.0 — 2026-09-07
 
 ### Added

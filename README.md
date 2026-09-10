@@ -205,6 +205,7 @@ The server exposes three tools (zero dependencies beyond the core):
 | `brain_stats()` | index overview (chunks per source) |
 | `brain_remember(text, title?, tags?)` | **write a memory** — durable, shared across sessions and IDEs |
 | `brain_forget(query)` | soft-delete matching memories (they go to a `.trash` folder) |
+| `brain_wiki(topic)` | **memory consolidation** — distill the index into a curated wiki page about a topic |
 | `brain_ingest(force?)` | incremental re-index |
 
 Beyond tools, the server speaks the full protocol:
