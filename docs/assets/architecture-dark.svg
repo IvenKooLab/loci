@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="560" viewBox="0 0 960 560" font-family="'Segoe UI', system-ui, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#00FF41"/>
+    </marker>
+    <marker id="arrdim" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2E7D32"/>
+    </marker>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#00FF41" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <style>
+    .box { fill: #0D130D; stroke: #1E3A1E; stroke-width: 1.2; rx: 10; }
+    .neon { fill: #0A0F0A; stroke: #00FF41; stroke-width: 1.4; filter: url(#glow); }
+    .title { fill: #00FF41; font-size: 13px; font-weight: 600; letter-spacing: 2px; }
+    .item { fill: #C9D1C9; font-size: 12.5px; }
+    .dim { fill: #6FA86F; font-size: 11px; }
+    .lbl { fill: #00FF41; font-size: 11px; }
+    .hd { fill: #E6EDF3; font-size: 15px; font-weight: 700; }
+  </style>
+
+  <rect x="6" y="6" width="948" height="548" rx="14" fill="#070B07" stroke="#1E3A1E"/>
+
+  <!-- ===== 你的机器（来源） ===== -->
+  <rect class="box" x="30" y="90" width="200" height="300" rx="10"/>
+  <text class="title" x="130" y="122" text-anchor="middle">📥 YOUR MACHINE</text>
+  <g text-anchor="middle">
+    <rect x="48" y="142" width="164" height="30" rx="6" fill="#101810" stroke="#234423"/>
+    <text class="item" x="130" y="161">Obsidian / notes</text>
+    <rect x="48" y="180" width="164" height="30" rx="6" fill="#101810" stroke="#234423"/>
+    <text class="item" x="130" y="199">PDF · docx · docs</text>
+    <rect x="48" y="218" width="164" height="30" rx="6" fill="#101810" stroke="#234423"/>
+    <text class="item" x="130" y="237">ChatGPT / Claude exports</text>
+    <rect x="48" y="256" width="164" height="30" rx="6" fill="#101810" stroke="#234423"/>
+    <text class="item" x="130" y="275">memories/ — agent notes</text>
+    <rect x="48" y="294" width="164" height="30" rx="6" fill="#101810" stroke="#234423"/>
+    <text class="item" x="130" y="313">wiki/ — consolidated</text>
+  </g>
+  <text class="dim" x="130" y="365" text-anchor="middle">stays on this machine</text>
+
+  <!-- ===== loci 核心 ===== -->
+  <rect class="neon" x="300" y="60" width="360" height="400" rx="12"/>
+  <text class="hd" x="480" y="95" text-anchor="middle">🧠 loci</text>
+  <text class="dim" x="480" y="115" text-anchor="middle">local index · nothing leaves the machine</text>
+
+  <rect x="322" y="132" width="316" height="34" rx="7" fill="#0F1F0F" stroke="#2E7D32"/>
+  <text class="item" x="480" y="153" text-anchor="middle">ingest / watch → chunker → embedder</text>
+
+  <!-- 储存圆柱 -->
+  <g>
+    <ellipse cx="480" cy="216" rx="110" ry="12" fill="#0F1F0F" stroke="#00FF41"/>
+    <rect x="370" y="216" width="220" height="52" fill="#0F1F0F" stroke="#00FF41"/>
+    <rect x="370" y="216" width="220" height="12" fill="#0F1F0F" stroke="none"/>
+    <path d="M 370 216 A 110 12 0 0 0 590 216" fill="none" stroke="#00FF41"/>
+    <line x1="370" y1="216" x2="370" y2="268" stroke="#00FF41"/>
+    <line x1="590" y1="216" x2="590" y2="268" stroke="#00FF41"/>
+    <path d="M 370 268 A 110 12 0 0 0 590 268" fill="none" stroke="#00FF41"/>
+    <text class="lbl" x="480" y="248" text-anchor="middle">ChromaDB · hybrid index</text>
+  </g>
+
+  <rect x="322" y="298" width="316" height="34" rx="7" fill="#0F1F0F" stroke="#00FF41"/>
+  <text class="item" x="480" y="319" text-anchor="middle">hybrid retrieval · vector + BM25 → RRF</text>
+
+  <rect x="322" y="356" width="316" height="68" rx="7" fill="#0F1F0F" stroke="#00FF41"/>
+  <text class="item" x="480" y="380" text-anchor="middle">loci-mcp · 8 tools</text>
+  <text class="dim" x="480" y="398" text-anchor="middle">search · ask · wiki · remember · links</text>
+  <text class="dim" x="480" y="413" text-anchor="middle">stats · ingest · resources · prompts</text>
+
+  <!-- ===== AI 宿主 ===== -->
+  <rect class="box" x="730" y="90" width="200" height="230" rx="10"/>
+  <text class="title" x="830" y="122" text-anchor="middle">🖥️ YOUR AI HOSTS</text>
+  <g text-anchor="middle">
+    <rect x="748" y="142" width="164" height="28" rx="6" fill="#101810" stroke="#234423"/>
+    <text class="item" x="830" y="160">Claude Code</text>
+    <rect x="748" y="176" width="164" height="28" rx="6" fill="#101810" stroke="#234423"/>
+    <text class="item" x="830" y="194">Qoder · Trae</text>
+    <rect x="748" y="210" width="164" height="28" rx="6" fill="#101810" stroke="#234423"/>
+    <text class="item" x="830" y="228">Cursor · Cline</text>
+    <rect x="748" y="244" width="164" height="28" rx="6" fill="#101810" stroke="#234423"/>
+    <text class="item" x="830" y="262">Claude Desktop</text>
+    <rect x="748" y="278" width="164" height="28" rx="6" fill="#101810" stroke="#234423"/>
+    <text class="item" x="830" y="296">Terminal — loci CLI</text>
+  </g>
+  <text class="dim" x="830" y="300" text-anchor="middle"> </text>
+
+  <!-- ===== API 云 ===== -->
+  <rect class="box" x="730" y="370" width="200" height="90" rx="10"/>
+  <text class="item" x="830" y="398" text-anchor="middle">☁️ OpenAI-compatible API</text>
+  <text class="dim" x="830" y="420" text-anchor="middle">Zhipu · DeepSeek · Kimi · OpenAI</text>
+  <text class="lbl" x="830" y="443" text-anchor="middle">or 100% offline via Ollama</text>
+
+  <!-- ===== 连线 ===== -->
+  <path d="M 230 240 H 300" stroke="#00FF41" stroke-width="1.4" marker-end="url(#arr)"/>
+  <path d="M 480 166 V 200" stroke="#2E7D32" stroke-width="1.2" marker-end="url(#arrdim)"/>
+  <path d="M 480 280 V 298" stroke="#00FF41" stroke-width="1.4" marker-end="url(#arr)"/>
+  <path d="M 480 332 V 356" stroke="#00FF41" stroke-width="1.4" marker-end="url(#arr)"/>
+  <path d="M 660 205 H 730" stroke="#00FF41" stroke-width="1.4" marker-end="url(#arr)"/>
+  <path d="M 660 390 H 700 V 415 H 730" stroke="#2E7D32" stroke-width="1.2" marker-end="url(#arrdim)"/>
+  <path d="M 700 400 H 730" stroke="#2E7D32" stroke-width="1.2" marker-end="url(#arrdim)"/>
+
+  <text class="lbl" x="265" y="232" text-anchor="middle">ingest</text>
+  <text class="lbl" x="695" y="198" text-anchor="middle">query</text>
+  <text class="lbl" x="695" y="408" text-anchor="middle">answers</text>
+</svg>
