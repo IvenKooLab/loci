@@ -107,6 +107,46 @@ agent via MCP. Obsidian-native details are understood: frontmatter `tags:`
 (filter with `search --tag`), `[[wikilinks]]` (walk the graph with `links`),
 code blocks are never cut mid-block, and one-line notes stay searchable.
 
+## How it works
+
+```mermaid
+flowchart LR
+    subgraph sources["📥 Your machine"]
+        notes["Obsidian / markdown notes"]
+        docs["PDF tables · docx · project docs"]
+        chats["ChatGPT / Claude exports"]
+        mem["memories/ — agent-written notes"]
+        wikidir["wiki/ — consolidated pages"]
+    end
+
+    subgraph loci["🧠 loci — local index, nothing leaves the machine"]
+        ingest["ingest / watch<br>loaders → chunker → embedder"]
+        store[("ChromaDB<br>hybrid index")]
+        retrieve["hybrid retrieval<br>vector + BM25 → RRF"]
+        mcp["loci-mcp<br>8 tools · resources · prompts"]
+    end
+
+    subgraph hosts["🖥️ Your AI hosts"]
+        ide["Claude Code · Qoder · Trae<br>Cursor · Cline"]
+        desktop["Claude Desktop"]
+        term["Terminal<br>search / ask / chat / wiki"]
+    end
+
+    api["☁️ OpenAI-compatible API<br>Zhipu / DeepSeek / Kimi / OpenAI<br>or 100% offline via Ollama"]
+
+    sources --> ingest --> store
+    mem -. auto-indexed .-> store
+    wikidir -. auto-indexed .-> store
+    store --> retrieve
+    retrieve --> term
+    retrieve --> mcp
+    mcp <--> ide
+    mcp <-.-> desktop
+    retrieve -. "embedding + chat calls only" .-> api
+```
+
+The write path in one line: `loaders → chunker (heading-aware split) → embedder → store (ChromaDB, persistent)` — incremental, deduplicated by content hash.
+
 ## Install & quick start
 
 Requires Python 3.11+ (uses the stdlib `tomllib`).
@@ -126,6 +166,22 @@ loci ingest            # or: python main.py ingest
 
 # 3. Ask
 loci ask "what did I write about X?"
+```
+
+### The workflow
+
+```mermaid
+flowchart TD
+    A["pip install loci-rag"] --> B["cp config.example.toml config.toml<br>fill API keys + source dirs"]
+    B --> C["loci ingest — hybrid index built"]
+    C --> D["loci watch — index stays fresh (optional)"]
+    C --> E{"What do you need?"}
+    E -->|"a synthesized answer"| F["loci ask --verify<br>claim-by-claim audit"]
+    E -->|"raw excerpts to quote"| G["loci search --tag memory"]
+    E -->|"back-and-forth"| H["loci chat"]
+    E -->|"scattered notes on a topic"| I["loci wiki topic<br>consolidate into a wiki page"]
+    F --> J["loci remember —<br>keep what you learned"]
+    I --> J
 ```
 
 ## Commands
@@ -179,6 +235,20 @@ lock-in) and are tagged `memory`, so `loci search --tag memory` scopes to them.
 > folders, point both at one absolute location in `config.toml` — e.g.
 > `store.path = "~/.loci/store"` and `memories.path = "~/.loci/memories"` —
 > and every IDE shares the exact same memory store.
+
+```mermaid
+sequenceDiagram
+    participant CC as Claude Code
+    participant L as loci-mcp
+    participant S as ChromaDB (local)
+    participant T as Trae / Qoder / any IDE
+    CC->>L: brain_remember("deploy rotates Mondays")
+    L->>S: write memory.md + embed + index
+    Note over S: persists across sessions and IDEs
+    T->>L: brain_search("password rotation")
+    L->>S: hybrid retrieval
+    L-->>T: cited answer — the memory is recalled
+```
 
 ## Mount it in any MCP host
 
