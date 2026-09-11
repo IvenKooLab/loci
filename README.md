@@ -110,6 +110,7 @@ code blocks are never cut mid-block, and one-line notes stay searchable.
 ## How it works
 
 ```mermaid
+%%{init: {'theme':'base','themeVariables':{'background':'#000000','primaryColor':'#000000','primaryTextColor':'#00FF41','primaryBorderColor':'#00FF41','lineColor':'#00FF41','secondaryColor':'#001a00','tertiaryColor':'#000000','clusterBkg':'#000000','clusterBorder':'#00FF41','edgeLabelBackground':'#000000','fontSize':'15px','fontFamily':'Consolas, monospace'},'themeCSS':'.nodeLabel { color: #00FF41 !important; } .edgeLabel { background: #000 !important; color: #00FF41 !important; } .cluster-label { color: #00FF41 !important; }'}}%%
 flowchart LR
     subgraph sources["📥 Your machine"]
         notes["Obsidian / markdown notes"]
@@ -171,6 +172,7 @@ loci ask "what did I write about X?"
 ### The workflow
 
 ```mermaid
+%%{init: {'theme':'base','themeVariables':{'background':'#000000','primaryColor':'#000000','primaryTextColor':'#00FF41','primaryBorderColor':'#00FF41','lineColor':'#00FF41','secondaryColor':'#001a00','tertiaryColor':'#000000','clusterBkg':'#000000','clusterBorder':'#00FF41','edgeLabelBackground':'#000000','fontSize':'15px','fontFamily':'Consolas, monospace'},'themeCSS':'.nodeLabel { color: #00FF41 !important; } .edgeLabel { background: #000 !important; color: #00FF41 !important; } .cluster-label { color: #00FF41 !important; }'}}%%
 flowchart TD
     A["pip install loci-rag"] --> B["cp config.example.toml config.toml<br>fill API keys + source dirs"]
     B --> C["loci ingest — hybrid index built"]
@@ -237,6 +239,7 @@ lock-in) and are tagged `memory`, so `loci search --tag memory` scopes to them.
 > and every IDE shares the exact same memory store.
 
 ```mermaid
+%%{init: {'theme':'base','themeVariables':{'background':'#000000','primaryColor':'#000000','primaryTextColor':'#00FF41','primaryBorderColor':'#00FF41','lineColor':'#00FF41','actorBkg':'#000000','actorBorder':'#00FF41','actorTextColor':'#00FF41','signalColor':'#00FF41','signalTextColor':'#00FF41','noteBkgColor':'#001a00','noteBorderColor':'#00FF41','activationBkgColor':'#001a00','edgeLabelBackground':'#000000','fontSize':'15px','fontFamily':'Consolas, monospace'},'themeCSS':'.messageText { fill: #00FF41 !important; } .actor { fill: #000 !important; stroke: #00FF41 !important; } text.actor { fill: #00FF41 !important; }'}}%%
 sequenceDiagram
     participant CC as Claude Code
     participant L as loci-mcp
