@@ -121,6 +121,12 @@ flowchart TD
 | `chat` | 多轮问答循环（`/clear`、`/exit`） |
 | `wiki topic` | 把索引中关于某主题的内容蒸馏成一页 wiki |
 | `remember text` | 写入持久记忆笔记并立即索引 |
+| `ask "…" --rewrite` | LLM 改写查询（关键词版 + 跨语言变体）后再检索 |
+| `feedback good\|bad` | 为上一次 ask 用到的 chunk 打分；被打差评的 chunk 后续降权 |
+| `wiki --suggest` | 推荐值得写 wiki 页但还没有页面的主题 |
+| `bench cases.jsonl` | 检索基准测试：hit@k，纯向量 vs 混合 |
+| `sync push\|pull` | 经 git 在多台机器间同步 memories/wiki（[sync] remote） |
+| `serve-http` | HTTP REST API（search/ask/remember/stats），Bearer 鉴权 |
 | `stats` | 索引概况：每个来源的 chunk 数、模型、检索设置 |
 | `doctor` | 健康检查：配置、来源目录、embed/LLM 端点、存储 |
 | `watch` | 轮询来源保持索引最新（可选） |

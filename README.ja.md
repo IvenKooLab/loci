@@ -119,6 +119,12 @@ flowchart TD
 | `chat` | マルチターン Q&A ループ（`/clear`、`/exit`） |
 | `wiki topic` | インデックス内のトピックに関する内容を wiki ページに蒸留 |
 | `remember text` | 永続メモを書き込み、即座にインデックス |
+| `ask "…" --rewrite` | LLM でクエリを書き換え（キーワード版 + 多言語版）してから検索 |
+| `feedback good\|bad` | 直近の ask で使ったチャンクを評価；bad 評価のチャンクは順位低下 |
+| `wiki --suggest` | まだページがない wiki 向けトピックを提案 |
+| `bench cases.jsonl` | 検索ベンチマーク：hit@k、ベクトルのみ vs ハイブリッド |
+| `sync push\|pull` | git で複数マシン間の memories/wiki を同期（[sync] remote） |
+| `serve-http` | HTTP REST API（search/ask/remember/stats）、Bearer 認証 |
 | `stats` | インデックス概要：ソースごとのチャンク数、モデル、検索設定 |
 | `doctor` | ヘルスチェック：設定、ソースディレクトリ、embed/LLM エンドポイント、ストア |
 | `watch` | ソースをポーリングしてインデックスを最新に保つ（オプション） |

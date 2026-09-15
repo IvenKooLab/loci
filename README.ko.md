@@ -119,6 +119,12 @@ flowchart TD
 | `chat` | 대화 기억이 있는 다중 턴 Q&A 루프 (`/clear`, `/exit`) |
 | `wiki topic` | 인덱스의 해당 토픽 내용을 위키 페이지 하나로 증류 |
 | `remember text` | 영구 메모 노트를 쓰고 즉시 인덱스 |
+| `ask "…" --rewrite` | LLM으로 쿼리 재작성(키워드 + 다국어 변형) 후 검색 |
+| `feedback good\|bad` | 최근 ask에 사용된 청크 평가; bad 평가 청크는 이후 순위 하락 |
+| `wiki --suggest` | 아직 페이지 없는 wiki 작성 가치 토픽 추천 |
+| `bench cases.jsonl` | 검색 벤치마크: hit@k, 벡터만 vs 하이브리드 |
+| `sync push\|pull` | git으로 여러 머신 간 memories/wiki 동기화([sync] remote) |
+| `serve-http` | HTTP REST API(search/ask/remember/stats), Bearer 인증 |
 | `stats` | 인덱스 현황: 소스별 청크 수, 모델, 검색 설정 |
 | `doctor` | 헬스 체크: 설정, 소스 디렉터리, embed/LLM 엔드포인트, 스토어 |
 | `watch` | 소스 폴링으로 인덱스 최신 유지 (선택) |
