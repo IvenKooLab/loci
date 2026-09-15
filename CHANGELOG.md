@@ -19,6 +19,10 @@
   ask; penalised chunks are down-weighted in future retrieval
 - **Wiki topic suggestions**: `loci wiki --suggest` surfaces index terms that
   cover enough chunks but don't have a wiki page yet
+- **CLI wiring completed**: `--rewrite` flag on ask, `feedback` command with
+  last-ask persistence, feedback penalties wired into retrieval (two real bugs
+  found by the new tests: penalties were never applied, and rewrite defaulted
+  to the rerank setting)
 
 ### Fixed
 - Config warnings no longer leak into MCP stdout (moved to stderr)

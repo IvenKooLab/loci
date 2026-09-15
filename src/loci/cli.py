@@ -31,9 +31,12 @@ def build(cfg):
 
 def make_retriever(cfg, embedder, store):
     from loci.retriever import Retriever
+    import os as _os
+    fb_path = _os.path.join(cfg.store["path"], "feedback.jsonl")
     return Retriever(embedder, store, cfg.top_k["search"],
                      hybrid=cfg.retrieval["hybrid"], rrf_k=cfg.retrieval["rrf_k"],
                      rerank=cfg.retrieval.get("rerank", False), llm_cfg=cfg.llm,
+                     feedback_path=fb_path,
                      rerank_provider=cfg.retrieval.get("rerank_provider", "llm"),
                      local_rerank_model=cfg.retrieval.get(
                          "local_rerank_model", "BAAI/bge-reranker-base"))
@@ -121,6 +124,22 @@ def cmd_ask(cfg, question: str, rerank: bool | None = None,
     print(reply)
     if verify:
         print("\n" + verify_answer(cfg.llm, question, reply, hits))
+
+
+def cmd_feedback(cfg, verdict: str) -> None:
+    """Rate the chunks used in the last ask; bad ratings down-weight chunks."""
+    last = Path(cfg.store["path"]) / ".last_ask.json"
+    fb = Path(cfg.store["path"]) / "feedback.jsonl"
+    if not last.exists():
+        print("(no recent ask to rate — run `loci ask` first)")
+        return
+    data = json.loads(last.read_text(encoding="utf-8"))
+    with fb.open("a", encoding="utf-8") as f:
+        for cid in data.get("chunk_ids", []):
+            f.write(json.dumps({"chunk_id": cid, "query": data.get("query", ""),
+                                "verdict": verdict, "ts": time.time()},
+                               ensure_ascii=False) + "\n")
+    print(f"recorded {verdict} feedback for {len(data.get('chunk_ids', []))} chunk(s)")
 
 
 def cmd_chat(cfg) -> None:
@@ -411,6 +430,8 @@ def main() -> None:
                        "value llm|local overrides [retrieval] rerank_provider")
     p_ask.add_argument("--verify", action="store_true",
                        help="audit the answer claim-by-claim against the sources")
+    p_ask.add_argument("--rewrite", action="store_true",
+                       help="LLM-rewrite the query (keyword + translation variants)")
 
     p_links = sub.add_parser("links", help="show [[wikilink]] outbound/inbound links for a note")
     p_links.add_argument("note", help="note name (stem) to look up")
@@ -454,7 +475,8 @@ def main() -> None:
         cfg.validate()
         cmd_ask(cfg, args.question, rerank=rerank_flag,
                 path_contains=args.path_contains, since=args.since,
-                rerank_with=rerank_with, verify=wants_verify)
+                rerank_with=rerank_with, verify=wants_verify,
+                rewrite=True if getattr(args, "rewrite", False) else None)
     elif args.cmd == "chat":
         cfg.validate()
         cmd_chat(cfg)

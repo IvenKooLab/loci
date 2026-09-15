@@ -213,6 +213,12 @@ Filter operators (combine freely, on `search` and `ask`):
 | `links "note"` | show the `[[wikilink]]` graph around a note — outbound and inbound |
 | `chat` | multi-turn Q&A loop with conversation memory (`/clear`, `/exit`) |
 | `watch` | keep the index current by polling sources (interval in `[watch]`) |
+| `ask "…" --rewrite` | LLM-rewrite the query (keyword + cross-language variants) before retrieval |
+| `feedback good\|bad` | rate the chunks used in the last ask; bad-rated chunks sink in future results |
+| `wiki --suggest` | suggest wiki-worthy topics that don't have a page yet |
+| `bench cases.jsonl` | retrieval benchmark: hit@k, vector-only vs hybrid |
+| `sync push\|pull` | sync memories/wiki across machines via git ([sync] remote) |
+| `serve-http` | HTTP REST API (search/ask/remember/stats) with Bearer auth |
 | `stats` | what's in the index: chunks per source, models, retrieval settings |
 | `doctor` | health check: config, source dirs, embed/LLM endpoints, store (exit code 1 on failure — CI-friendly) |
 | `python mcp_server.py` | MCP server over stdio (see below) |
