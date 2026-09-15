@@ -3,6 +3,7 @@ LLM reranking and answer verification, and grounded answer synthesis."""
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from openai import OpenAI
 
@@ -59,10 +60,9 @@ class Retriever:
         filtered = bool(tag or path_contains or since or exact or rerank)
         # over-fetch so fusion and filtering still leave `limit` results
         fetch = max(limit * 4, 1) if (self.hybrid or filtered) else max(limit, 1)
-        use_rw = self.rerank if rewrite is None else rewrite
+        use_rw = False if rewrite is None else rewrite   # off unless asked
         queries = [query]
         if use_rw and self.llm_cfg:
-            from loci.retriever import expand_queries
             queries = expand_queries(self.llm_cfg, query) or [query]
         # multi-query: retrieve per variant, RRF-fuse across all result lists
         all_ranks: list[list[dict]] = []
@@ -87,6 +87,7 @@ class Retriever:
         if exact:
             e = exact.lower()
             fused = [h for h in fused if e in h["text"].lower()]
+        fused = self._apply_feedback(fused)   # bad-rated chunks sink
         use_rerank = self.rerank if rerank is None else rerank
         if use_rerank:
             provider = rerank_with or self.rerank_provider
