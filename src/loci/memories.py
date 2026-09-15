@@ -46,6 +46,35 @@ def write_memory(mem_dir: str, text: str, title: str | None = None,
     return str(path.resolve())
 
 
+EXTRACT_PROMPT = (
+    "Review the conversation below and extract 0-3 durable facts worth remembering "
+    "long-term (decisions, preferences, facts about projects, lessons learned). "
+    "Do NOT extract ephemeral details, small talk, or anything already obvious. "
+    'Reply with ONLY a JSON array like [{"title": "short title", "text": "one-sentence fact"}]. '
+    "Return [] if nothing is worth remembering."
+)
+
+
+def extract_memories(llm_cfg: dict, transcript: str) -> list[dict]:
+    """LLM extracts salient facts from a conversation. Fail-open, max 3."""
+    try:
+        from openai import OpenAI
+        client = OpenAI(base_url=llm_cfg["base_url"], api_key=llm_cfg["api_key"])
+        resp = client.chat.completions.create(
+            model=llm_cfg["model"],
+            messages=[
+                {"role": "system", "content": EXTRACT_PROMPT},
+                {"role": "user", "content": transcript[-2000:]},
+            ],
+            temperature=0.0,
+        )
+        import json as _json
+        items = _json.loads(resp.choices[0].message.content or "[]")
+        return [it for it in items if isinstance(it, dict) and it.get("text", "").strip()][:3]
+    except Exception:
+        return []
+
+
 def find_memories(mem_dir: str, query: str) -> list[Path]:
     """Memory files whose filename or content mentions query (newest first)."""
     d = Path(mem_dir).expanduser()

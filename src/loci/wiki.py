@@ -25,6 +25,37 @@ WIKI_PROMPT = (
 )
 
 
+def suggest_topics(cfg, min_chunks: int = 4, top: int = 8) -> list[dict]:
+    """Suggest wiki-worthy topics: terms appearing in enough chunks without an
+    existing wiki page. Pure lexical (no LLM), deterministic, fast."""
+    from loci.bm25 import tokenize
+    from loci.store import Store
+    import re as _re
+    store = Store(str(cfg.store["path"]))
+    ids, docs = store.all_chunks()
+    if not docs:
+        return []
+    term_docs: dict[str, set[int]] = {}
+    for i, doc in enumerate(docs):
+        for t in set(_re.findall(r"[a-z0-9]{2,}|[\u4e00-\u9fff]{2,4}", doc.lower())):
+            term_docs.setdefault(t, set()).add(i)
+    existing_slugs = set()
+    got = store.collection.get(include=["metadatas"])
+    for meta in got.get("metadatas") or []:
+        src = str(meta.get("source", ""))
+        existing_slugs.add(src.rsplit("/", 1)[-1].rsplit(".", 1)[0].lower())
+        existing_slugs.add(src.rsplit("\\", 1)[-1].rsplit(".", 1)[0].lower())
+    scored = []
+    for term, doc_set in term_docs.items():
+        if len(term) < 2 or term.isdigit() or len(doc_set) < min_chunks:
+            continue
+        if term in existing_slugs:
+            continue
+        scored.append({"term": term, "chunks": len(doc_set)})
+    scored.sort(key=lambda x: -x["chunks"])
+    return scored[:top]
+
+
 def generate_wiki_page(cfg, topic: str, k: int = 12) -> dict:
     """Retrieve up to k excerpts about `topic`, synthesize a wiki page, write
     and index it. Raises LookupError when the index has nothing on the topic;

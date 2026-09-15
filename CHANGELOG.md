@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.5.0 — 2026-09-16
+
+### Added
+- **Auto memory extraction**: `loci chat` and `brain_ask` (with `extract=true`)
+  distill durable facts from conversations into memory notes automatically (mem0
+  pattern; max 3 per exchange, fail-open)
+- **Query rewriting**: `loci ask --rewrite` / `brain_search rewrite=true` generates
+  keyword and cross-language variants of the query, retrieves per variant, and
+  RRF-fuses all results (fail-open on LLM errors)
+- **Chunk-level incremental indexing**: only changed chunks are re-embedded;
+  unchanged chunk vectors are reused via content-hash fingerprints (`chash`)
+- **HTTP REST API**: `loci serve-http` exposes search/ask/remember/stats over
+  JSON + Bearer auth; new `[http]` config section
+- **Git memory sync**: `loci sync push|pull` — memories and wiki directories are
+  git-managed for cross-machine memory sharing ([sync] remote in config)
+- **Feedback loop**: `loci feedback good|bad` rates the chunks used in the last
+  ask; penalised chunks are down-weighted in future retrieval
+- **Wiki topic suggestions**: `loci wiki --suggest` surfaces index terms that
+  cover enough chunks but don't have a wiki page yet
+
+### Fixed
+- Config warnings no longer leak into MCP stdout (moved to stderr)
+
 ## v0.4.0 — 2026-09-08
 
 ### Added

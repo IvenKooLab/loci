@@ -43,15 +43,20 @@ class Store:
 
     def upsert_chunks(self, chunks: list[dict], vectors: list[list[float]],
                       path: str, file_hash: str,
-                      tags: str = "", links: str = "", mtime: float = 0.0) -> None:
-        """chunks: [{"text", "section"}] as produced by chunker.split_markdown."""
+                      tags: str = "", links: str = "", mtime: float = 0.0,
+                      chashes: list[str] | None = None) -> None:
+        """chunks: [{"text", "section"}] as produced by chunker.split_markdown.
+        chashes: per-chunk content fingerprints (sha1[:16] of text), aligned with
+        chunks — they let future re-indexes reuse vectors for unchanged chunks."""
+        if chashes is None:
+            chashes = [""] * len(chunks)
         self.delete_file(path)
         self.collection.add(
             ids=[f"{path}::{i}" for i in range(len(chunks))],
             documents=[c["text"] for c in chunks], embeddings=vectors,
             metadatas=[{"source": path, "hash": file_hash, "chunk": i,
                         "section": c.get("section", ""), "tags": tags,
-                        "links": links, "mtime": mtime}
+                        "links": links, "mtime": mtime, "chash": chashes[i]}
                        for i, c in enumerate(chunks)])
 
     def count(self) -> int:
@@ -87,6 +92,23 @@ class Store:
                          "tags": meta.get("tags", ""), "links": meta.get("links", ""),
                          "mtime": meta.get("mtime", 0.0), "distance": None})
         return hits
+
+    def reuse_map(self, path: str, texts: list[str]) -> tuple[list[str], dict[str, list]]:
+        """Fingerprint new chunk texts and fetch still-valid vectors for identical
+        chunks already in the index. Returns (hashes, {hash: vector})."""
+        import hashlib
+        got = self.collection.get(where={"source": path},
+                                  include=["metadatas", "embeddings"])
+        old = {}
+        metas = got.get("metadatas") or []
+        embs = got.get("embeddings")
+        if embs is None:
+            embs = []
+        for meta, emb in zip(metas, embs):
+            if meta.get("chash") and emb is not None and len(emb) > 0:
+                old[meta["chash"]] = [float(x) for x in emb]
+        hashes = [hashlib.sha1(t.encode("utf-8")).hexdigest()[:16] for t in texts]
+        return hashes, {h: old[h] for h in hashes if h in old}
 
     def per_source(self) -> dict[str, int]:
         got = self.collection.get(include=["metadatas"])

@@ -25,9 +25,19 @@ def ingest_once(cfg) -> int:
             if store.indexed_hash(doc["path"]) is not None:
                 store.delete_file(doc["path"])  # avoid stale chunks
             continue
-        vectors = embedder.embed([c["text"] for c in chunks])
+        texts = [c["text"] for c in chunks]
+        chashes, reuse = store.reuse_map(doc["path"], texts)
+        missing = [i for i, h in enumerate(chashes) if h not in reuse]
+        new_vecs = embedder.embed([texts[i] for i in missing]) if missing else []
+        vectors = [None] * len(chunks)
+        for i, h in enumerate(chashes):
+            if h in reuse:
+                vectors[i] = reuse[h]
+        for i, v in zip(missing, new_vecs):
+            vectors[i] = v
         store.upsert_chunks(chunks, vectors, doc["path"], doc["hash"],
-                            doc["tags"], doc["links"], doc["mtime"])
+                            doc["tags"], doc["links"], doc["mtime"],
+                            chashes=chashes)
         changed += 1
         print(f"  [{_now()}] re-indexed: {doc['path']}")
     return changed

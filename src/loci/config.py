@@ -20,6 +20,9 @@ DEFAULTS = {
     "watch": {"interval": 30},
     "memories": {"path": "./memories"},
     "wiki": {"path": "./wiki"},
+    "chat": {"auto_extract": True},
+    "sync": {"remote": ""},
+    "http": {"host": "127.0.0.1", "port": 8765, "token": ""},
     "store": {"path": "./chroma_db"},
 }
 
@@ -34,6 +37,9 @@ class Config:
     watch: dict = field(default_factory=dict)
     memories: dict = field(default_factory=dict)
     wiki: dict = field(default_factory=dict)
+    chat: dict = field(default_factory=dict)
+    sync: dict = field(default_factory=dict)
+    http: dict = field(default_factory=dict)
     store: dict = field(default_factory=dict)
     sources: list = field(default_factory=list)
 
