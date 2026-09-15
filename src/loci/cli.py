@@ -257,7 +257,8 @@ def cmd_bench(cfg, cases_file: str, k: int = 5) -> None:
             good = any(case["expect"].lower() in h["source"].lower() for h in hits)
             ok += good
             top1 = hits[0]["source"].replace("\\", "/").split("/")[-1] if hits else "-"
-            print(f"  {'\u2713' if good else '\u2717'} {case['query'][:48]:<50} top1={top1}")
+            mark = "Y" if good else "x"   # plain ASCII: 3.11 forbids \u escapes in f-strings
+            print(f"  [{mark}] {case['query'][:48]:<50} top1={top1}")
         print(f"  {label}: {ok}/{len(cases)}")
 
 
