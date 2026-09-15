@@ -22,24 +22,56 @@ class Retriever:
                  hybrid: bool = True, rrf_k: int = 60,
                  rerank: bool = False, llm_cfg: dict | None = None,
                  rerank_provider: str = "llm",
-                 local_rerank_model: str = "BAAI/bge-reranker-base"):
+                 local_rerank_model: str = "BAAI/bge-reranker-base",
+                 feedback_path: str | None = None):
         self.embedder, self.store, self.top_k = embedder, store, top_k
         self.hybrid, self.rrf_k = hybrid, rrf_k
         self.rerank, self.llm_cfg = rerank, llm_cfg
         self.rerank_provider = rerank_provider
         self.local_rerank_model = local_rerank_model
+        self._penalties: dict[str, float] = {}
+        if feedback_path and Path(feedback_path).exists():
+            import json as _json
+            for line in Path(feedback_path).read_text(encoding="utf-8").splitlines():
+                try:
+                    rec = _json.loads(line)
+                    if rec.get("verdict") == "bad":
+                        cid = rec["chunk_id"]
+                        self._penalties[cid] = self._penalties.get(cid, 0.0) + 0.5
+                except Exception:
+                    pass
+
+    def _apply_feedback(self, hits):
+        if not self._penalties:
+            return hits
+        for h in hits:
+            p = self._penalties.get(h["id"], 0.0)
+            if p:
+                h["distance"] = (h.get("distance") or 0.5) + p * 0.3
+        return hits
 
     def search(self, query: str, tag: str | None = None,
                rerank: bool | None = None, path_contains: str | None = None,
                since: float | None = None, exact: str | None = None,
-               rerank_with: str | None = None, k: int | None = None) -> list[dict]:
+               rerank_with: str | None = None, k: int | None = None,
+               rewrite: bool | None = None) -> list[dict]:
         limit = max(k if k is not None else self.top_k, 0)
-        vec = self.embedder.embed([query])[0]
         filtered = bool(tag or path_contains or since or exact or rerank)
         # over-fetch so fusion and filtering still leave `limit` results
         fetch = max(limit * 4, 1) if (self.hybrid or filtered) else max(limit, 1)
-        vhits = self.store.query(vec, fetch)
-        fused = self._fuse(vhits, query, fetch)
+        use_rw = self.rerank if rewrite is None else rewrite
+        queries = [query]
+        if use_rw and self.llm_cfg:
+            from loci.retriever import expand_queries
+            queries = expand_queries(self.llm_cfg, query) or [query]
+        # multi-query: retrieve per variant, RRF-fuse across all result lists
+        all_ranks: list[list[dict]] = []
+        for q in queries:
+            vec = self.embedder.embed([q])[0]
+            fh = max(fetch, 1) if len(queries) > 1 else fetch
+            vh = self.store.query(vec, fh)
+            all_ranks.append(self._fuse(vh, q, fh))
+        fused = self._rrf_merge(all_ranks)
         if tag:
             t = tag.lower()
             # exact tag match against the comma-joined list — substring would
@@ -64,6 +96,17 @@ class Retriever:
                 fused = rerank_hits(self.llm_cfg, query, fused)
         return fused[:limit]
 
+    @staticmethod
+    def _rrf_merge(ranked_lists: list[list[dict]], rrf_k: int = 60) -> list[dict]:
+        scores: dict[str, float] = {}
+        by_id: dict[str, dict] = {}
+        for hits in ranked_lists:
+            for r, h in enumerate(hits):
+                scores[h['id']] = scores.get(h['id'], 0.0) + 1.0 / (rrf_k + r + 1)
+                by_id[h['id']] = h
+        ordered = sorted(scores.items(), key=lambda kv: -kv[1])
+        return [by_id[cid] for cid, _ in ordered]
+
     def _fuse(self, vhits: list[dict], query: str, fetch: int) -> list[dict]:
         if not self.hybrid:
             return vhits
@@ -82,6 +125,34 @@ class Retriever:
             by_id.update({h["id"]: h for h in self.store.get_many(missing)})
         ordered = sorted(scores.items(), key=lambda kv: -kv[1])[: self.top_k * 4]
         return [by_id[cid] for cid, _ in ordered if cid in by_id]
+
+
+QUERY_REWRITE_PROMPT = (
+    "Rewrite this search query for a personal knowledge base to improve retrieval. "
+    "Generate 2 alternative versions: 1) a keyword-only version (drop stop words), "
+    "2) a translation in the other language (Chinese→English or English→Chinese). "
+    'Reply with ONLY a JSON array of strings, e.g. ["keyword version", "翻译版本"].'
+)
+
+
+def expand_queries(llm_cfg: dict, query: str) -> list[str]:
+    """LLM-generated query variants for multi-query retrieval. Fail-open."""
+    try:
+        client = OpenAI(base_url=llm_cfg["base_url"], api_key=llm_cfg["api_key"])
+        resp = client.chat.completions.create(
+            model=llm_cfg["model"],
+            messages=[
+                {"role": "system", "content": QUERY_REWRITE_PROMPT},
+                {"role": "user", "content": query},
+            ],
+            temperature=0.0,
+        )
+        import json
+        variants = json.loads(resp.choices[0].message.content or "[]")
+        valid = [v.strip() for v in variants if isinstance(v, str) and v.strip()]
+        return [query] + valid if valid else [query]
+    except Exception:
+        return [query]
 
 
 RERANK_PROMPT = (

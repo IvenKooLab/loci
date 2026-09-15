@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
 from pathlib import Path
@@ -65,10 +66,22 @@ def cmd_ingest(cfg, force: bool = False) -> None:
                 store.delete_file(doc["path"])
                 print(f"  - {Path(doc['path']).name}: now empty, removed old chunks")
             continue
-        vectors = embedder.embed([c["text"] for c in chunks])
+        texts = [c["text"] for c in chunks]
+        chashes, reuse = store.reuse_map(doc["path"], texts)
+        missing = [i for i, h in enumerate(chashes) if h not in reuse]
+        new_vecs = embedder.embed([texts[i] for i in missing]) if missing else []
+        vectors = [None] * len(chunks)
+        for i, h in enumerate(chashes):
+            if h in reuse:
+                vectors[i] = reuse[h]
+        for i, v in zip(missing, new_vecs):
+            vectors[i] = v
         store.upsert_chunks(chunks, vectors, doc["path"], doc["hash"],
-                            doc["tags"], doc["links"], doc["mtime"])
-        print(f"  + {Path(doc['path']).name}: {len(chunks)} chunks")
+                            doc["tags"], doc["links"], doc["mtime"],
+                            chashes=chashes)
+        reused_n = len(chunks) - len(missing)
+        note = f" (reused {reused_n} embeddings)" if reused_n else ""
+        print(f"  + {Path(doc['path']).name}: {len(chunks)} chunks{note}")
     mode = " (forced)" if force else ""
     print(f"Done{mode}: {added} added / {updated} updated / {skipped} unchanged — "
           f"{store.count()} chunks in store")
@@ -139,6 +152,17 @@ def cmd_chat(cfg) -> None:
                         {"role": "assistant", "content": reply}])
         del history[:-8]  # keep the last four turns
         print(f"brain> {reply}\n")
+        if cfg.chat.get("auto_extract", True) and cfg.llm.get("api_key"):
+            try:
+                from loci.memories import extract_memories, write_memory, index_memory_file
+                mem_dir = (cfg.memories or {}).get("path", "./memories")
+                transcript = f"User: {q}\nAssistant: {reply}"
+                for item in extract_memories(cfg.llm, transcript):
+                    mp = write_memory(mem_dir, item["text"], title=item.get("title"), tags=["auto"])
+                    index_memory_file(cfg, mp)
+                    print(f"  \u2713 remembered: {item.get('title', '')}")
+            except Exception:
+                pass
 
 
 def cmd_watch(cfg) -> None:
@@ -173,6 +197,60 @@ def cmd_wiki(cfg, topic: str, k: int | None = None) -> None:
     body = Path(r["path"]).read_text(encoding="utf-8")
     print()
     print("\n".join(body.splitlines()[:12]))
+
+
+def cmd_sync(cfg, direction: str) -> None:
+    import subprocess as _sp
+    remote = (cfg.sync or {}).get("remote", "")
+    if not remote:
+        print("set [sync] remote = 'git@...' in config.toml first")
+        return
+    for key, name in [("memories", "memories"), ("wiki", "wiki")]:
+        dp = Path(str(getattr(cfg, key)["path"])).expanduser().resolve()
+        dp.mkdir(parents=True, exist_ok=True)
+        if not (dp / ".git").exists():
+            _sp.run(["git", "init", "-b", "main"], cwd=str(dp), capture_output=True)
+            _sp.run(["git", "remote", "add", "origin", f"{remote}-{name}"],
+                    cwd=str(dp), capture_output=True)
+        if direction == "push":
+            _sp.run(["git", "add", "-A"], cwd=str(dp), capture_output=True)
+            _sp.run(["git", "commit", "-m", "loci sync"], cwd=str(dp), capture_output=True)
+            _sp.run(["git", "push", "-u", "origin", "main"], cwd=str(dp), capture_output=True)
+        else:
+            _sp.run(["git", "pull", "origin", "main"], cwd=str(dp), capture_output=True)
+        print(f"  {name}: {direction} done")
+
+
+def cmd_bench(cfg, cases_file: str, k: int = 5) -> None:
+    import json as _json
+    p = Path(cases_file)
+    if not p.exists():
+        print(f"cases file not found: {cases_file}")
+        return
+    cases = [_json.loads(l) for l in p.read_text(encoding="utf-8").splitlines() if l.strip()]
+    embedder, store = build(cfg)
+    retriever = make_retriever(cfg, embedder, store)
+    for label, hybrid in [("vector-only", False), ("hybrid", True)]:
+        retriever.hybrid = hybrid
+        ok = 0
+        for case in cases:
+            hits = retriever.search(case["query"])[:k]
+            good = any(case["expect"].lower() in h["source"].lower() for h in hits)
+            ok += good
+            top1 = hits[0]["source"].replace("\\", "/").split("/")[-1] if hits else "-"
+            print(f"  {'\u2713' if good else '\u2717'} {case['query'][:48]:<50} top1={top1}")
+        print(f"  {label}: {ok}/{len(cases)}")
+
+
+def cmd_wiki_suggest(cfg, min_chunks: int = 4, top: int = 8) -> None:
+    from loci.wiki import suggest_topics
+    suggestions = suggest_topics(cfg, min_chunks=min_chunks, top=top)
+    if not suggestions:
+        print("(no wiki-worthy topics found)")
+        return
+    print(f"Wiki-worthy topics (\u2265 {min_chunks} chunks):")
+    for t in suggestions:
+        print(f"  {t['term']:<30} {t['chunks']:>4} chunks")
 
 
 def cmd_links(cfg, name: str) -> None:
@@ -343,12 +421,15 @@ def main() -> None:
     p_remember.add_argument("--tags", help="comma-separated extra tags (a 'memory' tag is always added)")
 
     p_wiki = sub.add_parser("wiki", help="distill everything the index knows about a topic into a wiki page")
-    p_wiki.add_argument("topic")
+    p_wiki.add_argument("topic", nargs="?", help="the topic (omit with --suggest)")
+    p_wiki.add_argument("--suggest", action="store_true", help="suggest wiki-worthy topics")
     p_wiki.add_argument("-k", type=int, help="source excerpts to distill (default 12)")
 
     sub.add_parser("chat", help="multi-turn Q&A loop with conversation memory")
     sub.add_parser("watch", help="keep the index current by polling sources")
     sub.add_parser("serve", help="run the MCP server over stdio (alias for mcp_server.py)")
+    p_fb = sub.add_parser("feedback", help="rate the chunks used in the last ask (good|bad)")
+    p_fb.add_argument("verdict", choices=["good", "bad"])
     sub.add_parser("stats", help="show what is in the index")
     sub.add_parser("doctor", help="check config, endpoints, and store health")
 
@@ -381,8 +462,22 @@ def main() -> None:
         cmd_links(cfg, args.note)
     elif args.cmd == "remember":
         cmd_remember(cfg, args.text, title=args.title, tags=args.tags)
+    elif args.cmd == "feedback":
+        cmd_feedback(cfg, args.verdict)
+    elif args.cmd == "serve-http":
+        cfg.validate()
+        from loci.http_api import run_server
+        run_server(cfg, args.host, args.port)
+    elif args.cmd == "serve-http":
+        cfg.validate()
+        from loci.http_api import run_server
+        run_server(cfg, args.host, args.port)
+    elif args.cmd == "sync":
+        cmd_sync(cfg, args.direction)
+    elif args.cmd == "bench":
+        cmd_bench(cfg, args.cases, k=args.k)
     elif args.cmd == "wiki":
-        cmd_wiki(cfg, args.topic, k=args.k)
+        cmd_wiki_suggest(cfg) if getattr(args, "suggest", False) else cmd_wiki(cfg, args.topic, k=args.k)
     elif args.cmd == "watch":
         cfg.validate()
         cmd_watch(cfg)
