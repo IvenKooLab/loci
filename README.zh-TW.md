@@ -119,6 +119,12 @@ flowchart TD
 | `chat` | 多輪問答循環（`/clear`、`/exit`） |
 | `wiki topic` | 把索引中關於某主題的內容蒸餾成一頁 wiki |
 | `remember text` | 寫入持久記憶筆記並立即索引 |
+| `ask "…" --rewrite` | LLM 改寫查詢（關鍵詞版 + 跨語言變體）後再檢索 |
+| `feedback good\|bad` | 為上一次 ask 用到的 chunk 評分；被打負評的 chunk 後續降權 |
+| `wiki --suggest` | 推薦值得寫 wiki 頁但還沒有頁面的主題 |
+| `bench cases.jsonl` | 檢索基準測試：hit@k，純向量 vs 混合 |
+| `sync push\|pull` | 經 git 在多台機器間同步 memories/wiki（[sync] remote） |
+| `serve-http` | HTTP REST API（search/ask/remember/stats），Bearer 驗證 |
 | `stats` | 索引概況：每個來源的 chunk 數、模型、檢索設定 |
 | `doctor` | 健康檢查：設定、來源目錄、embed/LLM 端點、儲存 |
 | `watch` | 輪詢來源保持索引最新（可選） |
