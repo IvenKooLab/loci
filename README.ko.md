@@ -75,8 +75,8 @@ vector-only: 9/10  →  hybrid: 10/10
 Python 3.11+ 필요(표준 라이브러리 `tomllib` 사용).
 
 ```bash
-# 방법 A: 패키지로 설치 (`loci`, `loci-mcp` 명령이 추가됨)
-pip install -e ".[pdf,docx]"   # 선택 extras: 표 포함 PDF, Word 문서
+# 방법 A: PyPI에서 설치 (`loci`, `loci-mcp` 명령이 추가됨)
+pip install "loci-rag[pdf,docx]"   # 선택 extras: 표 포함 PDF, Word 문서
 
 # 방법 B: 설치 없는 퀵스타트
 pip install -r requirements.txt

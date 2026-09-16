@@ -75,8 +75,8 @@ vector-only: 9/10  →  hybrid: 10/10
 Python 3.11+ が必要（標準ライブラリ `tomllib` を使用）。
 
 ```bash
-# 方法 A：パッケージとしてインストール（`loci` と `loci-mcp` コマンドが追加されます）
-pip install -e ".[pdf,docx]"   # オプション extras：表込み PDF、Word 文書
+# 方法 A：PyPI からインストール（`loci` と `loci-mcp` コマンドが追加されます）
+pip install "loci-rag[pdf,docx]"   # オプション extras：表込み PDF、Word 文書
 
 # 方法 B：インストールなしでクイックスタート
 pip install -r requirements.txt
