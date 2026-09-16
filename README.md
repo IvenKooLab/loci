@@ -9,7 +9,7 @@
 
 <!-- mcp-name: io.github.IvenKooLab/loci -->
 
-![CI](https://github.com/IvenKooLab/loci/actions/workflows/ci.yml/badge.svg)
+[![CI](https://img.shields.io/github/actions/workflow/status/IvenKooLab/loci/ci.yml?branch=main&label=CI)](https://github.com/IvenKooLab/loci/actions/workflows/ci.yml)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)
 [![loci MCP server — quality and maintenance score on Glama](https://glama.ai/mcp/servers/IvenKooLab/loci/badges/score.svg)](https://glama.ai/mcp/servers/IvenKooLab/loci)
