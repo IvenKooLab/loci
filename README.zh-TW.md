@@ -75,8 +75,8 @@ vector-only: 9/10  →  hybrid: 10/10
 需要 Python 3.11+（使用標準庫 `tomllib`）。
 
 ```bash
-# 方式 A：裝成套件（附帶 `loci` 和 `loci-mcp` 兩個命令）
-pip install -e ".[pdf,docx]"   # 可選 extras：PDF 含表格、Word 文件
+# 方式 A：從 PyPI 安裝（附帶 `loci` 和 `loci-mcp` 兩個命令）
+pip install "loci-rag[pdf,docx]"   # 可選 extras：PDF 含表格、Word 文件
 
 # 方式 B：免安裝快速開始
 pip install -r requirements.txt

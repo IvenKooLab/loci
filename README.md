@@ -159,8 +159,8 @@ The write path in one line: `loaders → chunker (heading-aware split) → embed
 Requires Python 3.11+ (uses the stdlib `tomllib`).
 
 ```bash
-# option A: install as a package (adds `loci` and `loci-mcp` commands)
-pip install -e ".[pdf,docx]"   # optional extras: PDF w/ tables, Word documents
+# option A: install from PyPI (adds `loci` and `loci-mcp` commands)
+pip install "loci-rag[pdf,docx]"   # optional extras: PDF w/ tables, Word documents
 
 # option B: zero-install quickstart
 pip install -r requirements.txt
@@ -338,6 +338,18 @@ model-agnostic.
 
 API keys can also come from the environment variables `BRAIN_LLM_API_KEY` /
 `BRAIN_EMBED_API_KEY` (these override the config file).
+
+## Development
+
+```bash
+git clone https://github.com/IvenKooLab/loci && cd loci
+pip install -e ".[pdf,docx]"        # editable install for hacking on loci
+pip install -r requirements-dev.txt
+pytest                              # fully offline, no API keys needed
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the ground rules (no frameworks,
+tests stay offline, citations are sacred).
 
 ## Design decisions
 
