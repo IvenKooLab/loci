@@ -21,6 +21,8 @@
 > *Loci* is the method behind every memory palace: place knowledge in
 > locations, recall it by walking the path.
 
+![loci demo](docs/assets/demo.gif)
+
 **A queryable "second brain" for the project docs, notes, and chat logs scattered
 across a dozen directories — and an MCP server so your AI agents can use it too.**
 
