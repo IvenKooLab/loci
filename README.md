@@ -4,6 +4,7 @@
 [![简体中文](https://img.shields.io/badge/简体中文-README-6E7681)](README.zh-CN.md)
 [![繁體中文](https://img.shields.io/badge/繁體中文-README-6E7681)](README.zh-TW.md)
 [![日本語](https://img.shields.io/badge/日本語-README-6E7681)](README.ja.md)
+[![Gitee Stars](https://gitee.com/IvenKooLab/loci/badge/star.svg?theme=dark)](https://gitee.com/IvenKooLab/loci)
 [![한국어](https://img.shields.io/badge/한국어-README-6E7681)](README.ko.md)
 
 <!-- mcp-name: io.github.IvenKooLab/loci -->
