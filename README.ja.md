@@ -215,7 +215,7 @@ model = "all-minilm"
 |---|---|
 | `[llm]` | base_url / api_key / model — 任意の OpenAI 互換エンドポイント |
 | `[embed]` | 同じ；model は embedding モデル必須（例：`embedding-3`） |
-| `[[sources]]` | ドキュメントディレクトリのリスト。`.md` / `.txt` を再帰的にスキャン（extras で `.pdf` / `.docx` も） |
+| `[[sources]]` | ドキュメントディレクトリのリスト。`.md` / `.txt` / `.html` / `.org` を再帰的にスキャン（extras で `.pdf` / `.docx` も） |
 | `[[sources]] chunk_size` / `chunk_overlap` | ディレクトリごとのチャンク設定オーバーライド |
 | `[chunk]` | グローバルなチャンク設定（デフォルト 800 文字 / 100 オーバーラップ） |
 | `[top_k]` | 検索ヒット数（デフォルト 5） |

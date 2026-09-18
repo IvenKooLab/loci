@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.6.0 — unreleased (in main)
+
+### Added
+- **HTML loader**: `.html` / `.htm` via stdlib `html.parser` — headings become
+  `#`-lines, `<li>` becomes `- `, script/style skipped, `<title>` surfaces only
+  when the body has no headings; honors `<meta charset>` with a gb18030
+  fallback for legacy Chinese exports (no new dependencies)
+- **org-mode loader**: `.org` / `.org_archive` — `#+TITLE` becomes the h1 with
+  `*`-sections shifted one level under it, `#+FILETAGS` become frontmatter
+  tags, org links `[[url][desc]]` become markdown links (no new dependencies)
+- Regression tests for chunk-level embedding reuse (shipped in v0.5, now
+  pinned by tests: editing one section re-embeds only that chunk)
+
 ## v0.5.0 — 2026-09-16
 
 ### Added

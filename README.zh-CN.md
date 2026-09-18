@@ -217,7 +217,7 @@ model = "all-minilm"
 |---|---|
 | `[llm]` | base_url / api_key / model——任意 OpenAI 兼容端点 |
 | `[embed]` | 同上；model 须为 embedding 模型（如 `embedding-3`） |
-| `[[sources]]` | 文档目录列表，递归扫描 `.md` / `.txt`（装了 extras 还支持 `.pdf` / `.docx`） |
+| `[[sources]]` | 文档目录列表，递归扫描 `.md` / `.txt` / `.html` / `.org`（装了 extras 还支持 `.pdf` / `.docx`） |
 | `[[sources]] chunk_size` / `chunk_overlap` | 按目录覆盖切分参数 |
 | `[chunk]` | 全局切分参数（默认 800 字符 / 100 重叠） |
 | `[top_k]` | 每次搜索的命中数（默认 5） |

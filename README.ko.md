@@ -214,7 +214,7 @@ model = "all-minilm"
 |---|---|
 | `[llm]` | base_url / api_key / model — 어떤 OpenAI 호환 엔드포인트든 |
 | `[embed]` | 동일; model은 embedding 모델이어야 함 (예: `embedding-3`) |
-| `[[sources]]` | 문서 디렉터리 목록, `.md` / `.txt`를 재귀 스캔 (extras 설치 시 `.pdf` / `.docx`도) |
+| `[[sources]]` | 문서 디렉터리 목록, `.md` / `.txt` / `.html` / `.org`를 재귀 스캔 (extras 설치 시 `.pdf` / `.docx`도) |
 | `[[sources]] chunk_size` / `chunk_overlap` | 디렉터리별 청킹 설정 오버라이드 |
 | `[chunk]` | 전역 청킹 파라미터 (기본 800자 / 100 겹침) |
 | `[top_k]` | 검색당 히트 수 (기본 5) |
