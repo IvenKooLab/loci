@@ -97,11 +97,15 @@ python main.py search "T8 speedup" --rerank local    # cross-encoder (BAAI/bge-r
 The local model downloads on first use (~1.1 GB; set `HF_ENDPOINT=https://hf-mirror.com`
 if HuggingFace is slow in your region). Measured on a 2080 Ti, bilingual query.
 
-### Office documents, PDF tables, chat logs
+### Office documents, PDF tables, web pages, org files, chat logs
 
 - **PDFs**: with the `[pdf]` extra, PyMuPDF4LLM extracts pages as markdown —
   **tables come through as pipe rows** (plain pypdf text is the fallback)
 - **Word**: with the `[docx]` extra, `.docx` paragraphs and table rows are indexed
+- **HTML**: `.html` / `.htm` pages become text with headings preserved (stdlib
+  `html.parser`, zero dependencies — `<meta charset>` honored, script/style skipped)
+- **org-mode**: `.org` notes convert faithfully — `#+TITLE` becomes the h1 with
+  `*`-sections nested under it, `#+FILETAGS` become searchable tags
 - **Chat exports**: drop a ChatGPT or Claude `conversations.json` into any
   source directory — it becomes one searchable document per conversation,
   tagged `chatlog` (`search --tag chatlog` scopes to chat history)
@@ -332,7 +336,7 @@ model-agnostic.
 |---|---|
 | `[llm]` | base_url / api_key / model — any OpenAI-compatible endpoint |
 | `[embed]` | same; the model must be an embedding model (e.g. `embedding-3`) |
-| `[[sources]]` | document directories, scanned recursively for `.md` / `.txt` (plus `.pdf`/`.docx` with the matching extras) |
+| `[[sources]]` | document directories, scanned recursively for `.md` / `.txt` / `.html` / `.org` (plus `.pdf`/`.docx` with the matching extras) |
 | `[[sources]] chunk_size` / `chunk_overlap` | optional per-directory chunking override — wins over the global `[chunk]` block |
 | `[chunk]` | chunking params (default 800 chars / 100 overlap) |
 | `[top_k]` | number of hits per search (default 5) |
