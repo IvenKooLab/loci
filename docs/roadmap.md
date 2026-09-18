@@ -2,6 +2,13 @@
 
 ## Shipped
 
+### Unreleased (in main)
+
+- [x] HTML loader: `.html` / `.htm` via stdlib `html.parser` — headings become
+      `#`-lines, `<li>` becomes `- `, script/style skipped, `<title>` surfaces
+      only when the body has no headings; honors `<meta charset>` with gb18030
+      fallback (no new dependencies)
+
 ### v0.2 (2026-09-05) — the "memory layer" release
 
 - [x] Hybrid retrieval: vector + native BM25 fused with Reciprocal Rank Fusion (on by default)
@@ -36,7 +43,7 @@
 
 ## Next
 
-- [ ] More loaders: HTML, org-mode, Notion/Markdown dumps
+- [ ] More loaders: org-mode, Notion/Markdown dumps
 - [ ] Scanned-PDF / OCR route (image-only pages still yield no text)
 - [ ] Incremental embedding cache (only re-embed changed chunks, not whole files)
 - [ ] Web UI — deliberately last: the MCP host ecosystem is the UI layer for now

@@ -1,11 +1,13 @@
 """Document loading: recursively scan directories for .md/.txt (and .pdf when
 the optional pypdf package is installed), peel off Obsidian-style YAML
 frontmatter (tags/aliases subset), collect [[wikilinks]], and expand chat-log
-exports (ChatGPT / Claude `conversations.json`) into per-conversation docs."""
+exports (ChatGPT / Claude `conversations.json`) into per-conversation docs.
+.html/.htm files are read with the stdlib html.parser — no extra dependency."""
 from __future__ import annotations
 
 import hashlib
 import re
+from html.parser import HTMLParser
 from pathlib import Path
 
 from loci.chatlog import CHATLOG_NAMES, parse_chatlog
@@ -29,6 +31,7 @@ except ImportError:
     HAS_DOCX = False
 
 SUFFIXES = {".md", ".txt"}
+HTML_SUFFIXES = {".html", ".htm"}
 _WIKILINK = re.compile(r"(?<!!)\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]")
 
 
@@ -97,6 +100,108 @@ def tags_of(meta: dict) -> str:
     return ",".join(t for t in items if t)
 
 
+class _HTMLToText(HTMLParser):
+    """Extract readable blocks from HTML into markdown-ish text.
+
+    Headings become `#`-prefixed lines, <li> becomes `- `, paragraph-level
+    tags flush the inline buffer into blank-line-separated blocks. Script/
+    style content is skipped entirely."""
+    BLOCKS = {"p", "div", "section", "article", "aside", "blockquote", "pre",
+              "table", "tr", "header", "footer", "nav", "figure", "figcaption",
+              "main", "ul", "ol", "dl", "dd", "dt", "hr"}
+    HEADINGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
+    SKIP = {"script", "style", "noscript", "template", "svg"}
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self._buf: list[str] = []
+        self._pending = ""      # prefix queued by the opening tag, spent on flush
+        self._skip_depth = 0
+        self._title: list[str] = []
+        self._in_title = False
+
+    def _flush(self) -> None:
+        text = re.sub(r"\s+", " ", "".join(self._buf)).strip()
+        prefix, self._pending = self._pending, ""
+        self._buf.clear()
+        if text:
+            self.parts.append(prefix + text)
+
+    def handle_starttag(self, tag, attrs):
+        if self._skip_depth:
+            if tag in self.SKIP:
+                self._skip_depth += 1
+            return
+        if tag in self.SKIP:
+            self._skip_depth += 1
+        elif tag == "title":
+            self._in_title = True
+        elif tag in self.HEADINGS:
+            self._flush()
+            self._pending = "#" * int(tag[1]) + " "
+        elif tag == "li":
+            self._flush()
+            self._pending = "- "
+        elif tag == "br":
+            self._buf.append(" ")
+        elif tag in self.BLOCKS:
+            self._flush()
+
+    def handle_endtag(self, tag):
+        if tag in self.SKIP:
+            self._skip_depth = max(0, self._skip_depth - 1)
+            return
+        if self._skip_depth:
+            return
+        if tag == "title":
+            self._in_title = False
+        elif tag in self.HEADINGS or tag in self.BLOCKS or tag == "li":
+            self._flush()
+
+    def handle_data(self, data):
+        if self._skip_depth:
+            return
+        if self._in_title:
+            self._title.append(data)
+        else:
+            self._buf.append(data)
+
+    def to_text(self) -> str:
+        self._flush()
+        title = re.sub(r"\s+", " ", "".join(self._title)).strip()
+        # <title> is often site chrome; only surface it when the body has no
+        # headings of its own to anchor the chunk hierarchy.
+        if title and not any(p.startswith("#") for p in self.parts):
+            parts = [f"# {title}"] + self.parts
+        else:
+            parts = self.parts
+        return "\n\n".join(parts)
+
+
+def _read_html(p: Path) -> str | None:
+    raw = p.read_bytes()
+    encoding = "utf-8"
+    m = re.search(rb'charset=["\']?([\w-]+)', raw[:2048], re.IGNORECASE)
+    if m:
+        encoding = m.group(1).decode("ascii", errors="ignore")
+    try:
+        text = raw.decode(encoding)
+    except (UnicodeDecodeError, LookupError):
+        try:  # common for Chinese exports without a meta charset
+            text = raw.decode("gb18030")
+        except UnicodeDecodeError:
+            print(f"[warn] html undecodable, skipping: {p.name}")
+            return None
+    parser = _HTMLToText()
+    try:
+        parser.feed(text)
+    except Exception as e:
+        print(f"[warn] html unreadable, skipping: {p.name} ({e})")
+        return None
+    return parser.to_text()
+
+
 def _read_text(p: Path) -> str | None:
     """Read a document as text/markdown; returns None when it can't be handled."""
     suffix = p.suffix.lower()
@@ -106,6 +211,8 @@ def _read_text(p: Path) -> str | None:
         except UnicodeDecodeError:
             print(f"[warn] not UTF-8, skipping: {p.name}")
             return None
+    if suffix in HTML_SUFFIXES:
+        return _read_html(p)
     if suffix == ".pdf":
         if HAS_PDF_TABLES:
             try:
@@ -181,7 +288,8 @@ def scan_sources(sources: list[dict]) -> list[dict]:
                     print(f"[warn] unrecognized chat export, skipping: {p.name}")
                 continue
             suffix = p.suffix.lower()
-            if suffix not in SUFFIXES and suffix not in (".pdf", ".docx"):
+            if (suffix not in SUFFIXES and suffix not in (".pdf", ".docx")
+                    and suffix not in HTML_SUFFIXES):
                 continue
             ap = str(p.resolve())
             if ap in seen:
