@@ -32,7 +32,58 @@ except ImportError:
 
 SUFFIXES = {".md", ".txt"}
 HTML_SUFFIXES = {".html", ".htm"}
+ORG_SUFFIXES = {".org", ".org_archive"}
 _WIKILINK = re.compile(r"(?<!!)\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]")
+_ORG_LINK = re.compile(r"\[\[([^\]]+)\](?:\[([^\]]*)\])?\]")
+
+
+def _read_org(text: str) -> str:
+    """Convert org-mode markup to markdown-ish text.
+
+    `*`-headings become `#`-headings, #+FILETAGS becomes YAML frontmatter tags
+    (so tags_of() picks them up), #+TITLE becomes an h1, and org links
+    [[url][desc]] / [[url]] become markdown links. Everything else passes
+    through untouched — org bodies are already plain prose."""
+    frontmatter: list[str] = []
+    title = ""
+    lines: list[str] = []
+    # org semantics: #+TITLE is the document title and `*` sections nest under
+    # it — so when a title exists, headings shift down one level to keep the
+    # hierarchy faithful (TITLE→h1, `*`→h2, `**`→h3).
+    has_title = bool(re.search(r"^#\+TITLE:\s*\S", text, re.MULTILINE))
+    for line in text.splitlines():
+        m = re.match(r"^#\+TITLE:\s*(.*)$", line)
+        if m:
+            title = m.group(1).strip()
+            continue
+        m = re.match(r"^#\+FILETAGS:\s*:?(.*?)\s*:?$", line)
+        if m:
+            tags = [t for t in m.group(1).split(":") if t]
+            if tags:
+                frontmatter.append("tags: [" + ", ".join(tags) + "]")
+            continue
+        if re.match(r"^#\+[A-Z_]+:", line):     # other #+KEYWORDS: drop
+            continue
+        m = re.match(r"^(\*+)\s+(.*)$", line)
+        if m:
+            level = min(len(m.group(1)) + (1 if has_title else 0), 6)
+            lines.append("#" * level + " " + m.group(2).strip())
+            continue
+        m = re.match(r"^(\s*)\+\s+(.*)$", line)  # org's alternate "+ " bullet
+        if m:
+            lines.append(m.group(1) + "- " + m.group(2))
+            continue
+        lines.append(_ORG_LINK.sub(
+            lambda lm: f"[{lm.group(2) or lm.group(1)}]({lm.group(1)})"
+            if "://" in lm.group(1) or lm.group(1).startswith("mailto:")
+            else (lm.group(2) or lm.group(1)),  # internal links: keep the text
+            line))
+    body = "\n".join(lines)
+    if title:
+        body = f"# {title}\n\n{body}"
+    if frontmatter:
+        body = "---\n" + "\n".join(frontmatter) + "\n---\n\n" + body
+    return body
 
 
 def extract_wikilinks(body: str) -> str:
@@ -211,6 +262,12 @@ def _read_text(p: Path) -> str | None:
         except UnicodeDecodeError:
             print(f"[warn] not UTF-8, skipping: {p.name}")
             return None
+    if suffix in ORG_SUFFIXES:
+        try:
+            return _read_org(p.read_text(encoding="utf-8"))
+        except UnicodeDecodeError:
+            print(f"[warn] not UTF-8, skipping: {p.name}")
+            return None
     if suffix in HTML_SUFFIXES:
         return _read_html(p)
     if suffix == ".pdf":
@@ -289,7 +346,7 @@ def scan_sources(sources: list[dict]) -> list[dict]:
                 continue
             suffix = p.suffix.lower()
             if (suffix not in SUFFIXES and suffix not in (".pdf", ".docx")
-                    and suffix not in HTML_SUFFIXES):
+                    and suffix not in HTML_SUFFIXES and suffix not in ORG_SUFFIXES):
                 continue
             ap = str(p.resolve())
             if ap in seen:
