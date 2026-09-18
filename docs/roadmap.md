@@ -8,6 +8,8 @@
       `#`-lines, `<li>` becomes `- `, script/style skipped, `<title>` surfaces
       only when the body has no headings; honors `<meta charset>` with gb18030
       fallback (no new dependencies)
+- [x] Regression tests for chunk-level embedding reuse: editing one section
+      re-embeds only that chunk; an unchanged file embeds nothing (3 tests)
 
 ### v0.2 (2026-09-05) — the "memory layer" release
 
@@ -31,6 +33,8 @@
 - [x] PDF loading with table understanding (PyMuPDF4LLM → markdown pipe rows)
 - [x] `.docx` loader (paragraphs + tables, optional extra)
 - [x] Per-directory chunk config (`chunk_size` / `chunk_overlap` overrides)
+- [x] **Chunk-level embedding reuse**: per-chunk content fingerprints let a
+      file edit re-embed only changed chunks (shipped in v0.5, now tested)
 - [x] `stats` / `doctor` / `ingest --force`
 - [x] 59-test offline suite + GitHub Actions CI (Python 3.11–3.13)
 
@@ -45,7 +49,6 @@
 
 - [ ] More loaders: org-mode, Notion/Markdown dumps
 - [ ] Scanned-PDF / OCR route (image-only pages still yield no text)
-- [ ] Incremental embedding cache (only re-embed changed chunks, not whole files)
 - [ ] Web UI — deliberately last: the MCP host ecosystem is the UI layer for now
 
 ## Explorations
