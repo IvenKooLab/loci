@@ -8,6 +8,10 @@
       `#`-lines, `<li>` becomes `- `, script/style skipped, `<title>` surfaces
       only when the body has no headings; honors `<meta charset>` with gb18030
       fallback (no new dependencies)
+- [x] org-mode loader: `.org` / `.org_archive` — `*`-headings become `#`-lines
+      (shifted one level under `#+TITLE`), `#+FILETAGS` becomes frontmatter
+      tags, org links `[[url][desc]]` become markdown links, other `#+KEYWORD`
+      lines dropped (stdlib regex, no new dependencies)
 - [x] Regression tests for chunk-level embedding reuse: editing one section
       re-embeds only that chunk; an unchanged file embeds nothing (3 tests)
 
@@ -47,7 +51,7 @@
 
 ## Next
 
-- [ ] More loaders: org-mode, Notion/Markdown dumps
+- [ ] More loaders: Notion/Markdown dumps
 - [ ] Scanned-PDF / OCR route (image-only pages still yield no text)
 - [ ] Web UI — deliberately last: the MCP host ecosystem is the UI layer for now
 
