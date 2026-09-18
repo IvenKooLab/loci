@@ -11,3 +11,4 @@ src/*.egg-info/
 
 # generated wiki pages (loci wiki output)
 /wiki/
+generated/
