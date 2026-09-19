@@ -497,6 +497,21 @@ def main() -> None:
     p_graph.add_argument("--force", action="store_true", help="re-extract all files")
     p_fb = sub.add_parser("feedback", help="rate the chunks used in the last ask (good|bad)")
     p_fb.add_argument("verdict", choices=["good", "bad"])
+
+    p_serve_http = sub.add_parser(
+        "serve-http", help="run the HTTP REST API (search/ask/remember/stats)")
+    p_serve_http.add_argument("--host", default=None,
+                              help="bind address (default: [http] host, or 127.0.0.1)")
+    p_serve_http.add_argument("--port", type=int, default=None,
+                              help="port (default: [http] port, or 8765)")
+
+    p_sync = sub.add_parser("sync", help="sync memories/wiki via git (push or pull)")
+    p_sync.add_argument("direction", choices=["push", "pull"])
+
+    p_bench = sub.add_parser("bench", help="run a retrieval benchmark (hit@k) on a cases file")
+    p_bench.add_argument("cases", help="JSONL file with {query, expect} per line")
+    p_bench.add_argument("-k", type=int, default=5, help="hits per query (default 5)")
+
     sub.add_parser("stats", help="show what is in the index")
     sub.add_parser("doctor", help="check config, endpoints, and store health")
 
@@ -537,11 +552,9 @@ def main() -> None:
     elif args.cmd == "serve-http":
         cfg.validate()
         from loci.http_api import run_server
-        run_server(cfg, args.host, args.port)
-    elif args.cmd == "serve-http":
-        cfg.validate()
-        from loci.http_api import run_server
-        run_server(cfg, args.host, args.port)
+        host = args.host or cfg.http.get("host") or "127.0.0.1"
+        port = args.port or int(cfg.http.get("port") or 8765)
+        run_server(cfg, host, port)
     elif args.cmd == "sync":
         cmd_sync(cfg, args.direction)
     elif args.cmd == "bench":

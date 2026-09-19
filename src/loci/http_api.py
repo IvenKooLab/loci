@@ -35,31 +35,43 @@ def _make_handler(brain, token):
         def _authed(self) -> bool:
             return self.headers.get("Authorization", "") == f"Bearer {token}"
 
+        def _guard(self, fn):
+            """Run a handler; any exception becomes a 500 JSON response instead
+            of killing the connection (e.g. empty queries hitting the embedder)."""
+            try:
+                return fn()
+            except Exception as e:
+                return self._json(500, {"error": f"{type(e).__name__}: {e}"})
+
         def do_GET(self):
             if not self._authed():
                 return self._json(401, {"error": "unauthorized"})
             if self.path == "/health":
                 return self._json(200, {"status": "ok"})
             if self.path == "/stats":
-                return self._json(200, {"stats": brain.stats()})
+                return self._guard(lambda: self._json(
+                    200, {"stats": brain.stats()}))
             self._json(404, {"error": "not found"})
 
         def do_POST(self):
             if not self._authed():
                 return self._json(401, {"error": "unauthorized"})
             length = int(self.headers.get("Content-Length", 0))
-            body = json.loads(self.rfile.read(length) or b"{}")
+            try:
+                body = json.loads(self.rfile.read(length) or b"{}")
+            except json.JSONDecodeError:
+                return self._json(400, {"error": "invalid JSON body"})
             if self.path == "/search":
-                return self._json(200, {"result": brain.search(**{
+                return self._guard(lambda: self._json(200, {"result": brain.search(**{
                     "query": body.get("query", ""), "k": body.get("k"),
-                    "tag": body.get("tag"), "path_contains": body.get("in")})})
+                    "tag": body.get("tag"), "path_contains": body.get("in")})}))
             if self.path == "/ask":
-                return self._json(200, {"result": brain.ask(
-                    body.get("question", ""), verify=body.get("verify", False))})
+                return self._guard(lambda: self._json(200, {"result": brain.ask(
+                    body.get("question", ""), verify=body.get("verify", False))}))
             if self.path == "/remember":
-                return self._json(200, {"result": brain.remember(
+                return self._guard(lambda: self._json(200, {"result": brain.remember(
                     body.get("text", ""), title=body.get("title"),
-                    tags=body.get("tags"))})
+                    tags=body.get("tags"))}))
             self._json(404, {"error": "not found"})
 
         def log_message(self, fmt, *args):

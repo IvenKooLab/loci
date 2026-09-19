@@ -251,6 +251,8 @@ class Brain:
                tag: str | None = None, path_contains: str | None = None) -> str:
         if err := self._guard():
             return err
+        if not (query or "").strip():
+            return "(empty query — pass `query` in the request body)"
         cfg, retriever = self._cfg, self._retriever
         try:
             k = int(k) if k is not None else None
