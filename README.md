@@ -226,6 +226,7 @@ Filter operators (combine freely, on `search` and `ask`):
 | `bench cases.jsonl` | retrieval benchmark: hit@k, vector-only vs hybrid |
 | `sync push\|pull` | sync memories/wiki across machines via git ([sync] remote) |
 | `serve-http` | HTTP REST API (search/ask/remember/stats) with Bearer auth |
+| `graph build` / `graph show ENTITY` | knowledge graph over memories/wiki (LLM-extracted triples in graph.json) |
 | `stats` | what's in the index: chunks per source, models, retrieval settings |
 | `doctor` | health check: config, source dirs, embed/LLM endpoints, store (exit code 1 on failure — CI-friendly) |
 | `python mcp_server.py` | MCP server over stdio (see below) |
@@ -296,6 +297,7 @@ The server exposes three tools (zero dependencies beyond the core):
 | `brain_ask(question, verify?)` | grounded answer with citations; `verify=true` adds a claim-by-claim audit |
 | `brain_links(note)` | outbound/inbound `[[wikilink]]` graph around a note |
 | `brain_stats()` | index overview (chunks per source) |
+| `brain_graph(entity?)` | knowledge-graph relations for an entity (omit for hub entities) |
 | `brain_remember(text, title?, tags?)` | **write a memory** — durable, shared across sessions and IDEs |
 | `brain_forget(query)` | soft-delete matching memories (they go to a `.trash` folder) |
 | `brain_wiki(topic)` | **memory consolidation** — distill the index into a curated wiki page about a topic |
@@ -336,7 +338,7 @@ model-agnostic.
 |---|---|
 | `[llm]` | base_url / api_key / model — any OpenAI-compatible endpoint |
 | `[embed]` | same; the model must be an embedding model (e.g. `embedding-3`) |
-| `[[sources]]` | document directories, scanned recursively for `.md` / `.txt` / `.html` / `.org` (plus `.pdf`/`.docx` with the matching extras) |
+| `[[sources]]` | document directories, scanned recursively for `.md` / `.txt` / `.html` / `.org` (plus `.pdf`/`.docx`/images with the matching extras) |
 | `[[sources]] chunk_size` / `chunk_overlap` | optional per-directory chunking override — wins over the global `[chunk]` block |
 | `[chunk]` | chunking params (default 800 chars / 100 overlap) |
 | `[top_k]` | number of hits per search (default 5) |

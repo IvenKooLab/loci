@@ -125,6 +125,7 @@ flowchart TD
 | `bench cases.jsonl` | 検索ベンチマーク：hit@k、ベクトルのみ vs ハイブリッド |
 | `sync push\|pull` | git で複数マシン間の memories/wiki を同期（[sync] remote） |
 | `serve-http` | HTTP REST API（search/ask/remember/stats）、Bearer 認証 |
+| `graph build` / `graph show 实体` | ナレッジグラフ：memories/wiki からエンティティ関係を抽出（graph.json） |
 | `stats` | インデックス概要：ソースごとのチャンク数、モデル、検索設定 |
 | `doctor` | ヘルスチェック：設定、ソースディレクトリ、embed/LLM エンドポイント、ストア |
 | `watch` | ソースをポーリングしてインデックスを最新に保つ（オプション） |

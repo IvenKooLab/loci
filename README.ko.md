@@ -125,6 +125,7 @@ flowchart TD
 | `bench cases.jsonl` | 검색 벤치마크: hit@k, 벡터만 vs 하이브리드 |
 | `sync push\|pull` | git으로 여러 머신 간 memories/wiki 동기화([sync] remote) |
 | `serve-http` | HTTP REST API(search/ask/remember/stats), Bearer 인증 |
+| `graph build` / `graph show 实体` | 지식 그래프: memories/wiki에서 개체 관계 추출(graph.json) |
 | `stats` | 인덱스 현황: 소스별 청크 수, 모델, 검색 설정 |
 | `doctor` | 헬스 체크: 설정, 소스 디렉터리, embed/LLM 엔드포인트, 스토어 |
 | `watch` | 소스 폴링으로 인덱스 최신 유지 (선택) |

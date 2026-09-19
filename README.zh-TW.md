@@ -125,6 +125,7 @@ flowchart TD
 | `bench cases.jsonl` | 檢索基準測試：hit@k，純向量 vs 混合 |
 | `sync push\|pull` | 經 git 在多台機器間同步 memories/wiki（[sync] remote） |
 | `serve-http` | HTTP REST API（search/ask/remember/stats），Bearer 驗證 |
+| `graph build` / `graph show 实体` | 知識圖譜：對 memories/wiki 抽取實體關係（graph.json） |
 | `stats` | 索引概況：每個來源的 chunk 數、模型、檢索設定 |
 | `doctor` | 健康檢查：設定、來源目錄、embed/LLM 端點、儲存 |
 | `watch` | 輪詢來源保持索引最新（可選） |

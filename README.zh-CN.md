@@ -127,6 +127,7 @@ flowchart TD
 | `bench cases.jsonl` | 检索基准测试：hit@k，纯向量 vs 混合 |
 | `sync push\|pull` | 经 git 在多台机器间同步 memories/wiki（[sync] remote） |
 | `serve-http` | HTTP REST API（search/ask/remember/stats），Bearer 鉴权 |
+| `graph build` / `graph show 实体` | 知识图谱：对 memories/wiki 抽取实体关系（graph.json） |
 | `stats` | 索引概况：每个来源的 chunk 数、模型、检索设置 |
 | `doctor` | 健康检查：配置、来源目录、embed/LLM 端点、存储 |
 | `watch` | 轮询来源保持索引最新（可选） |
