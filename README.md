@@ -273,6 +273,13 @@ sequenceDiagram
     L-->>T: cited answer — the memory is recalled
 ```
 
+## Ecosystem
+
+- **[loci-dsh](https://github.com/IvenKooLab/loci-dsh)** — visual plugin for
+  [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): search,
+  ask, quick-capture memories and watch index stats from a sidebar in the dsh
+  web UI, talking to `loci serve-http` over local REST.
+
 ## Mount it in any MCP host
 
 Add to `claude_desktop_config.json` (Claude Desktop) or your MCP client's

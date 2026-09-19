@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.6.2 — 2026-09-19
+
+### Fixed
+- `serve-http`, `sync` and `bench` subcommands were missing from the CLI
+  argument parser (dispatch existed, registration didn't) — found by the
+  loci-dsh integration team
+- HTTP API: exceptions inside handlers (e.g. an empty query reaching the
+  embedder) now return a 500 JSON response instead of dropping the connection;
+  malformed request bodies return 400; empty queries short-circuit with a hint
+- `serve-http --host/--port` now default from the `[http]` config section as
+  documented
+
+### Added
+- Ecosystem section in the README: [loci-dsh](https://github.com/IvenKooLab/loci-dsh)
+  (visual plugin for DeepSeek Harness) is the first integration built on
+  `loci serve-http`
+
+
 ## v0.6.1 — 2026-09-19
 
 - Merge parallel development branches: knowledge graph + OCR + HTML/org-mode
