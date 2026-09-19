@@ -1,6 +1,11 @@
 # Changelog
 
-## v0.6.0 — 2026-09-19
+## v0.6.1 — 2026-09-19
+
+- Merge parallel development branches: knowledge graph + OCR + HTML/org-mode
+  loaders + embedding-reuse regression tests, all in one release
+
+## v0.6.0 — 2026-09-19 (superseded, incomplete)
 
 ### Added
 - **Knowledge graph** (`loci graph build|show`, MCP `brain_graph`): LLM-extracted

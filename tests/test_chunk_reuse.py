@@ -6,7 +6,7 @@ import pytest
 
 from loci import cli as cli_module
 from loci.store import Store
-from tests.conftest import FakeEmbedder, make_cfg, write_corpus
+from conftest import FakeEmbedder, make_cfg, write_corpus
 
 
 class CountingEmbedder(FakeEmbedder):
