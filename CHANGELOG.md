@@ -1,8 +1,17 @@
 # Changelog
 
-## v0.6.0 — unreleased (in main)
+## v0.6.0 — 2026-09-19
 
 ### Added
+- **Knowledge graph** (`loci graph build|show`, MCP `brain_graph`): LLM-extracted
+  entity-relation triples from memories and wiki pages, stored in a
+  human-readable `graph.json` next to the index — no graph database. Edges cite
+  their source files; wiki generation now injects graph relations as extra
+  context. Incremental per file (content-hash tracked); robust against LLMs
+  wrapping JSON in code fences
+- **OCR** (`[ocr]` extra, rapidocr): `.png/.jpg/.jpeg/.bmp/.webp/.tiff` files
+  are recognized and indexed; scanned PDFs (near-empty text layer) fall back to
+  per-page OCR automatically. `doctor` reports OCR availability
 - **HTML loader**: `.html` / `.htm` via stdlib `html.parser` — headings become
   `#`-lines, `<li>` becomes `- `, script/style skipped, `<title>` surfaces only
   when the body has no headings; honors `<meta charset>` with a gb18030

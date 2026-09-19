@@ -80,11 +80,24 @@ def generate_wiki_page(cfg, topic: str, k: int = 12) -> dict:
         f"[excerpt {i + 1} | {h['source']}"
         + (f" > {h['section']}" if h.get("section") else "")
         + f"]\n{h['text']}" for i, h in enumerate(hits))
+    # knowledge-graph context: relations touching the topic, if a graph exists
+    graph_ctx = ""
+    try:
+        from loci import graph as _g
+        gr = _g.query_graph(cfg, topic)
+        rel = gr["out"] + gr["in"]
+        if rel:
+            lines = [f"{e['s']} --{e['p']}--> {e['o']}" for e in rel[:12]]
+            graph_ctx = ("\n\nKnown relations (from the knowledge graph):\n"
+                         + "\n".join(lines))
+    except Exception:
+        pass  # the graph is optional context
     resp = client.chat.completions.create(
         model=cfg.llm["model"],
         messages=[
             {"role": "system", "content": WIKI_PROMPT},
-            {"role": "user", "content": f"Topic: {topic}\n\nSource excerpts:\n\n{context}"},
+            {"role": "user",
+             "content": f"Topic: {topic}\n\nSource excerpts:\n\n{context}{graph_ctx}"},
         ],
         temperature=0.2,
     )

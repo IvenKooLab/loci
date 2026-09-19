@@ -164,6 +164,20 @@ TOOLS = [
         },
     },
     {
+        "name": "brain_graph",
+        "description": "Query the knowledge graph over memories and wiki pages. "
+                       "Behavior: with an entity, returns its outgoing/incoming relations "
+                       "(each cites its source file); without one, returns the top hub "
+                       "entities. The graph is built from `loci graph build` (LLM-extracted "
+                       "triples in graph.json). Usage: explore how concepts connect before "
+                       "asking questions; see the strongest entities for orientation.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"entity": {"type": "string",
+                                      "description": "entity name; omit to list hub entities"}},
+        },
+    },
+    {
         "name": "brain_forget",
         "description": "Retract memories that are wrong or outdated. Behavior: memory notes "
                        "matching the query move to a .trash folder (recoverable by hand) and "
@@ -332,6 +346,27 @@ class Brain:
                 f"distilled {r['sources']} excerpts into {r['chunks']} chunks — "
                 f"now searchable, linked via [[{r['topic']}]]")
 
+    def graph(self, entity: str | None = None) -> str:
+        if err := self._guard():
+            return err
+        from loci import graph as g
+        r = g.query_graph(self._cfg, entity or "")
+        if not r["out"] and not r["in"] and not r["hubs"]:
+            return ("(graph is empty — run `loci graph build` where loci "
+                    "is configured)")
+        lines = []
+        if r["hubs"]:
+            lines.append("hub entities:")
+            lines.extend(f"  {h['name']} ({h['degree']} edges)"
+                         for h in r["hubs"])
+        for e in r["out"]:
+            src = f"  [{Path(e['source']).name}]" if e.get("source") else ""
+            lines.append(f"{e['s']} --{e['p']}--> {e['o']}{src}")
+        for e in r["in"]:
+            src = f"  [{Path(e['source']).name}]" if e.get("source") else ""
+            lines.append(f"{e['s']} --{e['p']}--> {e['o']}{src}")
+        return "\n".join(lines)
+
     # ---- MCP resources ----
 
     def resources_list(self) -> list[dict]:
@@ -385,6 +420,8 @@ def _call_tool(brain: Brain, name: str, args: dict) -> str:
                               tags=args.get("tags"))
     if name == "brain_wiki":
         return brain.wiki(args["topic"], k=args.get("k"))
+    if name == "brain_graph":
+        return brain.graph(args.get("entity"))
     if name == "brain_forget":
         return brain.forget(args["query"])
     if name == "brain_ingest":

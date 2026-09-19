@@ -273,6 +273,41 @@ def cmd_wiki_suggest(cfg, min_chunks: int = 4, top: int = 8) -> None:
         print(f"  {t['term']:<30} {t['chunks']:>4} chunks")
 
 
+def cmd_graph(cfg, action: str, entity: str | None = None,
+             force: bool = False) -> None:
+    from loci import graph as g
+    if action == "build":
+        if not cfg.llm.get("api_key"):
+            print("graph build needs an LLM key (config.toml [llm])")
+            return
+        r = g.build_graph(cfg, force=force)
+        print(f"graph: {r['files']} file(s) processed, +{r['new']} edges "
+              f"→ {r['edges']} edges / {r['entities']} entities "
+              f"({g.graph_path(cfg)})")
+    elif action == "show":
+        if not entity:
+            # no entity: list hub entities
+            r = g.query_graph(cfg, "")
+            if not r["hubs"]:
+                print("(graph is empty — run `loci graph build` first)")
+                return
+            print("top entities:")
+            for h in r["hubs"]:
+                print(f"  {h['name']:<24} {h['degree']:>3} edges")
+            return
+        r = g.query_graph(cfg, entity)
+        if not r["out"] and not r["in"]:
+            print(f"(no relations for '{entity}' — run `loci graph build`, "
+                  f"or check the spelling)")
+            return
+        for e in r["out"]:
+            src = f"  [{Path(e['source']).name}]" if e.get("source") else ""
+            print(f"  {e['s']} --{e['p']}--> {e['o']}{src}")
+        for e in r["in"]:
+            src = f"  [{Path(e['source']).name}]" if e.get("source") else ""
+            print(f"  {e['o']} <--{e['p']}-- {e['s']}{src}")
+
+
 def cmd_links(cfg, name: str) -> None:
     _, store = build(cfg)
     graph = store.link_map()
@@ -355,6 +390,12 @@ def cmd_doctor(cfg) -> int:
         checks.append(("pdf support", None,
                        "no pdf loader installed — .pdf sources are skipped "
                        "(pip install 'loci[pdf]')"))
+    if loaders.HAS_OCR:
+        checks.append(("ocr support", True, "rapidocr installed — images & scanned PDFs indexed"))
+    else:
+        checks.append(("ocr support", None,
+                       "rapidocr not installed — .png/.jpg and scanned PDFs are skipped "
+                       "(pip install 'loci-rag[ocr]')"))
     if loaders.HAS_DOCX:
         checks.append(("docx support", True, "python-docx installed"))
     else:
@@ -450,6 +491,10 @@ def main() -> None:
     sub.add_parser("chat", help="multi-turn Q&A loop with conversation memory")
     sub.add_parser("watch", help="keep the index current by polling sources")
     sub.add_parser("serve", help="run the MCP server over stdio (alias for mcp_server.py)")
+    p_graph = sub.add_parser("graph", help="knowledge graph over memories/wiki (build | show)")
+    p_graph.add_argument("action", choices=["build", "show"])
+    p_graph.add_argument("entity", nargs="?", help="entity to inspect (omit to list hubs)")
+    p_graph.add_argument("--force", action="store_true", help="re-extract all files")
     p_fb = sub.add_parser("feedback", help="rate the chunks used in the last ask (good|bad)")
     p_fb.add_argument("verdict", choices=["good", "bad"])
     sub.add_parser("stats", help="show what is in the index")
@@ -485,6 +530,8 @@ def main() -> None:
         cmd_links(cfg, args.note)
     elif args.cmd == "remember":
         cmd_remember(cfg, args.text, title=args.title, tags=args.tags)
+    elif args.cmd == "graph":
+        cmd_graph(cfg, args.action, entity=args.entity, force=args.force)
     elif args.cmd == "feedback":
         cmd_feedback(cfg, args.verdict)
     elif args.cmd == "serve-http":

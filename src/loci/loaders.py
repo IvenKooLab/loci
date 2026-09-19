@@ -30,6 +30,16 @@ try:
 except ImportError:
     HAS_DOCX = False
 
+try:
+    from rapidocr_onnxruntime import RapidOCR as _RapidOCR  # noqa: F401
+    HAS_OCR = True
+except ImportError:
+    HAS_OCR = False
+
+_ocr_engine = None  # lazy singleton (model load is ~1s)
+
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tiff"}
+
 SUFFIXES = {".md", ".txt"}
 HTML_SUFFIXES = {".html", ".htm"}
 ORG_SUFFIXES = {".org", ".org_archive"}
@@ -262,6 +272,8 @@ def _read_text(p: Path) -> str | None:
         except UnicodeDecodeError:
             print(f"[warn] not UTF-8, skipping: {p.name}")
             return None
+    if suffix in IMAGE_SUFFIXES:
+        return _ocr_image(p)          # needs the [ocr] extra; silent skip otherwise
     if suffix in ORG_SUFFIXES:
         try:
             return _read_org(p.read_text(encoding="utf-8"))
@@ -345,8 +357,11 @@ def scan_sources(sources: list[dict]) -> list[dict]:
                     print(f"[warn] unrecognized chat export, skipping: {p.name}")
                 continue
             suffix = p.suffix.lower()
-            if (suffix not in SUFFIXES and suffix not in (".pdf", ".docx")
-                    and suffix not in HTML_SUFFIXES and suffix not in ORG_SUFFIXES):
+            if (suffix not in SUFFIXES
+                    and suffix not in (".pdf", ".docx")
+                    and suffix not in HTML_SUFFIXES
+                    and suffix not in ORG_SUFFIXES
+                    and not (HAS_OCR and suffix in IMAGE_SUFFIXES)):
                 continue
             ap = str(p.resolve())
             if ap in seen:
@@ -363,3 +378,54 @@ def scan_sources(sources: list[dict]) -> list[dict]:
                          "chunk_size": src_chunk_size,
                          "chunk_overlap": src_chunk_overlap})
     return docs
+
+
+def _get_ocr():
+    global _ocr_engine
+    if _ocr_engine is None:
+        from rapidocr_onnxruntime import RapidOCR
+        _ocr_engine = RapidOCR()
+    return _ocr_engine
+
+
+def _ocr_image(p: Path) -> str | None:
+    """OCR one image file; None (skip silently) when OCR isn't installed."""
+    if not HAS_OCR:
+        return None  # `doctor` mentions the optional [ocr] extra
+    try:
+        result, _ = _get_ocr()(str(p))
+        if not result:
+            return None
+        return "\n".join(line[1] for line in result)
+    except Exception as e:
+        print(f"[warn] ocr failed, skipping: {p.name} ({e})")
+        return None
+
+
+def _ocr_pdf(p: Path) -> str | None:
+    """OCR a scanned PDF: render pages via PyMuPDF (the [pdf] extra), OCR each."""
+    if not HAS_OCR:
+        return None
+    renderer = None
+    if HAS_PDF_TABLES:               # pymupdf is available via the pdf extra
+        import pymupdf
+        renderer = pymupdf
+    if renderer is None:
+        print(f"[warn] scanned pdf needs the [ocr] + [pdf] extras: {p.name}")
+        return None
+    try:
+        doc = renderer.open(str(p))
+        import io
+        parts = []
+        ocr = _get_ocr()
+        for page in doc:
+            pix = page.get_pixmap(dpi=150)
+            img = io.BytesIO(pix.tobytes("png"))
+            result, _ = ocr(img)
+            if result:
+                parts.append("\n".join(line[1] for line in result))
+        doc.close()
+        return "\n\n".join(parts) or None
+    except Exception as e:
+        print(f"[warn] pdf ocr failed, skipping: {p.name} ({e})")
+        return None
