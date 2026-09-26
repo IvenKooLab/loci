@@ -159,6 +159,10 @@ claude mcp add loci -- loci-mcp
 
 > **跨 IDE 提示**：預設的 `store` / `memories` 路徑相對於 loci 的啟動目錄。如果你的 IDE 從不同專案目錄啟動，請在 `config.toml` 裡把兩者指向同一個絕對位置——例如 `store.path = "~/.loci/store"`、`memories.path = "~/.loci/memories"`——所有 IDE 即共享同一份記憶庫。
 
+## 生態
+
+- **[loci-dsh](https://github.com/IvenKooLab/loci-dsh)** —— [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的視覺化外掛：在 dsh Web UI 側邊欄裡搜尋、提問、速記記憶、查看索引狀態，經本機 REST 呼叫 `loci serve-http`。
+
 ## 接入任意 MCP 宿主
 
 加入 `claude_desktop_config.json`（Claude Desktop）或你的 MCP 客戶端配置：
