@@ -159,6 +159,10 @@ claude mcp add loci -- loci-mcp
 
 > **クロス IDE のヒント**：デフォルトの `store` / `memories` パスは loci の起動ディレクトリ相対です。IDE ごとに異なるプロジェクトフォルダで起動する場合は、`config.toml` で両方を絶対パスに向けてください — 例：`store.path = "~/.loci/store"`、`memories.path = "~/.loci/memories"` — すべての IDE が同一のメモリストアを共有します。
 
+## エコシステム
+
+- **[loci-dsh](https://github.com/IvenKooLab/loci-dsh)** — [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 用ビジュアルプラグイン：dsh Web UI のサイドバーから検索・質問・メモのクイック保存・インデックス状況を確認。ローカル REST 経由で `loci serve-http` に接続。
+
 ## 任意の MCP ホストにマウント
 
 `claude_desktop_config.json`（Claude Desktop）または使用中の MCP クライアント設定に追加：
@@ -225,6 +229,10 @@ model = "all-minilm"
 | `[watch]` | ポーリング間隔秒数 |
 
 API キーは環境変数 `BRAIN_LLM_API_KEY` / `BRAIN_EMBED_API_KEY` でも指定可能（設定ファイルより優先）。
+
+- **ナレッジグラフ**：`loci graph build` がメモリと wiki ページからエンティティ関係を抽出し、人間が読める `graph.json` に保存；`brain_graph(entity)` で概念のつながりを表示（各エッジに出典付き）、wiki 生成時に関係を補助コンテキストとして注入
+- **OCR**（`[ocr]` extra）：画像とスキャン PDF も認識してインデックス
+- **HTML / org-mode ローダー**（標準ライブラリのみ、依存関係ゼロ追加）
 
 ## 設計判断
 

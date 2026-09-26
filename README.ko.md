@@ -159,6 +159,10 @@ claude mcp add loci -- loci-mcp
 
 > **크로스 IDE 팁**: 기본 `store` / `memories` 경로는 loci 실행 디렉터리 기준 상대 경로입니다. IDE마다 다른 프로젝트 폴더에서 실행한다면 `config.toml`에서 둘 다 하나의 절대 위치로 향하게 하세요 — 예: `store.path = "~/.loci/store"`, `memories.path = "~/.loci/memories"` — 그러면 모든 IDE가 정확히 같은 메모리 스토어를 공유합니다.
 
+## 생태계
+
+- **[loci-dsh](https://github.com/IvenKooLab/loci-dsh)** — [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)용 시각화 플러그인: dsh Web UI 사이드바에서 검색·질문·메모 빠른 저장·인덱스 현황 확인. 로컬 REST로 `loci serve-http`에 연결.
+
 ## 어떤 MCP 호스트에든 마운트
 
 `claude_desktop_config.json`(Claude Desktop) 또는 MCP 클라이언트 설정에 추가:
@@ -224,6 +228,10 @@ model = "all-minilm"
 | `[watch]` | 폴링 간격 초 |
 
 API 키는 환경 변수 `BRAIN_LLM_API_KEY` / `BRAIN_EMBED_API_KEY`로도 제공 가능(설정 파일보다 우선).
+
+- **지식 그래프**: `loci graph build`가 메모리와 wiki 페이지에서 개체 관계를 추출해 사람이 읽을 수 있는 `graph.json`에 저장; `brain_graph(entity)`로 개념 간 연결 확인(각 에지에 출처 인용), wiki 생성 시 관계를 보조 컨텍스트로 주입
+- **OCR**(`[ocr]` extra): 이미지와 스캔 PDF도 인식해 인덱싱
+- **HTML / org-mode 로더**(표준 라이브러리만 사용, 새 의존성 없음)
 
 ## 설계 결정
 
