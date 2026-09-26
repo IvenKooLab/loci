@@ -228,6 +228,10 @@ model = "all-minilm"
 
 API key 也可用环境变量 `BRAIN_LLM_API_KEY` / `BRAIN_EMBED_API_KEY`（覆盖配置文件）。
 
+- **知识图谱**：`loci graph build` 从记忆与 wiki 页抽取实体关系三元组，存入人类可读的 `graph.json`；`brain_graph(entity)` 展示概念间的连接（每条边带来源引用），wiki 生成时以图谱关系作补充上下文
+- **OCR**（`[ocr]` extra）：图片与扫描版 PDF 也能识别入库
+- **HTML / org-mode 加载器**（标准库实现，零新依赖）
+
 ## 设计决策
 
 - **核心约 500 行，不用 LangChain**——每个环节都可读、可改、可学，整个引擎一次能读完
