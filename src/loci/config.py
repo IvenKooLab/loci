@@ -17,6 +17,7 @@ DEFAULTS = {
     "retrieval": {"hybrid": True, "rrf_k": 60, "rerank": False,
                   "rerank_provider": "llm",
                   "local_rerank_model": "BAAI/bge-reranker-base"},
+    "bm25": {"tokenizer": "default"},
     "watch": {"interval": 30},
     "memories": {"path": "./memories"},
     "wiki": {"path": "./wiki"},
@@ -34,6 +35,7 @@ class Config:
     chunk: dict = field(default_factory=dict)
     top_k: dict = field(default_factory=dict)
     retrieval: dict = field(default_factory=dict)
+    bm25: dict = field(default_factory=dict)
     watch: dict = field(default_factory=dict)
     memories: dict = field(default_factory=dict)
     wiki: dict = field(default_factory=dict)
@@ -107,4 +109,9 @@ def load(path: str = "config.toml") -> Config:
         cfg.top_k["search"] = max(int(cfg.top_k["search"]), 1)
     except (TypeError, ValueError):
         cfg.top_k["search"] = DEFAULTS["top_k"]["search"]
+    known_tokenizers = ("default", "jieba")
+    if cfg.bm25.get("tokenizer") not in known_tokenizers:
+        print(f"[warn] bm25.tokenizer={cfg.bm25.get('tokenizer')!r} is not one of "
+              f"{known_tokenizers} — using 'default'", file=sys.stderr)
+        cfg.bm25["tokenizer"] = "default"
     return cfg

@@ -39,7 +39,8 @@ def make_retriever(cfg, embedder, store):
                      feedback_path=fb_path,
                      rerank_provider=cfg.retrieval.get("rerank_provider", "llm"),
                      local_rerank_model=cfg.retrieval.get(
-                         "local_rerank_model", "BAAI/bge-reranker-base"))
+                         "local_rerank_model", "BAAI/bge-reranker-base"),
+                     bm25_tokenizer=cfg.bm25.get("tokenizer", "default"))
 
 
 def cmd_ingest(cfg, force: bool = False) -> None:
@@ -240,7 +241,7 @@ def cmd_sync(cfg, direction: str) -> None:
         print(f"  {name}: {direction} done")
 
 
-def cmd_bench(cfg, cases_file: str, k: int = 5) -> None:
+def cmd_bench(cfg, cases_file: str, k: int = 5, tokenizer: str | None = None) -> None:
     import json as _json
     p = Path(cases_file)
     if not p.exists():
@@ -249,6 +250,8 @@ def cmd_bench(cfg, cases_file: str, k: int = 5) -> None:
     cases = [_json.loads(l) for l in p.read_text(encoding="utf-8").splitlines() if l.strip()]
     embedder, store = build(cfg)
     retriever = make_retriever(cfg, embedder, store)
+    if tokenizer:   # per-run override for A/B comparisons
+        retriever.bm25_tokenizer = tokenizer
     for label, hybrid in [("vector-only", False), ("hybrid", True)]:
         retriever.hybrid = hybrid
         ok = 0
@@ -511,6 +514,8 @@ def main() -> None:
     p_bench = sub.add_parser("bench", help="run a retrieval benchmark (hit@k) on a cases file")
     p_bench.add_argument("cases", help="JSONL file with {query, expect} per line")
     p_bench.add_argument("-k", type=int, default=5, help="hits per query (default 5)")
+    p_bench.add_argument("--tokenizer", default=None,
+                         help="BM25 tokenizer override for this run (default|jieba)")
 
     sub.add_parser("stats", help="show what is in the index")
     sub.add_parser("doctor", help="check config, endpoints, and store health")
@@ -558,7 +563,7 @@ def main() -> None:
     elif args.cmd == "sync":
         cmd_sync(cfg, args.direction)
     elif args.cmd == "bench":
-        cmd_bench(cfg, args.cases, k=args.k)
+        cmd_bench(cfg, args.cases, k=args.k, tokenizer=args.tokenizer)
     elif args.cmd == "wiki":
         cmd_wiki_suggest(cfg) if getattr(args, "suggest", False) else cmd_wiki(cfg, args.topic, k=args.k)
     elif args.cmd == "watch":

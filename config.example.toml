@@ -31,6 +31,10 @@ search = 5        # number of hits per search
 hybrid = true     # fuse vector search with BM25 (Reciprocal Rank Fusion)
 rrf_k = 60        # RRF smoothing constant; higher = flatter fusion weights
 
+[bm25]
+tokenizer = "default"   # "default" = CJK single-char (no deps) | "jieba" = word-level
+                        # Chinese segmentation (pip install 'loci-rag[zh]' or jieba)
+
 [watch]
 interval = 30     # seconds between scans in `watch` mode
 
