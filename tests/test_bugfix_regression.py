@@ -218,3 +218,28 @@ def test_chatlog_duplicate_titles_get_disambiguated(tmp_path):
     assert len(docs) == 2
     titles = {d["path"].split("::")[-1] for d in docs}
     assert titles == {"same", "same (2)"}
+
+
+# [11] main() wires --rewrite into cmd_ask; cmd_ask must accept the kwarg
+
+def test_ask_accepts_rewrite_kwarg(monkeypatch, tmp_path, capsys):
+    """Regression: main() always passes `rewrite=` to cmd_ask, but the
+    parameter was missing from its signature — every `ask` invocation
+    crashed with TypeError before any retrieval happened."""
+    class FakeRetriever:
+        def search(self, query, tag=None, path_contains=None, since=None,
+                   exact=None, rerank=None, rerank_with=None, k=None,
+                   rewrite=None):
+            return [{"id": "0", "text": "t", "source": "a.md", "chunk": 0,
+                     "section": "", "tags": "", "links": "", "mtime": 0.0,
+                     "distance": 0.1}]
+
+    monkeypatch.setattr(cli_module, "build", lambda cfg: (None, None))
+    monkeypatch.setattr(cli_module, "make_retriever",
+                        lambda cfg, e, s: FakeRetriever())
+    monkeypatch.setattr("loci.retriever.answer",
+                        lambda llm_cfg, q, hits, history=None: "canned answer")
+    cfg = make_cfg(tmp_path, [{"path": str(tmp_path)}])
+    # same call shape as main(): rewrite passed explicitly, even when False
+    cli_module.cmd_ask(cfg, "does ask work?", rewrite=False)
+    assert "canned answer" in capsys.readouterr().out

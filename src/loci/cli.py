@@ -109,13 +109,14 @@ def cmd_search(cfg, query: str, tag: str | None = None, rerank: bool | None = No
 
 def cmd_ask(cfg, question: str, rerank: bool | None = None,
             path_contains: str | None = None, since: float | None = None,
-            verify: bool = False, rerank_with: str | None = None) -> None:
+            verify: bool = False, rerank_with: str | None = None,
+            rewrite: bool | None = None) -> None:
     from loci.retriever import Retriever, answer, verify_answer
     embedder, store = build(cfg)
     retriever = make_retriever(cfg, embedder, store)
     hits = retriever.search(question, rerank=rerank,
                             path_contains=path_contains, since=since,
-                            rerank_with=rerank_with)
+                            rerank_with=rerank_with, rewrite=rewrite)
     if not hits:
         print("(nothing relevant in the knowledge base)")
         return
