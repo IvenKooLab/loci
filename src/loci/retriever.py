@@ -9,6 +9,7 @@ from openai import OpenAI
 
 from loci.bm25 import BM25
 from loci.reranker import local_rerank
+from loci.tokenizers import get_tokenizer
 
 SYSTEM_PROMPT = (
     "You are a Q&A assistant over the user's personal knowledge base. "
@@ -24,12 +25,14 @@ class Retriever:
                  rerank: bool = False, llm_cfg: dict | None = None,
                  rerank_provider: str = "llm",
                  local_rerank_model: str = "BAAI/bge-reranker-base",
-                 feedback_path: str | None = None):
+                 feedback_path: str | None = None,
+                 bm25_tokenizer: str = "default"):
         self.embedder, self.store, self.top_k = embedder, store, top_k
         self.hybrid, self.rrf_k = hybrid, rrf_k
         self.rerank, self.llm_cfg = rerank, llm_cfg
         self.rerank_provider = rerank_provider
         self.local_rerank_model = local_rerank_model
+        self.bm25_tokenizer = bm25_tokenizer
         self._penalties: dict[str, float] = {}
         if feedback_path and Path(feedback_path).exists():
             import json as _json
@@ -114,7 +117,9 @@ class Retriever:
         ids, docs = self.store.all_chunks()
         if not ids:
             return vhits
-        ranked = BM25(dict(zip(ids, docs))).score(query)[:fetch]
+        ranked = BM25(dict(zip(ids, docs)),
+                      tokenizer=get_tokenizer(self.bm25_tokenizer)
+                      ).score(query)[:fetch]
         scores: dict[str, float] = {}
         for r, h in enumerate(vhits):
             scores[h["id"]] = scores.get(h["id"], 0.0) + 1.0 / (self.rrf_k + r + 1)
