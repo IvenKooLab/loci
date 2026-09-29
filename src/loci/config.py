@@ -24,6 +24,7 @@ DEFAULTS = {
     "chat": {"auto_extract": True},
     "sync": {"remote": ""},
     "http": {"host": "127.0.0.1", "port": 8765, "token": ""},
+    "webui": {"host": "127.0.0.1", "port": 7860},
     "store": {"path": "./chroma_db"},
 }
 
@@ -42,6 +43,7 @@ class Config:
     chat: dict = field(default_factory=dict)
     sync: dict = field(default_factory=dict)
     http: dict = field(default_factory=dict)
+    webui: dict = field(default_factory=dict)
     store: dict = field(default_factory=dict)
     sources: list = field(default_factory=list)
 

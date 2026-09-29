@@ -38,5 +38,9 @@ tokenizer = "default"   # "default" = CJK single-char (no deps) | "jieba" = word
 [watch]
 interval = 30     # seconds between scans in `watch` mode
 
+[webui]
+host = "127.0.0.1"   # `loci webui` bind address (Gradio UI, pip install 'loci-rag[ui]')
+port = 7860
+
 [store]
 path = "./chroma_db"   # where the vector store lives on disk

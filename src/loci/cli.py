@@ -127,6 +127,14 @@ def cmd_ask(cfg, question: str, rerank: bool | None = None,
         print("\n" + verify_answer(cfg.llm, question, reply, hits))
 
 
+def cmd_webui(cfg, host: str | None = None, port: int | None = None) -> None:
+    """Serve the Gradio web UI (optional `ui` extra) over the same pipeline."""
+    from loci.webui import run_app   # deferred: webui imports cli back
+    host = host or cfg.webui.get("host") or "127.0.0.1"
+    port = port or int(cfg.webui.get("port") or 7860)
+    run_app(cfg, host=host, port=port)
+
+
 def cmd_feedback(cfg, verdict: str) -> None:
     """Rate the chunks used in the last ask; bad ratings down-weight chunks."""
     last = Path(cfg.store["path"]) / ".last_ask.json"
@@ -517,6 +525,12 @@ def main() -> None:
     p_bench.add_argument("--tokenizer", default=None,
                          help="BM25 tokenizer override for this run (default|jieba)")
 
+    p_webui = sub.add_parser("webui", help="run the Gradio web UI (optional [ui] extra)")
+    p_webui.add_argument("--host", default=None,
+                         help="bind address (default: [webui] host, or 127.0.0.1)")
+    p_webui.add_argument("--port", type=int, default=None,
+                         help="port (default: [webui] port, or 7860)")
+
     sub.add_parser("stats", help="show what is in the index")
     sub.add_parser("doctor", help="check config, endpoints, and store health")
 
@@ -564,6 +578,9 @@ def main() -> None:
         cmd_sync(cfg, args.direction)
     elif args.cmd == "bench":
         cmd_bench(cfg, args.cases, k=args.k, tokenizer=args.tokenizer)
+    elif args.cmd == "webui":
+        cfg.validate()
+        cmd_webui(cfg, host=args.host, port=args.port)
     elif args.cmd == "wiki":
         cmd_wiki_suggest(cfg) if getattr(args, "suggest", False) else cmd_wiki(cfg, args.topic, k=args.k)
     elif args.cmd == "watch":
