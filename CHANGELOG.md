@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.6.3 — 2026-09-26
+
+### Fixed
+- `cmd_ask` now accepts the `--rewrite` flag — every `loci ask --rewrite` call raised `TypeError` since v0.5.0 (first external contribution, by @hulinming, with regression test #1)
+
 ## v0.6.2 — 2026-09-19
 
 ### Fixed
