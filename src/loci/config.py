@@ -16,7 +16,8 @@ DEFAULTS = {
     "top_k": {"search": 5},
     "retrieval": {"hybrid": True, "rrf_k": 60, "rerank": False,
                   "rerank_provider": "llm",
-                  "local_rerank_model": "BAAI/bge-reranker-base"},
+                  "local_rerank_model": "BAAI/bge-reranker-base",
+                  "max_per_doc": 2},   # chunks per document in one result list
     "bm25": {"tokenizer": "default"},
     "watch": {"interval": 30},
     "memories": {"path": "./memories"},

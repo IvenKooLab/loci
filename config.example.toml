@@ -30,6 +30,7 @@ search = 5        # number of hits per search
 [retrieval]
 hybrid = true     # fuse vector search with BM25 (Reciprocal Rank Fusion)
 rrf_k = 60        # RRF smoothing constant; higher = flatter fusion weights
+max_per_doc = 2   # max chunks one document may contribute per search (0 = no cap)
 
 [bm25]
 tokenizer = "default"   # "default" = CJK single-char (no deps) | "jieba" = word-level

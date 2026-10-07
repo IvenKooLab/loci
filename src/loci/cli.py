@@ -30,6 +30,8 @@ def build(cfg):
 
 
 def make_retriever(cfg, embedder, store):
+    """Build the Retriever from config — the single wiring point every entry
+    (CLI / HTTP API / WebUI) shares, so options can't drift apart."""
     from loci.retriever import Retriever
     import os as _os
     fb_path = _os.path.join(cfg.store["path"], "feedback.jsonl")
@@ -40,7 +42,8 @@ def make_retriever(cfg, embedder, store):
                      rerank_provider=cfg.retrieval.get("rerank_provider", "llm"),
                      local_rerank_model=cfg.retrieval.get(
                          "local_rerank_model", "BAAI/bge-reranker-base"),
-                     bm25_tokenizer=cfg.bm25.get("tokenizer", "default"))
+                     bm25_tokenizer=cfg.bm25.get("tokenizer", "default"),
+                     max_per_doc=cfg.retrieval.get("max_per_doc", 2))
 
 
 def cmd_ingest(cfg, force: bool = False) -> None:
@@ -466,7 +469,8 @@ def main() -> None:
                           help="only files modified on/after DATE (YYYY-MM-DD or YYYY-MM)")
     p_search.add_argument("-e", "--exact", metavar="PHRASE",
                           help="only hits containing this exact phrase")
-    p_search.add_argument("-k", type=int, help="override top_k")
+    p_search.add_argument("-k", "--top_k", dest="k", type=int,
+                          help="override top_k (retrieved chunks per query)")
     p_search.add_argument("--rerank", nargs="?", const=True, default=None,
                           metavar="PROVIDER", help="rerank candidates; optional "
                           "value llm|local overrides [retrieval] rerank_provider")
@@ -477,7 +481,8 @@ def main() -> None:
                        help="scope retrieval to paths containing this substring")
     p_ask.add_argument("--since", metavar="DATE", type=parse_since,
                        help="only files modified on/after DATE (YYYY-MM-DD or YYYY-MM)")
-    p_ask.add_argument("-k", type=int, help="override top_k")
+    p_ask.add_argument("-k", "--top_k", dest="k", type=int,
+                       help="override top_k (retrieved chunks per query)")
     p_ask.add_argument("--rerank", nargs="?", const=True, default=None,
                        metavar="PROVIDER", help="rerank candidates; optional "
                        "value llm|local overrides [retrieval] rerank_provider")
@@ -521,7 +526,8 @@ def main() -> None:
 
     p_bench = sub.add_parser("bench", help="run a retrieval benchmark (hit@k) on a cases file")
     p_bench.add_argument("cases", help="JSONL file with {query, expect} per line")
-    p_bench.add_argument("-k", type=int, default=5, help="hits per query (default 5)")
+    p_bench.add_argument("-k", "--top_k", dest="k", type=int, default=5,
+                         help="hits per query (default 5)")
     p_bench.add_argument("--tokenizer", default=None,
                          help="BM25 tokenizer override for this run (default|jieba)")
 

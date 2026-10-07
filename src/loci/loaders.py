@@ -38,6 +38,18 @@ except ImportError:
 
 _ocr_engine = None  # lazy singleton (model load is ~1s)
 
+_warned_missing: set[str] = set()   # extras already warned about this run
+
+
+def _warn_missing_extra(extra: str, install: str) -> None:
+    """Warn once per run that files need an optional extra, with the exact
+    install command — silently skipping .pdf/.docx files confuses users."""
+    if extra in _warned_missing:
+        return
+    _warned_missing.add(extra)
+    print(f"[warn] {extra} sources found but the optional dependency is not "
+          f"installed — skipped. Install it with: {install}")
+
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tiff"}
 
 SUFFIXES = {".md", ".txt"}
@@ -296,10 +308,12 @@ def _read_text(p: Path) -> str | None:
             except Exception as e:
                 print(f"[warn] pdf unreadable, skipping: {p.name} ({e})")
                 return None
-        return None  # no pdf extra installed; `doctor` mentions it
+        _warn_missing_extra("pdf", "pip install 'loci-rag[pdf]'")
+        return None  # no pdf extra installed
     if suffix == ".docx":
         if not HAS_DOCX:
-            return None  # silently skip; `doctor` mentions the optional extra
+            _warn_missing_extra("docx", "pip install 'loci-rag[docx]'")
+            return None
         try:
             document = _docx.Document(str(p))
             parts = [para.text for para in document.paragraphs if para.text.strip()]
@@ -389,9 +403,10 @@ def _get_ocr():
 
 
 def _ocr_image(p: Path) -> str | None:
-    """OCR one image file; None (skip silently) when OCR isn't installed."""
+    """OCR one image file; None (skip) when OCR isn't installed."""
     if not HAS_OCR:
-        return None  # `doctor` mentions the optional [ocr] extra
+        _warn_missing_extra("ocr", "pip install 'loci-rag[ocr]'")
+        return None
     try:
         result, _ = _get_ocr()(str(p))
         if not result:

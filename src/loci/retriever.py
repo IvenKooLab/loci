@@ -11,28 +11,43 @@ from loci.bm25 import BM25
 from loci.reranker import local_rerank
 from loci.tokenizers import get_tokenizer
 
+# Strict grounding rules: no fabrication, explicit "not in KB" answer, and a
+# mandatory source list so every claim is traceable to a document section.
 SYSTEM_PROMPT = (
     "You are a Q&A assistant over the user's personal knowledge base. "
-    "Answer only from the provided excerpts; if they don't contain the answer, "
-    "say so plainly — do not invent. End your reply with a list of citations "
-    "in the form [source: file path > section]."
+    "Follow these rules strictly:\n"
+    "1. Answer ONLY from the provided excerpts. Never use outside knowledge "
+    "to fill gaps — do not invent or guess.\n"
+    "2. If the excerpts do not contain the answer, say so plainly in the "
+    "user's language (e.g. \"知识库中没有相关信息\") and stop.\n"
+    "3. Structure the answer as short bullet points; each point must be "
+    "grounded in at least one excerpt.\n"
+    "4. End the reply with a 'Sources:' line citing every excerpt used, in "
+    "the form [source: file path > section]."
 )
 
 
 class Retriever:
+    """Vector (+BM25) retrieval over a Store, fused via RRF.
+
+    `max_per_doc` caps how many chunks one source document may contribute to
+    a single result list, so one long file can't crowd out other relevant
+    docs (0 = no cap)."""
     def __init__(self, embedder, store, top_k: int,
                  hybrid: bool = True, rrf_k: int = 60,
                  rerank: bool = False, llm_cfg: dict | None = None,
                  rerank_provider: str = "llm",
                  local_rerank_model: str = "BAAI/bge-reranker-base",
                  feedback_path: str | None = None,
-                 bm25_tokenizer: str = "default"):
+                 bm25_tokenizer: str = "default",
+                 max_per_doc: int = 2):
         self.embedder, self.store, self.top_k = embedder, store, top_k
         self.hybrid, self.rrf_k = hybrid, rrf_k
         self.rerank, self.llm_cfg = rerank, llm_cfg
         self.rerank_provider = rerank_provider
         self.local_rerank_model = local_rerank_model
         self.bm25_tokenizer = bm25_tokenizer
+        self.max_per_doc = max_per_doc
         self._penalties: dict[str, float] = {}
         if feedback_path and Path(feedback_path).exists():
             import json as _json
@@ -98,7 +113,28 @@ class Retriever:
                 fused = local_rerank(query, fused, self.local_rerank_model)
             elif self.llm_cfg:
                 fused = rerank_hits(self.llm_cfg, query, fused)
-        return fused[:limit]
+        # diversity cap AFTER ranking/filters: the best chunk per doc keeps
+        # its slot, surplus chunks give way to other documents
+        return self._diversify(fused, limit)[:limit]
+
+    def _diversify(self, hits: list[dict], limit: int) -> list[dict]:
+        """Keep at most `max_per_doc` chunks per source document (order kept).
+
+        Applied as the last step before truncation, so a single document that
+        dominates the ranking loses its surplus slots to other docs."""
+        if self.max_per_doc <= 0 or not hits:
+            return hits
+        seen: dict[str, int] = {}
+        out: list[dict] = []
+        for h in hits:
+            src = h.get("source", "")
+            if seen.get(src, 0) >= self.max_per_doc:
+                continue
+            seen[src] = seen.get(src, 0) + 1
+            out.append(h)
+            if len(out) >= limit:
+                break
+        return out
 
     @staticmethod
     def _rrf_merge(ranked_lists: list[list[dict]], rrf_k: int = 60) -> list[dict]:

@@ -9,10 +9,14 @@ import os
 
 
 def format_evidence(hits: list[dict]) -> str:
-    """Render retrieved chunks as markdown evidence (source > section + text)."""
+    """Render retrieved chunks as markdown evidence (doc name > section + text).
+
+    The chat pane is for humans, so only the document name is shown here —
+    the full path stays in the answer's [source: ...] citations."""
     lines: list[str] = []
     for i, h in enumerate(hits, 1):
-        src = h["source"].replace("\\", "/")
+        # document name only (chatlog sources keep their "path::title" suffix)
+        src = h["source"].replace("\\", "/").rsplit("/", 1)[-1]
         where = f" > {h['section']}" if h.get("section") else ""
         lines.append(f"### [{i}] {src}{where}")
         lines.append("")

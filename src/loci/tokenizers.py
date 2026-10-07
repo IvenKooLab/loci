@@ -28,14 +28,23 @@ def default_tokenize(text: str) -> list[str]:
     return _TOKEN.findall(text.lower())
 
 
+_warned_jieba = False   # warn once per process, not once per query
+
+
 @register("jieba")
 def jieba_tokenize(text: str) -> list[str]:
-    """Word-level Chinese segmentation. Falls back to `default` when the
-    optional jieba package is not installed."""
+    """Word-level Chinese segmentation. Falls back to `default` (with a
+    one-time install hint) when the optional jieba package is not installed."""
+    global _warned_jieba
     try:
         import jieba
         jieba.setLogLevel(20)   # silence the "Building prefix dict" banner
     except ImportError:
+        if not _warned_jieba:
+            _warned_jieba = True
+            print("[warn] bm25.tokenizer = 'jieba' but jieba is not installed — "
+                  "falling back to the single-char tokenizer. "
+                  "Install it with: pip install 'loci-rag[zh]'")
         return default_tokenize(text)
     return [t for t in jieba.cut(text.lower()) if t.strip()]
 

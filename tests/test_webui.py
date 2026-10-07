@@ -13,7 +13,7 @@ def test_format_evidence_renders_source_section_and_text():
     from loci.webui import format_evidence
     hits = [{"source": "/n/01.md", "section": "本地部署", "text": "正文`code`内容"}]
     md = format_evidence(hits)
-    assert "[1] /n/01.md > 本地部署" in md
+    assert "[1] 01.md > 本地部署" in md    # doc name only, not the full path
     assert "正文'code'内容" in md          # backticks neutralized: code fence survives
 
 
