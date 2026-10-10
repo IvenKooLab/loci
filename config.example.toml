@@ -1,0 +1,38 @@
+# ==== Copy to config.toml and fill in your values ====
+
+[llm]
+base_url = "https://open.bigmodel.cn/api/paas/v4"   # Zhipu; swap for DeepSeek / Kimi / OpenAI endpoints
+api_key = "your-api-key-here"                        # or set the env var BRAIN_LLM_API_KEY
+model = "glm-4.6"                                    # chat model
+
+[embed]
+base_url = "https://open.bigmodel.cn/api/paas/v4"
+api_key = "your-api-key-here"                        # or set the env var BRAIN_EMBED_API_KEY
+model = "embedding-3"                                # embedding model
+
+# Directories to index (scanned recursively: .md / .txt, plus .pdf and .docx
+# when the matching optional extras are installed)
+[[sources]]
+path = "D:/notes"                                    # change to your directory
+# chunk_size = 1200                                  # optional per-directory override
+# chunk_overlap = 150                                # (0 is honored — no overlap)
+
+# [[sources]]
+# path = "C:/Users/me/Documents/project-docs"       # uses the global [chunk] defaults
+
+[chunk]
+size = 800        # target chunk length (characters)
+overlap = 100     # overlap between neighboring chunks
+
+[top_k]
+search = 5        # number of hits per search
+
+[retrieval]
+hybrid = true     # fuse vector search with BM25 (Reciprocal Rank Fusion)
+rrf_k = 60        # RRF smoothing constant; higher = flatter fusion weights
+
+[watch]
+interval = 30     # seconds between scans in `watch` mode
+
+[store]
+path = "./chroma_db"   # where the vector store lives on disk

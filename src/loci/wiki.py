@@ -1,0 +1,134 @@
+"""Wiki generation: distill everything the index knows about a topic into one
+curated wiki page. This is loci's memory-consolidation layer — raw notes and
+memories get distilled into stable, cross-linked pages that are indexed like
+any other source.
+
+Page lifecycle: retrieve material -> LLM synthesis -> atomic write into the
+wiki directory -> immediate indexing. Regenerating a topic overwrites its page
+(wikis are curated, one page per slug)."""
+from __future__ import annotations
+
+from pathlib import Path
+
+from openai import OpenAI
+
+from loci.memories import slugify
+
+WIKI_PROMPT = (
+    "You are the editor of a personal knowledge wiki. Distill the provided "
+    "source excerpts into ONE well-structured wiki page about the given topic. "
+    "Rules: 1) short sections — a one-paragraph overview first, then key "
+    "facts and details; 2) link related concepts inline using [[wikilinks]] "
+    "(double square brackets); 3) state only what the excerpts support, and "
+    "mark anything uncertain with (?); 4) write in the dominant language of "
+    "the excerpts; 5) return ONLY the markdown page body, no code fences."
+)
+
+
+def suggest_topics(cfg, min_chunks: int = 4, top: int = 8) -> list[dict]:
+    """Suggest wiki-worthy topics: terms appearing in enough chunks without an
+    existing wiki page. Pure lexical (no LLM), deterministic, fast."""
+    from loci.bm25 import tokenize
+    from loci.store import Store
+    import re as _re
+    store = Store(str(cfg.store["path"]))
+    ids, docs = store.all_chunks()
+    if not docs:
+        return []
+    term_docs: dict[str, set[int]] = {}
+    for i, doc in enumerate(docs):
+        for t in set(_re.findall(r"[a-z0-9]{2,}|[\u4e00-\u9fff]{2,4}", doc.lower())):
+            term_docs.setdefault(t, set()).add(i)
+    existing_slugs = set()
+    got = store.collection.get(include=["metadatas"])
+    for meta in got.get("metadatas") or []:
+        src = str(meta.get("source", ""))
+        existing_slugs.add(src.rsplit("/", 1)[-1].rsplit(".", 1)[0].lower())
+        existing_slugs.add(src.rsplit("\\", 1)[-1].rsplit(".", 1)[0].lower())
+    scored = []
+    for term, doc_set in term_docs.items():
+        if len(term) < 2 or term.isdigit() or len(doc_set) < min_chunks:
+            continue
+        if term in existing_slugs:
+            continue
+        scored.append({"term": term, "chunks": len(doc_set)})
+    scored.sort(key=lambda x: -x["chunks"])
+    return scored[:top]
+
+
+def generate_wiki_page(cfg, topic: str, k: int = 12) -> dict:
+    """Retrieve up to k excerpts about `topic`, synthesize a wiki page, write
+    and index it. Raises LookupError when the index has nothing on the topic;
+    other errors propagate (LLM down, etc.). Returns a summary dict."""
+    from loci.cli import build, make_retriever
+
+    embedder, store = build(cfg)
+    retriever = make_retriever(cfg, embedder, store)
+    hits = retriever.search(topic, k=k)
+    # self-reference guard: never cite the wiki's own pages as material,
+    # or regeneration would grow the page without bound
+    wiki_root = str(Path(str(cfg.wiki["path"])).expanduser().resolve())
+    wiki_root = wiki_root.replace("\\", "/").lower().rstrip("/")
+    hits = [h for h in hits
+            if not (lambda src: src == wiki_root or src.startswith(wiki_root + "/"))(
+                h["source"].replace("\\", "/").lower())]
+    if not hits:
+        raise LookupError(f"nothing in the index about '{topic}' — run brain_ingest first")
+
+    client = OpenAI(base_url=cfg.llm["base_url"], api_key=cfg.llm["api_key"])
+    context = "\n\n---\n\n".join(
+        f"[excerpt {i + 1} | {h['source']}"
+        + (f" > {h['section']}" if h.get("section") else "")
+        + f"]\n{h['text']}" for i, h in enumerate(hits))
+    # knowledge-graph context: relations touching the topic, if a graph exists
+    graph_ctx = ""
+    try:
+        from loci import graph as _g
+        gr = _g.query_graph(cfg, topic)
+        rel = gr["out"] + gr["in"]
+        if rel:
+            lines = [f"{e['s']} --{e['p']}--> {e['o']}" for e in rel[:12]]
+            graph_ctx = ("\n\nKnown relations (from the knowledge graph):\n"
+                         + "\n".join(lines))
+    except Exception:
+        pass  # the graph is optional context
+    resp = client.chat.completions.create(
+        model=cfg.llm["model"],
+        messages=[
+            {"role": "system", "content": WIKI_PROMPT},
+            {"role": "user",
+             "content": f"Topic: {topic}\n\nSource excerpts:\n\n{context}{graph_ctx}"},
+        ],
+        temperature=0.2,
+    )
+    body = (resp.choices[0].message.content or "").strip()
+    if not body:
+        raise ValueError("the LLM returned an empty page")
+
+    page_path = write_wiki_page(cfg, topic, body, hits)
+    from loci.memories import index_memory_file
+    n = index_memory_file(cfg, str(page_path))
+    return {"path": str(page_path), "chunks": n, "sources": len(hits), "topic": topic}
+
+
+def write_wiki_page(cfg, topic: str, body: str, hits: list[dict]) -> Path:
+    """Compose frontmatter + LLM body + source list; atomic write."""
+    slug = slugify(topic)
+    wiki_dir = Path(cfg.wiki["path"]).expanduser()
+    wiki_dir.mkdir(parents=True, exist_ok=True)
+    page = wiki_dir / f"{slug}.md"
+
+    sources = "\n".join(
+        f"- {h['source']}" + (f" > {h['section']}" if h.get("section") else "")
+        for h in hits)
+    from datetime import datetime
+    front = ("---\n"
+             f"tags: [wiki, {slug}]\n"
+             f"topic: {topic}\n"
+             f"generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+             f"sources: {len(hits)}\n"
+             "---\n")
+    tmp = page.with_suffix(".md.tmp")
+    tmp.write_text(f"{front}{body}\n\n## Sources\n\n{sources}\n", encoding="utf-8")
+    tmp.replace(page)                    # atomic + overwrites on regeneration
+    return page

@@ -1,0 +1,13 @@
+# Smithery build/run manifest (https://smithery.ai/docs — deploying custom servers)
+build:
+  dockerfile: Dockerfile
+  dockerBuildPath: .
+startCommand:
+  type: stdio
+  # No config knobs for hosted runs: loci is a personal, local-index tool —
+  # hosted instances answer protocol introspection; real use is local
+  # (pip install loci-rag && loci-mcp) where config.toml drives everything.
+  configSchema:
+    type: object
+    properties: {}
+  command: loci-mcp

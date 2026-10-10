@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="300" viewBox="0 0 960 300" font-family="'Segoe UI', system-ui, sans-serif">
+  <defs>
+    <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#00FF41"/>
+    </marker>
+    <marker id="arr2b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6FA86F"/>
+    </marker>
+    <filter id="glow2" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#00FF41" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <style>
+    .box { fill: #0D130D; stroke: #1E3A1E; stroke-width: 1.2; }
+    .neon { fill: #0A0F0A; stroke: #00FF41; stroke-width: 1.4; filter: url(#glow2); }
+    .item { fill: #C9D1C9; font-size: 12.5px; }
+    .title { fill: #00FF41; font-size: 12.5px; font-weight: 600; }
+    .dim { fill: #6FA86F; font-size: 11px; }
+    .act { fill: #E6EDF3; font-size: 12.5px; font-weight: 600; }
+  </style>
+
+  <rect x="6" y="6" width="948" height="288" rx="14" fill="#070B07" stroke="#1E3A1E"/>
+
+  <!-- IDE A：Claude Code（写入方） -->
+  <rect class="box" x="40" y="70" width="230" height="140" rx="10"/>
+  <text class="title" x="155" y="102" text-anchor="middle">Claude Code</text>
+  <rect x="60" y="122" width="190" height="32" rx="6" fill="#101810" stroke="#234423"/>
+  <text class="item" x="155" y="142" text-anchor="middle">brain_remember(…)</text>
+  <text class="dim" x="155" y="180" text-anchor="middle">“remember: deploy rotates Mondays”</text>
+
+  <!-- loci-mcp -->
+  <rect class="neon" x="370" y="70" width="210" height="140" rx="10"/>
+  <text class="title" x="475" y="102" text-anchor="middle">loci-mcp</text>
+  <rect x="390" y="122" width="170" height="32" rx="6" fill="#101810" stroke="#234423"/>
+  <text class="item" x="475" y="142" text-anchor="middle">write memory.md</text>
+  <rect x="390" y="162" width="170" height="32" rx="6" fill="#101810" stroke="#234423"/>
+  <text class="item" x="475" y="182" text-anchor="middle">embed + index now</text>
+
+  <!-- 共享索引 -->
+  <rect class="neon" x="690" y="70" width="230" height="140" rx="10"/>
+  <text class="title" x="805" y="102" text-anchor="middle">🗄️ shared hybrid index</text>
+  <rect x="710" y="122" width="190" height="32" rx="6" fill="#101810" stroke="#234423"/>
+  <text class="item" x="805" y="142" text-anchor="middle">markdown + vectors</text>
+  <text class="dim" x="805" y="172" text-anchor="middle">local only · nothing leaves</text>
+
+  <!-- IDE B：任意其他 IDE（召回方） -->
+  <rect class="box" x="690" y="230" width="230" height="52" rx="10"/>
+  <text class="act" x="805" y="252" text-anchor="middle">Trae · Qoder · any IDE</text>
+  <text class="dim" x="805" y="270" text-anchor="middle">brain_search → recalled, with citation</text>
+
+  <!-- 连线 -->
+  <path d="M 270 140 H 370" stroke="#00FF41" stroke-width="1.6" marker-end="url(#arr2)"/>
+  <text class="dim" x="320" y="132" text-anchor="middle">write</text>
+
+  <path d="M 580 140 H 690" stroke="#00FF41" stroke-width="1.6" marker-end="url(#arr2)"/>
+  <text class="dim" x="635" y="132" text-anchor="middle">index</text>
+
+  <path d="M 805 210 V 230" stroke="#00FF41" stroke-width="1.4" marker-end="url(#arr2)"/>
+  <path d="M 830 230 V 210" stroke="#6FA86F" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#arr2b)"/>
+  <text class="dim" x="852" y="226" text-anchor="start">recall</text>
+
+  <text class="act" x="480" y="120" text-anchor="middle"> </text>
+  <text class="dim" x="475" y="230" text-anchor="middle">one memory store — write from any IDE, recall from all</text>
+</svg>

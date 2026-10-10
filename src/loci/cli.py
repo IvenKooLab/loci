@@ -1,0 +1,578 @@
+"""CLI: ingest / search / ask / links / chat / watch / stats / doctor."""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from loci import config, loaders, chunker  # noqa: E402
+
+
+def parse_since(text: str) -> float:
+    """Accept YYYY-MM-DD or YYYY-MM; return epoch seconds (raises on garbage)."""
+    for fmt in ("%Y-%m-%d", "%Y-%m"):
+        try:
+            return time.mktime(time.strptime(text, fmt))
+        except ValueError:
+            continue
+    raise ValueError(f"bad --since value '{text}' (use YYYY-MM-DD or YYYY-MM)")
+
+
+def build(cfg):
+    from loci.embedder import Embedder
+    from loci.store import Store
+    return Embedder(cfg.embed["base_url"], cfg.embed["api_key"], cfg.embed["model"]), \
+        Store(cfg.store["path"])
+
+
+def make_retriever(cfg, embedder, store):
+    from loci.retriever import Retriever
+    import os as _os
+    fb_path = _os.path.join(cfg.store["path"], "feedback.jsonl")
+    return Retriever(embedder, store, cfg.top_k["search"],
+                     hybrid=cfg.retrieval["hybrid"], rrf_k=cfg.retrieval["rrf_k"],
+                     rerank=cfg.retrieval.get("rerank", False), llm_cfg=cfg.llm,
+                     feedback_path=fb_path,
+                     rerank_provider=cfg.retrieval.get("rerank_provider", "llm"),
+                     local_rerank_model=cfg.retrieval.get(
+                         "local_rerank_model", "BAAI/bge-reranker-base"))
+
+
+def cmd_ingest(cfg, force: bool = False) -> None:
+    embedder, store = build(cfg)
+    docs = loaders.scan_sources(cfg.sources)
+    removed = store.prune(keep={d["path"] for d in docs})
+    for path in removed:
+        print(f"  - pruned (file gone): {path}")
+    if not docs:
+        print("No .md/.txt documents found — check the sources entries in config.toml")
+        return
+    added = updated = skipped = 0
+    for doc in docs:
+        if not force and store.indexed_hash(doc["path"]) == doc["hash"]:
+            skipped += 1
+            continue
+        if store.indexed_hash(doc["path"]) is not None:
+            updated += 1
+        else:
+            added += 1
+        size, overlap = chunker.params_for(doc, cfg.chunk)
+        chunks = chunker.split_markdown(doc["content"], size, overlap)
+        if not chunks:
+            # file still exists but yields nothing (e.g. frontmatter only):
+            # drop its old chunks so the index can't go stale
+            if store.indexed_hash(doc["path"]) is not None:
+                store.delete_file(doc["path"])
+                print(f"  - {Path(doc['path']).name}: now empty, removed old chunks")
+            continue
+        texts = [c["text"] for c in chunks]
+        chashes, reuse = store.reuse_map(doc["path"], texts)
+        missing = [i for i, h in enumerate(chashes) if h not in reuse]
+        new_vecs = embedder.embed([texts[i] for i in missing]) if missing else []
+        vectors = [None] * len(chunks)
+        for i, h in enumerate(chashes):
+            if h in reuse:
+                vectors[i] = reuse[h]
+        for i, v in zip(missing, new_vecs):
+            vectors[i] = v
+        store.upsert_chunks(chunks, vectors, doc["path"], doc["hash"],
+                            doc["tags"], doc["links"], doc["mtime"],
+                            chashes=chashes)
+        reused_n = len(chunks) - len(missing)
+        note = f" (reused {reused_n} embeddings)" if reused_n else ""
+        print(f"  + {Path(doc['path']).name}: {len(chunks)} chunks{note}")
+    mode = " (forced)" if force else ""
+    print(f"Done{mode}: {added} added / {updated} updated / {skipped} unchanged — "
+          f"{store.count()} chunks in store")
+
+
+def cmd_search(cfg, query: str, tag: str | None = None, rerank: bool | None = None,
+               path_contains: str | None = None, since: float | None = None,
+               exact: str | None = None, rerank_with: str | None = None) -> None:
+    embedder, store = build(cfg)
+    hits = make_retriever(cfg, embedder, store).search(
+        query, tag=tag, rerank=rerank, path_contains=path_contains,
+        since=since, exact=exact, rerank_with=rerank_with)
+    if not hits:
+        print("(no results)")
+        return
+    for i, h in enumerate(hits, 1):
+        where = f" > {h['section']}" if h["section"] else ""
+        sim = f"similarity {1 - h['distance']:.3f}" if h["distance"] is not None else "hybrid hit"
+        print(f"[{i}] {h['source']}{where}  ({sim})")
+        print(f"    {h['text'][:120].replace(chr(10), ' ')}...")
+
+
+def cmd_ask(cfg, question: str, rerank: bool | None = None,
+            path_contains: str | None = None, since: float | None = None,
+            verify: bool = False, rerank_with: str | None = None,
+            rewrite: bool | None = None) -> None:
+    from loci.retriever import Retriever, answer, verify_answer
+    embedder, store = build(cfg)
+    retriever = make_retriever(cfg, embedder, store)
+    hits = retriever.search(question, rerank=rerank,
+                            path_contains=path_contains, since=since,
+                            rerank_with=rerank_with, rewrite=rewrite)
+    if not hits:
+        print("(nothing relevant in the knowledge base)")
+        return
+    print("Answer:\n")
+    reply = answer(cfg.llm, question, hits)
+    print(reply)
+    if verify:
+        print("\n" + verify_answer(cfg.llm, question, reply, hits))
+
+
+def cmd_feedback(cfg, verdict: str) -> None:
+    """Rate the chunks used in the last ask; bad ratings down-weight chunks."""
+    last = Path(cfg.store["path"]) / ".last_ask.json"
+    fb = Path(cfg.store["path"]) / "feedback.jsonl"
+    if not last.exists():
+        print("(no recent ask to rate — run `loci ask` first)")
+        return
+    data = json.loads(last.read_text(encoding="utf-8"))
+    with fb.open("a", encoding="utf-8") as f:
+        for cid in data.get("chunk_ids", []):
+            f.write(json.dumps({"chunk_id": cid, "query": data.get("query", ""),
+                                "verdict": verdict, "ts": time.time()},
+                               ensure_ascii=False) + "\n")
+    print(f"recorded {verdict} feedback for {len(data.get('chunk_ids', []))} chunk(s)")
+
+
+def cmd_chat(cfg) -> None:
+    from loci.retriever import answer
+    embedder, store = build(cfg)
+    retriever = make_retriever(cfg, embedder, store)
+    history: list[dict] = []
+    print("chat — ask your knowledge base; /clear resets context, /exit quits")
+    while True:
+        try:
+            q = input("you> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return
+        if not q:
+            continue
+        if q in ("/exit", "/quit"):
+            return
+        if q == "/clear":
+            history.clear()
+            print("(context cleared)")
+            continue
+        hits = retriever.search(q)
+        if not hits:
+            print("brain> (nothing relevant in the knowledge base)")
+            continue
+        reply = answer(cfg.llm, q, hits, history=history)
+        history.extend([{"role": "user", "content": q},
+                        {"role": "assistant", "content": reply}])
+        del history[:-8]  # keep the last four turns
+        print(f"brain> {reply}\n")
+        if cfg.chat.get("auto_extract", True) and cfg.llm.get("api_key"):
+            try:
+                from loci.memories import extract_memories, write_memory, index_memory_file
+                mem_dir = (cfg.memories or {}).get("path", "./memories")
+                transcript = f"User: {q}\nAssistant: {reply}"
+                for item in extract_memories(cfg.llm, transcript):
+                    mp = write_memory(mem_dir, item["text"], title=item.get("title"), tags=["auto"])
+                    index_memory_file(cfg, mp)
+                    print(f"  \u2713 remembered: {item.get('title', '')}")
+            except Exception:
+                pass
+
+
+def cmd_watch(cfg) -> None:
+    from loci.watcher import cmd_watch as watch
+    watch(cfg)
+
+
+def cmd_remember(cfg, text: str, title: str | None = None,
+                 tags: str | None = None) -> None:
+    from loci.memories import index_memory_file, write_memory
+    mem_dir = (cfg.memories or {}).get("path", "./memories")
+    tag_list = [t.strip() for t in (tags or "").split(",") if t.strip()]
+    path = write_memory(mem_dir, text, title=title, tags=tag_list)
+    try:
+        n = index_memory_file(cfg, path)
+        print(f"remembered: {path} ({n} chunks, searchable now)")
+    except Exception as e:
+        print(f"stored: {path}")
+        print(f"not indexed yet ({type(e).__name__}: {e}) — run `loci ingest` later")
+
+
+def cmd_wiki(cfg, topic: str, k: int | None = None) -> None:
+    from loci.wiki import generate_wiki_page
+    embedder, store = build(cfg)
+    try:
+        r = generate_wiki_page(cfg, topic, k=k or 12)
+    except LookupError as e:
+        print(str(e))
+        return
+    print(f"wiki page: {r['path']}")
+    print(f"distilled {r['sources']} excerpts -> {r['chunks']} chunks (indexed)")
+    body = Path(r["path"]).read_text(encoding="utf-8")
+    print()
+    print("\n".join(body.splitlines()[:12]))
+
+
+def cmd_sync(cfg, direction: str) -> None:
+    import subprocess as _sp
+    remote = (cfg.sync or {}).get("remote", "")
+    if not remote:
+        print("set [sync] remote = 'git@...' in config.toml first")
+        return
+    for key, name in [("memories", "memories"), ("wiki", "wiki")]:
+        dp = Path(str(getattr(cfg, key)["path"])).expanduser().resolve()
+        dp.mkdir(parents=True, exist_ok=True)
+        if not (dp / ".git").exists():
+            _sp.run(["git", "init", "-b", "main"], cwd=str(dp), capture_output=True)
+            _sp.run(["git", "remote", "add", "origin", f"{remote}-{name}"],
+                    cwd=str(dp), capture_output=True)
+        if direction == "push":
+            _sp.run(["git", "add", "-A"], cwd=str(dp), capture_output=True)
+            _sp.run(["git", "commit", "-m", "loci sync"], cwd=str(dp), capture_output=True)
+            _sp.run(["git", "push", "-u", "origin", "main"], cwd=str(dp), capture_output=True)
+        else:
+            _sp.run(["git", "pull", "origin", "main"], cwd=str(dp), capture_output=True)
+        print(f"  {name}: {direction} done")
+
+
+def cmd_bench(cfg, cases_file: str, k: int = 5) -> None:
+    import json as _json
+    p = Path(cases_file)
+    if not p.exists():
+        print(f"cases file not found: {cases_file}")
+        return
+    cases = [_json.loads(l) for l in p.read_text(encoding="utf-8").splitlines() if l.strip()]
+    embedder, store = build(cfg)
+    retriever = make_retriever(cfg, embedder, store)
+    for label, hybrid in [("vector-only", False), ("hybrid", True)]:
+        retriever.hybrid = hybrid
+        ok = 0
+        for case in cases:
+            hits = retriever.search(case["query"])[:k]
+            good = any(case["expect"].lower() in h["source"].lower() for h in hits)
+            ok += good
+            top1 = hits[0]["source"].replace("\\", "/").split("/")[-1] if hits else "-"
+            mark = "Y" if good else "x"   # plain ASCII: 3.11 forbids \u escapes in f-strings
+            print(f"  [{mark}] {case['query'][:48]:<50} top1={top1}")
+        print(f"  {label}: {ok}/{len(cases)}")
+
+
+def cmd_wiki_suggest(cfg, min_chunks: int = 4, top: int = 8) -> None:
+    from loci.wiki import suggest_topics
+    suggestions = suggest_topics(cfg, min_chunks=min_chunks, top=top)
+    if not suggestions:
+        print("(no wiki-worthy topics found)")
+        return
+    print(f"Wiki-worthy topics (\u2265 {min_chunks} chunks):")
+    for t in suggestions:
+        print(f"  {t['term']:<30} {t['chunks']:>4} chunks")
+
+
+def cmd_graph(cfg, action: str, entity: str | None = None,
+             force: bool = False) -> None:
+    from loci import graph as g
+    if action == "build":
+        if not cfg.llm.get("api_key"):
+            print("graph build needs an LLM key (config.toml [llm])")
+            return
+        r = g.build_graph(cfg, force=force)
+        print(f"graph: {r['files']} file(s) processed, +{r['new']} edges "
+              f"→ {r['edges']} edges / {r['entities']} entities "
+              f"({g.graph_path(cfg)})")
+    elif action == "show":
+        if not entity:
+            # no entity: list hub entities
+            r = g.query_graph(cfg, "")
+            if not r["hubs"]:
+                print("(graph is empty — run `loci graph build` first)")
+                return
+            print("top entities:")
+            for h in r["hubs"]:
+                print(f"  {h['name']:<24} {h['degree']:>3} edges")
+            return
+        r = g.query_graph(cfg, entity)
+        if not r["out"] and not r["in"]:
+            print(f"(no relations for '{entity}' — run `loci graph build`, "
+                  f"or check the spelling)")
+            return
+        for e in r["out"]:
+            src = f"  [{Path(e['source']).name}]" if e.get("source") else ""
+            print(f"  {e['s']} --{e['p']}--> {e['o']}{src}")
+        for e in r["in"]:
+            src = f"  [{Path(e['source']).name}]" if e.get("source") else ""
+            print(f"  {e['o']} <--{e['p']}-- {e['s']}{src}")
+
+
+def cmd_links(cfg, name: str) -> None:
+    _, store = build(cfg)
+    graph = store.link_map()
+
+    def note_stem(path: str) -> str:
+        return Path(path).stem.lower()
+
+    matches = [p for p in graph if name.lower() in note_stem(p) or name.lower() == note_stem(p)]
+    if not matches:
+        matches = [p for p, links in graph.items()
+                   if any(name.lower() in t.lower() for t in links.split(",") if t)]
+    if not matches:
+        print(f"(no note matching '{name}' in the index)")
+        return
+    for path in matches:
+        outbound = [t for t in graph.get(path, "").split(",") if t]
+        stem = note_stem(path)
+        # inbound = notes whose link targets equal this note's stem exactly
+        # (Obsidian semantics); substring matching would make short stems
+        # like "a" match almost every target
+        inbound = [p for p, links in graph.items() if p != path and any(
+            t.strip().lower() == stem for t in links.split(",") if t.strip())]
+        print(f"{path}")
+        if outbound:
+            print("  links to:")
+            for t in outbound:
+                print(f"    -> {t}")
+        if inbound:
+            print("  linked from:")
+            for p in sorted(inbound):
+                print(f"    <- {p}")
+        if not outbound and not inbound:
+            print("  (no links either way)")
+
+
+def cmd_stats(cfg) -> None:
+    _, store = build(cfg)
+    hybrid = "on" if cfg.retrieval["hybrid"] else "off"
+    print(f"store      : {cfg.store['path']}  ({store.count()} chunks)")
+    print(f"models     : {cfg.embed['model']} (embed) / {cfg.llm['model']} (llm)")
+    print(f"retrieval  : hybrid {hybrid} (rrf_k={cfg.retrieval['rrf_k']}), "
+          f"top_k={cfg.top_k['search']}")
+    per_source = store.per_source()
+    if not per_source:
+        print("sources    : (index is empty — run `ingest` first)")
+        return
+    width = max(len(p) for p in per_source)
+    print("sources    :")
+    for path, n in per_source.items():
+        print(f"  {path:<{width}}  {n:>5} chunks")
+
+
+def cmd_doctor(cfg) -> int:
+    checks: list[tuple[str, bool, str]] = []
+    checks.append(("config file", Path("config.toml").exists(),
+                   "config.toml found" if Path("config.toml").exists()
+                   else "config.toml missing (cp config.example.toml config.toml)"))
+    for name, section in (("llm key", cfg.llm), ("embed key", cfg.embed)):
+        checks.append((name, bool(section.get("api_key")),
+                       "configured" if section.get("api_key") else "missing"))
+    for src in cfg.sources:
+        from pathlib import Path as P
+        ok = P(src["path"]).expanduser().exists()
+        checks.append(("source dir", ok, src["path"]))
+
+    try:
+        import chromadb  # noqa: F401
+        checks.append(("chromadb import", True, chromadb.__version__))
+    except Exception as e:  # pragma: no cover
+        checks.append(("chromadb import", False, str(e)))
+
+    from loci import loaders
+    if loaders.HAS_PDF_TABLES:
+        checks.append(("pdf tables", True, "pymupdf4llm installed — tables become markdown"))
+    elif loaders.HAS_PDF:
+        checks.append(("pdf tables", None,
+                       "pymupdf4llm not installed — plain text only, no tables "
+                       "(pip install 'loci[pdf]')"))
+    else:
+        checks.append(("pdf support", None,
+                       "no pdf loader installed — .pdf sources are skipped "
+                       "(pip install 'loci[pdf]')"))
+    if loaders.HAS_OCR:
+        checks.append(("ocr support", True, "rapidocr installed — images & scanned PDFs indexed"))
+    else:
+        checks.append(("ocr support", None,
+                       "rapidocr not installed — .png/.jpg and scanned PDFs are skipped "
+                       "(pip install 'loci-rag[ocr]')"))
+    if loaders.HAS_DOCX:
+        checks.append(("docx support", True, "python-docx installed"))
+    else:
+        checks.append(("docx support", None,
+                       "python-docx not installed — .docx sources are skipped "
+                       "(pip install 'loci[docx]')"))
+
+    if cfg.embed.get("api_key"):
+        try:
+            embedder, store = build(cfg)
+            dim = len(embedder.embed(["ping"])[0])
+            checks.append(("embed endpoint", True, f"reachable, dim={dim}"))
+            checks.append(("vector store", True, f"{store.count()} chunks"))
+        except Exception as e:
+            checks.append(("embed endpoint", False, str(e)[:120]))
+    if cfg.llm.get("api_key"):
+        try:
+            from openai import OpenAI
+            client = OpenAI(base_url=cfg.llm["base_url"], api_key=cfg.llm["api_key"])
+            r = client.chat.completions.create(
+                model=cfg.llm["model"],
+                messages=[{"role": "user", "content": "ping"}], max_tokens=1)
+            checks.append(("llm endpoint", bool(r),
+                           f"{cfg.llm['model']} reachable"))
+        except Exception as e:
+            checks.append(("llm endpoint", False, str(e)[:120]))
+
+    failed = 0
+    for name, ok, detail in checks:
+        if ok is None:  # advisory, not a failure
+            mark = "i"
+        else:
+            mark = "✓" if ok else "✗"
+            if not ok:
+                failed += 1
+        print(f"  {mark} {name:<16} {detail}")
+    print(f"\n{len(checks) - failed}/{len(checks)} checks passed"
+          + ("" if not failed else " — fix the ✗ items above"))
+    return 1 if failed else 0
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="loci — Q&A over your personal knowledge base")
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    p_ingest = sub.add_parser("ingest", help="scan source directories and incrementally index them")
+    p_ingest.add_argument("--force", action="store_true",
+                          help="re-embed everything, ignoring content hashes")
+
+    p_search = sub.add_parser("search", help="retrieval only (no LLM call)")
+    p_search.add_argument("query")
+    p_search.add_argument("--tag", help="filter hits by frontmatter tag")
+    p_search.add_argument("--in", dest="path_contains", metavar="PATH",
+                          help="only hits whose source path contains this substring")
+    p_search.add_argument("--since", metavar="DATE", type=parse_since,
+                          help="only files modified on/after DATE (YYYY-MM-DD or YYYY-MM)")
+    p_search.add_argument("-e", "--exact", metavar="PHRASE",
+                          help="only hits containing this exact phrase")
+    p_search.add_argument("-k", type=int, help="override top_k")
+    p_search.add_argument("--rerank", nargs="?", const=True, default=None,
+                          metavar="PROVIDER", help="rerank candidates; optional "
+                          "value llm|local overrides [retrieval] rerank_provider")
+
+    p_ask = sub.add_parser("ask", help="retrieval + LLM answer with citations")
+    p_ask.add_argument("question")
+    p_ask.add_argument("--in", dest="path_contains", metavar="PATH",
+                       help="scope retrieval to paths containing this substring")
+    p_ask.add_argument("--since", metavar="DATE", type=parse_since,
+                       help="only files modified on/after DATE (YYYY-MM-DD or YYYY-MM)")
+    p_ask.add_argument("-k", type=int, help="override top_k")
+    p_ask.add_argument("--rerank", nargs="?", const=True, default=None,
+                       metavar="PROVIDER", help="rerank candidates; optional "
+                       "value llm|local overrides [retrieval] rerank_provider")
+    p_ask.add_argument("--verify", action="store_true",
+                       help="audit the answer claim-by-claim against the sources")
+    p_ask.add_argument("--rewrite", action="store_true",
+                       help="LLM-rewrite the query (keyword + translation variants)")
+
+    p_links = sub.add_parser("links", help="show [[wikilink]] outbound/inbound links for a note")
+    p_links.add_argument("note", help="note name (stem) to look up")
+
+    p_remember = sub.add_parser("remember", help="store a durable memory note (write + index)")
+    p_remember.add_argument("text")
+    p_remember.add_argument("--title", help="short title (defaults to first line)")
+    p_remember.add_argument("--tags", help="comma-separated extra tags (a 'memory' tag is always added)")
+
+    p_wiki = sub.add_parser("wiki", help="distill everything the index knows about a topic into a wiki page")
+    p_wiki.add_argument("topic", nargs="?", help="the topic (omit with --suggest)")
+    p_wiki.add_argument("--suggest", action="store_true", help="suggest wiki-worthy topics")
+    p_wiki.add_argument("-k", type=int, help="source excerpts to distill (default 12)")
+
+    sub.add_parser("chat", help="multi-turn Q&A loop with conversation memory")
+    sub.add_parser("watch", help="keep the index current by polling sources")
+    sub.add_parser("serve", help="run the MCP server over stdio (alias for mcp_server.py)")
+    p_graph = sub.add_parser("graph", help="knowledge graph over memories/wiki (build | show)")
+    p_graph.add_argument("action", choices=["build", "show"])
+    p_graph.add_argument("entity", nargs="?", help="entity to inspect (omit to list hubs)")
+    p_graph.add_argument("--force", action="store_true", help="re-extract all files")
+    p_fb = sub.add_parser("feedback", help="rate the chunks used in the last ask (good|bad)")
+    p_fb.add_argument("verdict", choices=["good", "bad"])
+
+    p_serve_http = sub.add_parser(
+        "serve-http", help="run the HTTP REST API (search/ask/remember/stats)")
+    p_serve_http.add_argument("--host", default=None,
+                              help="bind address (default: [http] host, or 127.0.0.1)")
+    p_serve_http.add_argument("--port", type=int, default=None,
+                              help="port (default: [http] port, or 8765)")
+
+    p_sync = sub.add_parser("sync", help="sync memories/wiki via git (push or pull)")
+    p_sync.add_argument("direction", choices=["push", "pull"])
+
+    p_bench = sub.add_parser("bench", help="run a retrieval benchmark (hit@k) on a cases file")
+    p_bench.add_argument("cases", help="JSONL file with {query, expect} per line")
+    p_bench.add_argument("-k", type=int, default=5, help="hits per query (default 5)")
+
+    sub.add_parser("stats", help="show what is in the index")
+    sub.add_parser("doctor", help="check config, endpoints, and store health")
+
+    args = parser.parse_args()
+    cfg = config.load()
+    if getattr(args, "k", None):
+        cfg.top_k["search"] = args.k
+    raw_rerank = getattr(args, "rerank", None)
+    rerank_flag = True if raw_rerank is not None else None  # None = follow config
+    rerank_with = raw_rerank if raw_rerank in ("llm", "local") else None
+    wants_verify = getattr(args, "verify", False)
+
+    if args.cmd == "ingest":
+        cfg.validate()
+        cmd_ingest(cfg, force=args.force)
+    elif args.cmd == "search":
+        cfg.validate()
+        cmd_search(cfg, args.query, tag=args.tag, rerank=rerank_flag,
+                   path_contains=args.path_contains, since=args.since,
+                   exact=args.exact, rerank_with=rerank_with)
+    elif args.cmd == "ask":
+        cfg.validate()
+        cmd_ask(cfg, args.question, rerank=rerank_flag,
+                path_contains=args.path_contains, since=args.since,
+                rerank_with=rerank_with, verify=wants_verify,
+                rewrite=True if getattr(args, "rewrite", False) else None)
+    elif args.cmd == "chat":
+        cfg.validate()
+        cmd_chat(cfg)
+    elif args.cmd == "links":
+        cmd_links(cfg, args.note)
+    elif args.cmd == "remember":
+        cmd_remember(cfg, args.text, title=args.title, tags=args.tags)
+    elif args.cmd == "graph":
+        cmd_graph(cfg, args.action, entity=args.entity, force=args.force)
+    elif args.cmd == "feedback":
+        cmd_feedback(cfg, args.verdict)
+    elif args.cmd == "serve-http":
+        cfg.validate()
+        from loci.http_api import run_server
+        host = args.host or cfg.http.get("host") or "127.0.0.1"
+        port = args.port or int(cfg.http.get("port") or 8765)
+        run_server(cfg, host, port)
+    elif args.cmd == "sync":
+        cmd_sync(cfg, args.direction)
+    elif args.cmd == "bench":
+        cmd_bench(cfg, args.cases, k=args.k)
+    elif args.cmd == "wiki":
+        cmd_wiki_suggest(cfg) if getattr(args, "suggest", False) else cmd_wiki(cfg, args.topic, k=args.k)
+    elif args.cmd == "watch":
+        cfg.validate()
+        cmd_watch(cfg)
+    elif args.cmd == "serve":
+        from loci.mcp_server import serve
+        serve()
+    elif args.cmd == "stats":
+        cmd_stats(cfg)
+    elif args.cmd == "doctor":
+        sys.exit(cmd_doctor(cfg))
+
+
+if __name__ == "__main__":
+    main()

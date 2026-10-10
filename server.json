@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.IvenKooLab/loci",
+  "title": "loci",
+  "description": "Cross-session memory and hybrid RAG over your notes and docs. Local-first, with cited answers.",
+  "version": "0.6.2",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "loci-rag",
+      "version": "0.6.2",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ],
+  "repository": {
+    "url": "https://github.com/IvenKooLab/loci",
+    "source": "github"
+  }
+}

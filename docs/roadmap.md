@@ -1,0 +1,68 @@
+# Roadmap
+
+## Shipped
+
+### Unreleased (in main)
+
+- [x] HTML loader: `.html` / `.htm` via stdlib `html.parser` — headings become
+      `#`-lines, `<li>` becomes `- `, script/style skipped, `<title>` surfaces
+      only when the body has no headings; honors `<meta charset>` with gb18030
+      fallback (no new dependencies)
+- [x] org-mode loader: `.org` / `.org_archive` — `*`-headings become `#`-lines
+      (shifted one level under `#+TITLE`), `#+FILETAGS` becomes frontmatter
+      tags, org links `[[url][desc]]` become markdown links, other `#+KEYWORD`
+      lines dropped (stdlib regex, no new dependencies)
+- [x] Regression tests for chunk-level embedding reuse: editing one section
+      re-embeds only that chunk; an unchanged file embeds nothing (3 tests)
+
+### v0.2 (2026-09-05) — the "memory layer" release
+
+- [x] Hybrid retrieval: vector + native BM25 fused with Reciprocal Rank Fusion (on by default)
+- [x] **MCP server** (pulled forward from v0.3): `brain_search` / `brain_ask` / `brain_ingest` over stdio
+- [x] Heading-breadcrumb chunks and section-level citations
+- [x] Obsidian frontmatter tags + `search --tag`
+- [x] `[[wikilink]]` graph: `links` command + `brain_links` MCP tool
+- [x] `watch` mode (pure polling, no watchdog dependency)
+- [x] `chat` multi-turn loop with conversation memory
+- [x] Query operators: `--in` / `--since` / `-e "exact phrase"` / `--tag`
+- [x] `ask --verify`: claim-by-claim faithfulness audit of answers
+- [x] **Memory consolidation**: `loci wiki` / `brain_wiki` distills the index
+      into curated wiki pages (with [[wikilinks]] and sources)
+- [x] Fully-offline mode verified against local Ollama (embeddings + chat)
+- [x] Reranking, both providers: LLM pointwise scoring + local cross-encoder
+      (bge-reranker, optional extra)
+- [x] Chat-log loader: ChatGPT / Claude `conversations.json` exports
+- [x] MCP resources (`brain://note/…`, `brain://stats`) and prompts
+      (brain-briefing / study-plan / contradiction-check)
+- [x] PDF loading with table understanding (PyMuPDF4LLM → markdown pipe rows)
+- [x] `.docx` loader (paragraphs + tables, optional extra)
+- [x] Per-directory chunk config (`chunk_size` / `chunk_overlap` overrides)
+- [x] **Chunk-level embedding reuse**: per-chunk content fingerprints let a
+      file edit re-embed only changed chunks (shipped in v0.5, now tested)
+- [x] `stats` / `doctor` / `ingest --force`
+- [x] 59-test offline suite + GitHub Actions CI (Python 3.11–3.13)
+
+### v0.1 (2026-09-03) — MVP
+
+- [x] Recursive directory scan + markdown heading-aware chunking
+- [x] OpenAI-compatible embeddings / chat (Zhipu / DeepSeek / Kimi / OpenAI all work)
+- [x] ChromaDB local persistence + content-hash incremental indexing
+- [x] CLI: ingest / search / ask (answers carry citations)
+
+## Next
+
+- [ ] More loaders: Notion/Markdown dumps
+- [ ] Scanned-PDF / OCR route (image-only pages still yield no text)
+- [ ] Web UI — deliberately last: the MCP host ecosystem is the UI layer for now
+
+## Explorations
+
+- [ ] Knowledge-graph mode (Neo4j, GraphRAG experiment)
+- [ ] Incremental embedding cache (only re-embed changed chunks, not whole files)
+
+## Non-goals
+
+- Cloud storage (your data leaving the machine defeats the point)
+- Multi-user (this is *my* second brain — build your own, it's ~300 lines)
+- Competing with all-in-one chat platforms on breadth — see
+  [the competitive landscape study](research/competitive-landscape.md) for why

@@ -1,0 +1,10 @@
+{"query": "T8 block cache threshold speedup", "expect": "08-t8"}
+{"query": "SageAttention crash Turing torch", "expect": "03-sage"}
+{"query": "PDD backport master LoRA", "expect": "09-pdd"}
+{"query": "hardware limits 22G VRAM", "expect": "01-hardware"}
+{"query": "what workflow files live where", "expect": "05-workflows"}
+{"query": "升级窗口 什么时候该升级 ComfyUI", "expect": "07-upgrade"}
+{"query": "社区经验 模型下载 镜像", "expect": "04-community"}
+{"query": "W4A8 和 W4A4 画质对比", "expect": "02-w4a8"}
+{"query": "T8 激进档 成片 为什么", "expect": "08-t8"}
+{"query": "faq 常见问题 同 seed", "expect": "06-faq"}
