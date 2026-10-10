@@ -14,6 +14,7 @@
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)
 [![loci MCP server — quality and maintenance score on Glama](https://glama.ai/mcp/servers/IvenKooLab/loci/badges/score.svg)](https://glama.ai/mcp/servers/IvenKooLab/loci)
 [![ModelScope MCP Square](https://img.shields.io/badge/ModelScope-MCP-7C3AED)](https://modelscope.cn/mcp/servers/IvenKooLab/loci)
+[![Featured in awesome-mcp-servers](https://img.shields.io/badge/featured_in-awesome--mcp--servers-8A2BE2)](https://github.com/punkpeye/awesome-mcp-servers)
 
 > Two thousand years ago, orators stored their speeches in the rooms of a
 > palace and walked through them to remember. **loci does the same for your
