@@ -30,6 +30,8 @@ def build(cfg):
 
 
 def make_retriever(cfg, embedder, store):
+    """Build the Retriever from config — the single wiring point every entry
+    (CLI / HTTP API / WebUI) shares, so options can't drift apart."""
     from loci.retriever import Retriever
     import os as _os
     fb_path = _os.path.join(cfg.store["path"], "feedback.jsonl")
@@ -39,7 +41,9 @@ def make_retriever(cfg, embedder, store):
                      feedback_path=fb_path,
                      rerank_provider=cfg.retrieval.get("rerank_provider", "llm"),
                      local_rerank_model=cfg.retrieval.get(
-                         "local_rerank_model", "BAAI/bge-reranker-base"))
+                         "local_rerank_model", "BAAI/bge-reranker-base"),
+                     bm25_tokenizer=cfg.bm25.get("tokenizer", "default"),
+                     max_per_doc=cfg.retrieval.get("max_per_doc", 2))
 
 
 def cmd_ingest(cfg, force: bool = False) -> None:
@@ -125,6 +129,14 @@ def cmd_ask(cfg, question: str, rerank: bool | None = None,
     print(reply)
     if verify:
         print("\n" + verify_answer(cfg.llm, question, reply, hits))
+
+
+def cmd_webui(cfg, host: str | None = None, port: int | None = None) -> None:
+    """Serve the Gradio web UI (optional `ui` extra) over the same pipeline."""
+    from loci.webui import run_app   # deferred: webui imports cli back
+    host = host or cfg.webui.get("host") or "127.0.0.1"
+    port = port or int(cfg.webui.get("port") or 7860)
+    run_app(cfg, host=host, port=port)
 
 
 def cmd_feedback(cfg, verdict: str) -> None:
@@ -241,7 +253,7 @@ def cmd_sync(cfg, direction: str) -> None:
         print(f"  {name}: {direction} done")
 
 
-def cmd_bench(cfg, cases_file: str, k: int = 5) -> None:
+def cmd_bench(cfg, cases_file: str, k: int = 5, tokenizer: str | None = None) -> None:
     import json as _json
     p = Path(cases_file)
     if not p.exists():
@@ -250,6 +262,8 @@ def cmd_bench(cfg, cases_file: str, k: int = 5) -> None:
     cases = [_json.loads(l) for l in p.read_text(encoding="utf-8").splitlines() if l.strip()]
     embedder, store = build(cfg)
     retriever = make_retriever(cfg, embedder, store)
+    if tokenizer:   # per-run override for A/B comparisons
+        retriever.bm25_tokenizer = tokenizer
     for label, hybrid in [("vector-only", False), ("hybrid", True)]:
         retriever.hybrid = hybrid
         ok = 0
@@ -456,7 +470,8 @@ def main() -> None:
                           help="only files modified on/after DATE (YYYY-MM-DD or YYYY-MM)")
     p_search.add_argument("-e", "--exact", metavar="PHRASE",
                           help="only hits containing this exact phrase")
-    p_search.add_argument("-k", type=int, help="override top_k")
+    p_search.add_argument("-k", "--top_k", dest="k", type=int,
+                          help="override top_k (retrieved chunks per query)")
     p_search.add_argument("--rerank", nargs="?", const=True, default=None,
                           metavar="PROVIDER", help="rerank candidates; optional "
                           "value llm|local overrides [retrieval] rerank_provider")
@@ -467,7 +482,8 @@ def main() -> None:
                        help="scope retrieval to paths containing this substring")
     p_ask.add_argument("--since", metavar="DATE", type=parse_since,
                        help="only files modified on/after DATE (YYYY-MM-DD or YYYY-MM)")
-    p_ask.add_argument("-k", type=int, help="override top_k")
+    p_ask.add_argument("-k", "--top_k", dest="k", type=int,
+                       help="override top_k (retrieved chunks per query)")
     p_ask.add_argument("--rerank", nargs="?", const=True, default=None,
                        metavar="PROVIDER", help="rerank candidates; optional "
                        "value llm|local overrides [retrieval] rerank_provider")
@@ -511,7 +527,16 @@ def main() -> None:
 
     p_bench = sub.add_parser("bench", help="run a retrieval benchmark (hit@k) on a cases file")
     p_bench.add_argument("cases", help="JSONL file with {query, expect} per line")
-    p_bench.add_argument("-k", type=int, default=5, help="hits per query (default 5)")
+    p_bench.add_argument("-k", "--top_k", dest="k", type=int, default=5,
+                         help="hits per query (default 5)")
+    p_bench.add_argument("--tokenizer", default=None,
+                         help="BM25 tokenizer override for this run (default|jieba)")
+
+    p_webui = sub.add_parser("webui", help="run the Gradio web UI (optional [ui] extra)")
+    p_webui.add_argument("--host", default=None,
+                         help="bind address (default: [webui] host, or 127.0.0.1)")
+    p_webui.add_argument("--port", type=int, default=None,
+                         help="port (default: [webui] port, or 7860)")
 
     sub.add_parser("stats", help="show what is in the index")
     sub.add_parser("doctor", help="check config, endpoints, and store health")
@@ -559,7 +584,10 @@ def main() -> None:
     elif args.cmd == "sync":
         cmd_sync(cfg, args.direction)
     elif args.cmd == "bench":
-        cmd_bench(cfg, args.cases, k=args.k)
+        cmd_bench(cfg, args.cases, k=args.k, tokenizer=args.tokenizer)
+    elif args.cmd == "webui":
+        cfg.validate()
+        cmd_webui(cfg, host=args.host, port=args.port)
     elif args.cmd == "wiki":
         cmd_wiki_suggest(cfg) if getattr(args, "suggest", False) else cmd_wiki(cfg, args.topic, k=args.k)
     elif args.cmd == "watch":

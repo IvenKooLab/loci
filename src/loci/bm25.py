@@ -1,28 +1,33 @@
-"""Native BM25 ranking with a CJK-aware tokenizer. No dependencies."""
+"""Native BM25 ranking with pluggable tokenizers. No dependencies by default."""
 from __future__ import annotations
 
 import math
-import re
 
-# Latin words stay whole; CJK text becomes single characters (strong enough
-# for BM25 ranking and keeps the tokenizer dependency-free).
-_TOKEN = re.compile(r"[a-z0-9]+|[\u4e00-\u9fff]")
+from loci.tokenizers import default_tokenize, get_tokenizer
 
 
 def tokenize(text: str) -> list[str]:
-    return _TOKEN.findall(text.lower())
+    """Backward-compatible alias for the default CJK single-char tokenizer."""
+    return default_tokenize(text)
 
 
 class BM25:
-    """Okapi BM25 over a corpus of {key: text}, built once per process."""
+    """Okapi BM25 over a corpus of {key: text}, built once per process.
 
-    def __init__(self, corpus: dict[str, str], k1: float = 1.5, b: float = 0.75):
+    `tokenizer` accepts a callable text->list[str]; defaults to the
+    dependency-free CJK single-char tokenizer. Pass `get_tokenizer("jieba")`
+    for word-level Chinese segmentation (requires the optional jieba package).
+    """
+
+    def __init__(self, corpus: dict[str, str], k1: float = 1.5, b: float = 0.75,
+                 tokenizer=None):
         self.k1, self.b = k1, b
+        self._tok = tokenizer or default_tokenize
         self.tf: dict[str, dict[str, int]] = {}
         self.dl: dict[str, int] = {}
         self.df: dict[str, int] = {}
         for key, text in corpus.items():
-            toks = tokenize(text)
+            toks = self._tok(text)
             freq: dict[str, int] = {}
             for t in toks:
                 freq[t] = freq.get(t, 0) + 1
@@ -42,7 +47,7 @@ class BM25:
             if not dl:
                 continue
             s = 0.0
-            for term in tokenize(query):
+            for term in self._tok(query):
                 df = self.df.get(term)
                 if not df:
                     continue

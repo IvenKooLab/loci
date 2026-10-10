@@ -16,13 +16,16 @@ DEFAULTS = {
     "top_k": {"search": 5},
     "retrieval": {"hybrid": True, "rrf_k": 60, "rerank": False,
                   "rerank_provider": "llm",
-                  "local_rerank_model": "BAAI/bge-reranker-base"},
+                  "local_rerank_model": "BAAI/bge-reranker-base",
+                  "max_per_doc": 2},   # chunks per document in one result list
+    "bm25": {"tokenizer": "default"},
     "watch": {"interval": 30},
     "memories": {"path": "./memories"},
     "wiki": {"path": "./wiki"},
     "chat": {"auto_extract": True},
     "sync": {"remote": ""},
     "http": {"host": "127.0.0.1", "port": 8765, "token": ""},
+    "webui": {"host": "127.0.0.1", "port": 7860},
     "store": {"path": "./chroma_db"},
 }
 
@@ -34,12 +37,14 @@ class Config:
     chunk: dict = field(default_factory=dict)
     top_k: dict = field(default_factory=dict)
     retrieval: dict = field(default_factory=dict)
+    bm25: dict = field(default_factory=dict)
     watch: dict = field(default_factory=dict)
     memories: dict = field(default_factory=dict)
     wiki: dict = field(default_factory=dict)
     chat: dict = field(default_factory=dict)
     sync: dict = field(default_factory=dict)
     http: dict = field(default_factory=dict)
+    webui: dict = field(default_factory=dict)
     store: dict = field(default_factory=dict)
     sources: list = field(default_factory=list)
 
@@ -107,4 +112,9 @@ def load(path: str = "config.toml") -> Config:
         cfg.top_k["search"] = max(int(cfg.top_k["search"]), 1)
     except (TypeError, ValueError):
         cfg.top_k["search"] = DEFAULTS["top_k"]["search"]
+    known_tokenizers = ("default", "jieba")
+    if cfg.bm25.get("tokenizer") not in known_tokenizers:
+        print(f"[warn] bm25.tokenizer={cfg.bm25.get('tokenizer')!r} is not one of "
+              f"{known_tokenizers} — using 'default'", file=sys.stderr)
+        cfg.bm25["tokenizer"] = "default"
     return cfg
