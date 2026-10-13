@@ -1,5 +1,43 @@
 # Changelog
 
+## v0.7.0 — 2026-10-13
+
+Hardening release, driven by the first production deployment (a zcode + codex
+shared-memory setup running `serve-http` under launchd, `watch`-less, for
+weeks) plus a provider-neutrality pass.
+
+### Added
+- **Embedding vector-space guard**: the index now fingerprints which embedding
+  model/dimension built it. `ingest` refuses with actionable guidance when
+  `[embed]` model changes, and `--force` truly drops and rebuilds the
+  collection (previously it re-embedded into the old vector space and crashed
+  mid-ingest with a raw chroma error). Same-dimension model swaps are caught
+  too — they used to mix two vector spaces silently and poison retrieval.
+  Legacy indexes are detected from their stored vectors, no rebuild required
+- **Self-healing `serve-http`**: connection-class API failures rebuild the
+  pipeline and retry the request once instead of failing forever — a long-lived
+  process no longer pins clients created during a momentary network outage, and
+  `config.toml` edits (keys, base URLs) are picked up without a restart
+- Provider quick-reference table in the READMEs and copy-paste recipes in
+  `config.example.toml`: OpenAI / Zhipu / DeepSeek / Kimi / Ollama (fully
+  offline, any api_key accepted)
+- Regression tests for the vector-space guard (`tests/test_store_guard.py`)
+
+### Fixed
+- HTTP API 500s now log a full traceback to stderr — systemd/launchd journals
+  get the story (previously a bare `TypeName: message`, with request logging
+  silenced)
+- MCP `brain_ingest` no longer dies on `SystemExit` (e.g. the model-change
+  guard above) — the tool returns the message instead of killing the server
+- `__version__` was stuck at 0.6.2 while pyproject shipped 0.6.3; both now
+  read 0.7.0
+
+### Changed
+- **Provider-neutral defaults**: `[llm]`/`[embed]` now default to the OpenAI
+  endpoint (`gpt-4o-mini` / `text-embedding-3-small`) instead of Zhipu. Explicit
+  `config.toml`s (anything copied from the example) are unaffected; a minimal
+  config that only sets an api_key now targets OpenAI
+
 ## v0.6.3 — 2026-09-26
 
 ### Fixed

@@ -85,6 +85,9 @@ pip install -r requirements.txt
 
 # 1. 配置：复制示例并填入你的值
 cp config.example.toml config.toml
+#    支持任意 OpenAI 兼容端点——见下方供应商速查表。
+#    日后更换 embedding 模型/供应商？不同模型的向量不能混用：
+#    重跑 `loci ingest --force` 重建索引。
 
 # 2. 灌库（增量——按内容 hash 去重，可安全重跑）
 loci ingest            # 或: python main.py ingest
@@ -92,6 +95,18 @@ loci ingest            # 或: python main.py ingest
 # 3. 提问
 loci ask "what did I write about X?"
 ```
+
+### 供应商速查表
+
+`[llm]` 与 `[embed]` 可指向不同供应商（如问答用 DeepSeek、向量化用 OpenAI，混搭完全可以）。唯一规则：`[embed]` 端点必须提供 OpenAI 风格的 `/embeddings` API。
+
+| 供应商 | `base_url` | 问答模型 | 向量模型 | 备注 |
+|---|---|---|---|---|
+| OpenAI（默认） | `https://api.openai.com/v1` | `gpt-4o-mini` | `text-embedding-3-small` | |
+| 智谱 (GLM) | `https://open.bigmodel.cn/api/paas/v4` | `glm-4.6` | `embedding-3` | |
+| DeepSeek | `https://api.deepseek.com` | `deepseek-chat` | — | 无 `/embeddings`，`[embed]` 需配别家 |
+| Kimi (Moonshot) | `https://api.moonshot.cn/v1` | `kimi-k2` | — | 同上，`[embed]` 配别家 |
+| Ollama（本地） | `http://localhost:11434/v1` | `llama3.1`、`qwen2.5:7b` 等 | `nomic-embed-text` | 100% 离线；api_key 随便填 |
 
 ### 工作流
 
@@ -221,7 +236,7 @@ model = "all-minilm"
 | 键 | 含义 |
 |---|---|
 | `[llm]` | base_url / api_key / model——任意 OpenAI 兼容端点 |
-| `[embed]` | 同上；model 须为 embedding 模型（如 `embedding-3`） |
+| `[embed]` | 同上；model 须为 embedding 模型（如 `text-embedding-3-small`） |
 | `[[sources]]` | 文档目录列表，递归扫描 `.md` / `.txt` / `.html` / `.org`（装了 extras 还支持 `.pdf` / `.docx`） |
 | `[[sources]] chunk_size` / `chunk_overlap` | 按目录覆盖切分参数 |
 | `[chunk]` | 全局切分参数（默认 800 字符 / 100 重叠） |

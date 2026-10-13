@@ -7,11 +7,15 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+# Neutral defaults: any OpenAI-compatible endpoint works (see
+# config.example.toml for Zhipu / DeepSeek / Kimi / Ollama recipes). OpenAI
+# ships as the default because its schema is the de-facto compatibility
+# standard — every listed provider speaks it.
 DEFAULTS = {
-    "llm": {"base_url": "https://open.bigmodel.cn/api/paas/v4",
-            "api_key": "", "model": "glm-4.6"},
-    "embed": {"base_url": "https://open.bigmodel.cn/api/paas/v4",
-              "api_key": "", "model": "embedding-3"},
+    "llm": {"base_url": "https://api.openai.com/v1",
+            "api_key": "", "model": "gpt-4o-mini"},
+    "embed": {"base_url": "https://api.openai.com/v1",
+              "api_key": "", "model": "text-embedding-3-small"},
     "chunk": {"size": 800, "overlap": 100},
     "top_k": {"search": 5},
     "retrieval": {"hybrid": True, "rrf_k": 60, "rerank": False,
