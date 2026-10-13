@@ -1,4 +1,6 @@
-"""Embeddings via any OpenAI-compatible endpoint (Zhipu / DeepSeek / OpenAI / …)."""
+"""Embeddings via any OpenAI-compatible endpoint (OpenAI / Zhipu / Ollama / …).
+The endpoint must offer /embeddings — chat-only APIs (e.g. DeepSeek) won't
+work here; pair them with a separate embedding provider instead."""
 from __future__ import annotations
 
 from openai import OpenAI

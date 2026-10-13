@@ -175,6 +175,9 @@ pip install -r requirements.txt
 
 # 1. Configure: copy the example and fill in your values
 cp config.example.toml config.toml
+#    Any OpenAI-compatible endpoint works — see the provider table below.
+#    Switching the embedding model later? Vectors from different models don't
+#    mix: re-run `loci ingest --force` to rebuild the index.
 
 # 2. Ingest (incremental — deduplicated by content hash, safe to re-run)
 loci ingest            # or: python main.py ingest
@@ -182,6 +185,20 @@ loci ingest            # or: python main.py ingest
 # 3. Ask
 loci ask "what did I write about X?"
 ```
+
+### Providers
+
+`[llm]` and `[embed]` can point at different providers (chat via DeepSeek,
+embeddings via OpenAI — mixing is fine). The only rule: the `[embed]` endpoint
+must offer an OpenAI-style `/embeddings` API.
+
+| Provider | `base_url` | chat model | embedding model | Notes |
+|---|---|---|---|---|
+| OpenAI *(default)* | `https://api.openai.com/v1` | `gpt-4o-mini` | `text-embedding-3-small` | |
+| Zhipu (GLM) | `https://open.bigmodel.cn/api/paas/v4` | `glm-4.6` | `embedding-3` | |
+| DeepSeek | `https://api.deepseek.com` | `deepseek-chat` | — | no `/embeddings`; pair `[embed]` with another provider |
+| Kimi (Moonshot) | `https://api.moonshot.cn/v1` | `kimi-k2` | — | same — pair `[embed]` elsewhere |
+| Ollama *(local)* | `http://localhost:11434/v1` | `llama3.1`, `qwen2.5:7b`, … | `nomic-embed-text` | 100% offline; any api_key accepted |
 
 ### The workflow
 
@@ -345,7 +362,7 @@ model-agnostic.
 | Key | Meaning |
 |---|---|
 | `[llm]` | base_url / api_key / model — any OpenAI-compatible endpoint |
-| `[embed]` | same; the model must be an embedding model (e.g. `embedding-3`) |
+| `[embed]` | same; the model must be an embedding model (e.g. `text-embedding-3-small`) |
 | `[[sources]]` | document directories, scanned recursively for `.md` / `.txt` / `.html` / `.org` (plus `.pdf`/`.docx`/images with the matching extras) |
 | `[[sources]] chunk_size` / `chunk_overlap` | optional per-directory chunking override — wins over the global `[chunk]` block |
 | `[chunk]` | chunking params (default 800 chars / 100 overlap) |
