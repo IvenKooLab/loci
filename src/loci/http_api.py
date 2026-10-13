@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import json
 import secrets
+import sys
+import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from loci.mcp_server import Brain
@@ -41,6 +43,7 @@ def _make_handler(brain, token):
             try:
                 return fn()
             except Exception as e:
+                traceback.print_exc(file=sys.stderr)
                 return self._json(500, {"error": f"{type(e).__name__}: {e}"})
 
         def do_GET(self):

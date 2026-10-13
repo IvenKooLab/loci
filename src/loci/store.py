@@ -15,8 +15,62 @@ class Store:
     def __init__(self, path: str):
         self.path = path
         self.client = chromadb.PersistentClient(path=path)
-        self.collection = self.client.get_or_create_collection(
+        self.collection = self._open_collection()
+
+    def _open_collection(self):
+        return self.client.get_or_create_collection(
             "brain", metadata={"hnsw:space": "cosine"})
+
+    # ---- embedding fingerprint: one vector space per collection ----
+
+    def _stamp(self, extra: dict) -> None:
+        # hnsw:* keys belong to chroma internals: passing them through
+        # modify() is rejected as a distance-function change even untouched
+        meta = {k: v for k, v in (self.collection.metadata or {}).items()
+                if not k.startswith("hnsw:")}
+        meta.update(extra)
+        self.collection.modify(metadata=meta)
+
+    def ensure_embed(self, model: str, dim: int, rebuild: bool = False) -> None:
+        """Guard the collection against a second embedding model: mixing vector
+        spaces (different model or dimension) either crashes chroma or, when
+        dimensions coincide, silently poisons retrieval quality."""
+        if self.collection.count() == 0:
+            self._stamp({"embed_model": model, "embed_dim": dim})
+            return
+        meta = self.collection.metadata or {}
+        cur_model, cur_dim = meta.get("embed_model"), meta.get("embed_dim")
+        if cur_model is None:
+            # legacy collection (built before fingerprints existed): learn its
+            # real dimension from stored vectors instead of trusting config,
+            # which typically changed *because* the user is switching models
+            got = self.collection.get(limit=1, include=["embeddings"])
+            embs = got.get("embeddings")
+            if embs is None or len(embs) == 0:
+                embs = []
+            cur_dim = len(embs[0]) if len(embs) else None
+            if cur_dim is None or cur_dim == dim:
+                # matching (or unreadable) dimension: assume the same model
+                # and stamp the fingerprint for future runs
+                self._stamp({"embed_model": model, "embed_dim": dim})
+                return
+            cur_model = "(unknown, pre-fingerprint)"
+        elif cur_model == model and cur_dim in (None, dim):
+            return
+        if not rebuild:
+            raise SystemExit(
+                f"embedding model changed: index was built with {cur_model} "
+                f"(dim {cur_dim}), config now has {model} (dim {dim}). "
+                "Re-run with --force to rebuild the index from scratch.")
+        self.client.delete_collection("brain")
+        self.collection = self.client.get_or_create_collection(
+            "brain", metadata={"hnsw:space": "cosine",
+                               "embed_model": model, "embed_dim": dim})
+
+    def reset(self) -> None:
+        """Drop and recreate the collection."""
+        self.client.delete_collection("brain")
+        self.collection = self._open_collection()
 
     # ---- bookkeeping: per-file incrementality ----
 

@@ -247,37 +247,75 @@ class Brain:
         self._ensure()
         return self.NOT_CONFIGURED if self._config_error else None
 
+    @staticmethod
+    def _transient(e: BaseException) -> bool:
+        # openai/httpx surface connection blips as *ConnectionError / *Timeout
+        name = type(e).__name__
+        return "Connection" in name or "Timeout" in name
+
+    def _reset(self):
+        # drop the built pipeline (not the process): a long-lived serve-http
+        # would otherwise pin clients created during a momentary network outage
+        self._cfg = None
+        self._retriever = None
+        self._store = None
+        self._config_error = None
+
+    def _retryable(self, fn):
+        """Run fn(); on a transient API failure rebuild the pipeline once and
+        retry — also picks up config.toml edits without a process restart."""
+        if err := self._guard():
+            return err
+        try:
+            return fn()
+        except Exception as e:
+            if not self._transient(e):
+                raise
+            print(f"loci: transient API failure ({type(e).__name__}: {e}) — "
+                  "rebuilding pipeline and retrying once", file=sys.stderr)
+            self._reset()
+            if err := self._guard():
+                return err
+            return fn()
+
     def search(self, query: str, k: int | None = None,
                tag: str | None = None, path_contains: str | None = None) -> str:
         if err := self._guard():
             return err
         if not (query or "").strip():
             return "(empty query — pass `query` in the request body)"
-        cfg, retriever = self._cfg, self._retriever
         try:
             k = int(k) if k is not None else None
         except (TypeError, ValueError):
             k = None
-        # k rides as a per-call override — never mutates retriever state
-        hits = retriever.search(query, tag=tag, path_contains=path_contains, k=k)
-        blocks = []
-        for i, h in enumerate(hits, 1):
-            where = h["source"] + (f" > {h['section']}" if h["section"] else "")
-            blocks.append(f"[{i}] {where}\n{h['text'][:500]}")
-        return "\n\n".join(blocks) or "(no results)"
+
+        def _do() -> str:
+            # k rides as a per-call override — never mutates retriever state
+            hits = self._retriever.search(query, tag=tag,
+                                          path_contains=path_contains, k=k)
+            blocks = []
+            for i, h in enumerate(hits, 1):
+                where = h["source"] + (f" > {h['section']}" if h["section"] else "")
+                blocks.append(f"[{i}] {where}\n{h['text'][:500]}")
+            return "\n\n".join(blocks) or "(no results)"
+
+        return self._retryable(_do)
 
     def ask(self, question: str, verify: bool = False) -> str:
         if err := self._guard():
             return err
-        cfg, retriever = self._cfg, self._retriever
-        hits = retriever.search(question)
-        if not hits:
-            return "(nothing relevant in the knowledge base)"
-        from loci.retriever import answer, verify_answer
-        reply = answer(cfg.llm, question, hits)
-        if verify:
-            reply += "\n\n" + verify_answer(cfg.llm, question, reply, hits)
-        return reply
+
+        def _do() -> str:
+            hits = self._retriever.search(question)
+            if not hits:
+                return "(nothing relevant in the knowledge base)"
+            from loci.retriever import answer, verify_answer
+            reply = answer(self._cfg.llm, question, hits)
+            if verify:
+                reply += "\n\n" + verify_answer(self._cfg.llm, question, reply, hits)
+            return reply
+
+        return self._retryable(_do)
 
     def ingest(self, force: bool = False) -> str:
         if err := self._guard():
@@ -285,8 +323,11 @@ class Brain:
         cfg = self._cfg
         from loci.cli import cmd_ingest
         buf = io.StringIO()
-        with contextlib.redirect_stdout(buf):  # keep the protocol stream clean
-            cmd_ingest(cfg, force=force)
+        try:
+            with contextlib.redirect_stdout(buf):  # keep the protocol stream clean
+                cmd_ingest(cfg, force=force)
+        except SystemExit as e:   # e.g. embedding model changed — surface, don't die
+            return f"ingest failed: {e}"
         lines = [l for l in buf.getvalue().splitlines() if l.strip()]
         return "\n".join(lines[-3:]) or "ingest finished"
 

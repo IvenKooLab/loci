@@ -53,17 +53,23 @@ def test_edit_reembeds_only_the_changed_chunk(tmp_path, monkeypatch, capsys):
     embedder = CountingEmbedder()
     monkeypatch.setattr(cli_module, "build", lambda c: (embedder, store))
 
+    def content_embeds() -> list[str]:
+        # "dimension probe" is ingest's metadata call (vector-space guard),
+        # not a content embedding — keep it out of the counts below
+        return [t for t in embedder.embedded if t != "dimension probe"]
+
     cli_module.cmd_ingest(cfg)
-    assert len(embedder.embedded) == 3         # three sections, three embeddings
+    assert len(content_embeds()) == 3         # three sections, three embeddings
 
     edited = DOC.replace("selling turnips", "selling pumpkins")
     (tmp_path / "notes" / "notes.md").write_text(edited, encoding="utf-8")
     embedder.embedded.clear()
     cli_module.cmd_ingest(cfg)
 
-    assert len(embedder.embedded) == 1         # only Beta was re-embedded
-    assert "pumpkins" in embedder.embedded[0]
-    assert store.count() == 3                  # index still holds all three chunks
+    content = content_embeds()
+    assert len(content) == 1                  # only Beta was re-embedded
+    assert "pumpkins" in content[0]
+    assert store.count() == 3                 # index still holds all three chunks
     assert "reused 2 embeddings" in capsys.readouterr().out
 
 

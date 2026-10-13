@@ -45,6 +45,12 @@ def make_retriever(cfg, embedder, store):
 def cmd_ingest(cfg, force: bool = False) -> None:
     embedder, store = build(cfg)
     docs = loaders.scan_sources(cfg.sources)
+    if force or any(store.indexed_hash(d["path"]) != d["hash"] for d in docs):
+        # one cheap embed call before any writes: refuse (or, with --force,
+        # rebuild) when the configured embedding model no longer matches the
+        # collection's vector space — half-way crashes are much worse to debug
+        probe = embedder.embed(["dimension probe"])
+        store.ensure_embed(cfg.embed["model"], len(probe[0]), rebuild=force)
     removed = store.prune(keep={d["path"] for d in docs})
     for path in removed:
         print(f"  - pruned (file gone): {path}")
