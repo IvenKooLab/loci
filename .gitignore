@@ -17,3 +17,5 @@ generated/
 dist/
 build/
 *.egg-info/
+
+.venv/
