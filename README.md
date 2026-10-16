@@ -291,6 +291,25 @@ sequenceDiagram
     L-->>T: cited answer — the memory is recalled
 ```
 
+## Real-world deployments
+
+Two production setups that informed loci's design:
+
+- **Shared memory across AI coding tools** — two agents (different CLIs) mount
+  the *same* loci MCP server; each tool's native memory directory is a
+  `[[sources]]` entry, so memory written on one side is recalled from the
+  other, and `brain_remember` writes land in the shared pool.
+- **Chat-app → knowledge-base pipeline** — documents messaged to a bot are
+  committed to a private git repo; every machine pulls that repo on a timer
+  and keeps its *own* local loci index fresh, so anything sent from the phone
+  is searchable from every IDE and agent minutes later. Along the way this
+  surfaced a real-world quirk: chat-app transfers can corrupt one zip member
+  of a `.docx` — loci now salvages the text instead of skipping the file.
+
+Rule of thumb for multi-machine setups: **sync source files, never indexes or
+keys**. The vector index is machine-local (rebuild it with `loci ingest`);
+credentials never belong in the repo.
+
 ## Ecosystem
 
 - **[loci-dsh](https://github.com/IvenKooLab/loci-dsh)** — visual plugin for
@@ -308,11 +327,16 @@ config:
   "mcpServers": {
     "loci": {
       "command": "python",
-      "args": ["/path/to/loci/mcp_server.py"]
+      "args": ["/path/to/loci/mcp_server.py"],
+      "env": { "LOCI_HOME": "/path/to/instance" }
     }
   }
 }
 ```
+
+`LOCI_HOME` anchors config, index, memories and wiki at one directory — no
+matter the process's cwd. Handy for MCP mounts and for running `serve-http`
+under launchd/cron/systemd, where a wrapper script's `cd` wouldn't apply.
 
 The server exposes three tools (zero dependencies beyond the core):
 

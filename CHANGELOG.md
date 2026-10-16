@@ -7,6 +7,16 @@ shared-memory setup running `serve-http` under launchd, `watch`-less, for
 weeks) plus a provider-neutrality pass.
 
 ### Added
+- **`LOCI_HOME`** environment variable: anchor config, index, memories and
+  wiki at one directory regardless of the process's cwd — service managers
+  (launchd/cron/systemd) and MCP mounts no longer need a wrapper `cd`.
+  Born from a dual-node (Mac + ECS) deployment
+- **`.docx` salvage**: when python-docx rejects a file (e.g. a broken zip CRC
+  on some member after a chat-app transfer, while `word/document.xml` is
+  intact), the loader now extracts paragraph text directly from the main part
+  instead of skipping the file
+- "Real-world deployments" section in the READMEs, with the multi-machine
+  rule of thumb: sync source files, never indexes or keys
 - **Embedding vector-space guard**: the index now fingerprints which embedding
   model/dimension built it. `ingest` refuses with actionable guidance when
   `[embed]` model changes, and `--force` truly drops and rebuilds the
