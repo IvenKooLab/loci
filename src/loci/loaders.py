@@ -310,9 +310,36 @@ def _read_text(p: Path) -> str | None:
                         parts.append(" | ".join(cells))
             return "\n\n".join(parts)
         except Exception as e:
+            salvaged = _docx_salvage(p)
+            if salvaged:
+                print(f"[warn] docx damaged ({e}) — salvaged raw text from {p.name}")
+                return salvaged
             print(f"[warn] docx unreadable, skipping: {p.name} ({e})")
             return None
     return None
+
+
+def _docx_salvage(p: Path) -> str | None:
+    """Fallback when python-docx rejects the file. Real-world case: files
+    transferred through messaging apps arrive with a broken CRC on some zip
+    member (fontTable.xml …) while word/document.xml itself is intact — read
+    the main part raw and pull paragraph text by regex. Table layout isn't
+    reconstructed (no column separators), but no text is lost."""
+    import re
+    import zipfile
+    from html import unescape
+    try:
+        with zipfile.ZipFile(p) as z:
+            xml = z.read("word/document.xml").decode("utf-8", "replace")
+    except Exception:
+        return None
+    texts = []
+    for para in xml.split("</w:p>"):
+        text = unescape("".join(
+            re.findall(r"<w:t[^>]*>([^<]*)</w:t>", para))).strip()
+        if text:
+            texts.append(text)
+    return "\n\n".join(texts) or None
 
 
 def scan_sources(sources: list[dict]) -> list[dict]:

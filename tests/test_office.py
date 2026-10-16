@@ -78,3 +78,32 @@ def test_scan_sources_picks_up_docx(tmp_path):
     document.save(str(tmp_path / "a.docx"))
     docs = loaders.scan_sources([{"path": str(tmp_path)}])
     assert len(docs) == 1 and docs[0]["path"].endswith("a.docx")
+
+
+@pytestmark_docx
+def test_docx_salvage_when_python_docx_rejects(tmp_path):
+    """A messaging-app transfer can leave a broken CRC on one zip member while
+    word/document.xml stays intact — python-docx refuses the whole file, the
+    salvage fallback still extracts the text."""
+    import zipfile
+    doc_xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">"
+        "<w:body>"
+        "<w:p><w:r><w:t>第一章 &amp; 概述</w:t></w:r></w:p>"
+        "<w:p><w:r><w:t>Revenue grew in every region.</w:t></w:r></w:p>"
+        "</w:body></w:document>"
+    )
+    # no [Content_Types].xml / rels: python-docx cannot open this package —
+    # same failure surface as the CRC case, easier to build deterministically
+    p = tmp_path / "damaged.docx"
+    with zipfile.ZipFile(p, "w") as z:
+        z.writestr("word/document.xml", doc_xml)
+
+    from docx import Document
+    with pytest.raises(Exception):
+        Document(str(p))                       # python-docx really refuses it
+
+    text = loaders._read_text(p)
+    assert "第一章 & 概述" in text              # entities unescaped, CJK intact
+    assert "Revenue grew in every region." in text

@@ -1,4 +1,9 @@
-"""Config loading: config.toml (recommended) + env-var overrides for keys."""
+"""Config loading: config.toml (recommended) + env-var overrides for keys.
+
+Set LOCI_HOME to anchor a whole instance (config + chroma_db + memories +
+wiki) at one directory regardless of the process's cwd — service managers
+(launchd, cron, systemd) don't honor a wrapper script's `cd`. Without it,
+relative paths resolve against the cwd as before."""
 from __future__ import annotations
 
 import os
@@ -64,6 +69,10 @@ def load(path: str = "config.toml") -> Config:
     for section, values in DEFAULTS.items():
         getattr(cfg, section).update(values)
 
+    home = os.environ.get("LOCI_HOME")
+    base = Path(home).expanduser() if home else None
+    if base is not None and path == "config.toml":
+        path = str(base / "config.toml")
     p = Path(path)
     if p.exists():
         raw = tomllib.loads(p.read_text(encoding="utf-8"))
@@ -74,6 +83,18 @@ def load(path: str = "config.toml") -> Config:
     else:
         print(f"[warn] {path} not found — using defaults "
               f"(first run: cp config.example.toml config.toml)", file=sys.stderr)
+
+    if base is not None:
+        # anchor relative runtime paths at LOCI_HOME so the same config works
+        # from any cwd (chroma/store resolve against cwd otherwise)
+        for section in ("store", "memories", "wiki"):
+            v = getattr(cfg, section).get("path")
+            if v and not Path(v).expanduser().is_absolute():
+                getattr(cfg, section)["path"] = str((base / v).resolve())
+        for s in cfg.sources:
+            v = s.get("path")
+            if v and not Path(v).expanduser().is_absolute():
+                s["path"] = str((base / v).expanduser().resolve())
 
     # generated/curated directories (memories, wiki) are always part of the
     # index (cross-session, cross-IDE memory + consolidated wiki pages) —

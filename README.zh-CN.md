@@ -174,7 +174,16 @@ claude mcp add loci -- loci-mcp
 
 然后，在任意一个里：*"记住 staging 密码每周一轮换"* → `brain_remember` → 稍后在**另一个** IDE 里：*"staging 密码什么时候轮换？"* → 得到带引用的回答。记忆以纯 markdown 存放在 `memories` 目录（git 友好、无锁定），统一打 `memory` 标签，`loci search --tag memory` 可专搜记忆。
 
-> **跨 IDE 提示**：默认的 `store` / `memories` 路径相对于 loci 的启动目录。如果你的 IDE 从不同项目目录启动，请在 `config.toml` 里把两者指向同一个绝对位置——例如 `store.path = "~/.loci/store"`、`memories.path = "~/.loci/memories"`——所有 IDE 即共享同一份记忆库。
+> **跨 IDE 提示**：默认的 `store` / `memories` 路径相对于 loci 的启动目录。给 MCP 挂载加 `env: { "LOCI_HOME": "~/.loci" }` 即可把整个实例（config/索引/memories/wiki）锚定在同一目录，所有 IDE 共享同一份记忆库，无需手动改路径。
+
+## 真实部署场景
+
+两个影响了 loci 设计的生产部署：
+
+- **AI 编码工具之间的记忆互通**——两个 agent（不同 CLI）挂载同一个 loci MCP server；各自的本地记忆目录都是 `[[sources]]` 条目，一侧写入的记忆另一侧随时可检索，`brain_remember` 写入共享记忆池。
+- **聊天软件 → 知识库流水线**——发给 bot 的文档自动提交进私有 git 仓；每台机器定时拉取该仓库、各自维护**本地** loci 索引，手机上发的任何东西几分钟后就能在所有 IDE 和 agent 里检索。这条流水线还踩出一个真实世界的坑：聊天软件传输可能损坏 `.docx` 的某个 zip 成员——loci 现在会抢救正文文本而不是跳过整个文件。
+
+多机部署的经验法则：**只同步源文件，绝不同步索引和密钥**。向量索引是机器本地的（`loci ingest` 随时可重建）；凭据永远不该进仓库。
 
 ## 生态
 
@@ -189,11 +198,14 @@ claude mcp add loci -- loci-mcp
   "mcpServers": {
     "loci": {
       "command": "python",
-      "args": ["/path/to/second-brain-rag/mcp_server.py"]
+      "args": ["/path/to/second-brain-rag/mcp_server.py"],
+      "env": { "LOCI_HOME": "/path/to/instance" }
     }
   }
 }
 ```
+
+`LOCI_HOME` 把 config、索引、memories、wiki 统一锚定在一个目录——与进程工作目录无关。MCP 挂载和 launchd/cron/systemd 下跑 `serve-http`（包装脚本的 `cd` 不生效的场景）都适用。
 
 除工具外，server 还支持完整协议：
 
