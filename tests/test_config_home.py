@@ -34,12 +34,13 @@ def test_absolute_paths_left_untouched(tmp_path, monkeypatch):
     home = tmp_path / "instance"
     home.mkdir()
     elsewhere = tmp_path / "elsewhere"
+    raw_path = str(elsewhere / "db")
     (home / "config.toml").write_text(
-        f'[store]\npath = "{elsewhere / "db"}"\n', encoding="utf-8")
+        "[store]\npath = \"{}\"\n".format(raw_path.replace("\\", "\\\\")), encoding="utf-8")
 
     monkeypatch.setenv("LOCI_HOME", str(home))
     cfg = config.load()
-    assert cfg.store["path"] == str(elsewhere / "db")
+    assert cfg.store["path"] == raw_path
 
 
 def test_explicit_path_wins_over_loci_home(tmp_path, monkeypatch):
