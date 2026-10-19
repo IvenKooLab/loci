@@ -52,8 +52,10 @@ header {
   -webkit-backdrop-filter: saturate(180%) blur(18px);
   border-bottom: 0.5px solid var(--line);
 }
+.brand { display: flex; flex-direction: column; gap: 1px; }
 .logo { font-weight: 700; font-size: 16px; letter-spacing: -0.2px; }
 .logo em { color: var(--muted); font-style: normal; font-weight: 400; }
+.tagline { color: var(--muted); font-size: 11px; letter-spacing: 0; }
 
 /* segmented control */
 nav {
@@ -86,6 +88,14 @@ nav #theme-btn {
   color: var(--fg); background: transparent; box-shadow: none; padding: 5px 10px;
 }
 nav #theme-btn:hover { background: var(--panel2); }
+nav #gh-btn {
+  appearance: none; text-decoration: none;
+  color: var(--acc); background: transparent;
+  font: 600 13px/1 inherit;
+  padding: 5px 10px; border-radius: 8px;
+  margin-left: 4px;
+}
+nav #gh-btn:hover { background: var(--panel2); }
 .who { color: var(--muted); font-size: 12px; white-space: nowrap; }
 
 main { padding: 20px 18px 40px; max-width: 1100px; margin: 0 auto; }
