@@ -49,12 +49,17 @@ def _now() -> str:
 
 def cmd_watch(cfg) -> None:
     interval = max(int(cfg.watch.get("interval", 30)), 5)
-    print(f"watching {len(cfg.sources)} source(s), every {interval}s — Ctrl+C to stop")
+    auto_summarize = bool(cfg.watch.get("auto_summarize"))
+    print(f"watching {len(cfg.sources)} source(s), every {interval}s"
+          + (" + harness auto-summarize" if auto_summarize else "")
+          + " — Ctrl+C to stop")
     while True:
         try:
             n = ingest_once(cfg)
             if n:
                 print(f"  [{_now()}] {n} file(s) updated")
+            if auto_summarize:
+                _summarize_once(cfg)
         except KeyboardInterrupt:
             raise
         except Exception as e:
@@ -65,3 +70,18 @@ def cmd_watch(cfg) -> None:
         except KeyboardInterrupt:
             print(f"\n[{_now()}] watch stopped")
             return
+
+
+def _summarize_once(cfg) -> None:
+    """Refresh harness digests — fingerprint-gated, so an unchanged harness
+    costs nothing and this is safe to run every cycle."""
+    from loci import harness as harness_mod
+    harnesses = harness_mod.load_harnesses(cfg)
+    if not harnesses:
+        return
+    for r in harness_mod.summarize_all(cfg, harnesses, force=False):
+        if r["status"] == "written":
+            print(f"  [{_now()}] harness summary refreshed: {r['harness']}")
+        elif r["status"] == "error":
+            print(f"  [{_now()}] harness summary failed: {r['harness']} "
+                  f"({r.get('error', '')})")

@@ -201,6 +201,23 @@ TOOLS = [
                                      "description": "re-embed everything, ignoring hashes"}},
         },
     },
+    {
+        "name": "brain_harness",
+        "description": "Harness memory hub: per-AI-tool (zcode, codex, ...) memory "
+                       "stats, or refresh each one's auto-summary note into the "
+                       "shared memory pool. Unchanged harnesses cost nothing.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "enum": ["stats", "summarize"],
+                           "description": "stats = table; summarize = regenerate digest notes"},
+                "name": {"type": "string", "description": "only this harness (optional)"},
+                "force": {"type": "boolean",
+                          "description": "re-summarize even when memories are unchanged"},
+            },
+            "required": ["action"],
+        },
+    },
 ]
 
 
@@ -349,6 +366,33 @@ class Brain:
             cmd_stats(self._cfg)
         return buf.getvalue().strip()
 
+    # ---- harness memory hub ----
+
+    def harness_stats(self) -> str:
+        if err := self._guard():
+            return err
+        from loci import harness as harness_mod
+        harnesses = harness_mod.load_harnesses(self._cfg)
+        return harness_mod.stats_table(
+            harness_mod.stats(self._cfg, self._store, harnesses))
+
+    def harness_summarize(self, name: str | None = None,
+                          force: bool = False) -> str:
+        if err := self._guard():
+            return err
+        from loci import harness as harness_mod
+        harnesses = harness_mod.load_harnesses(self._cfg)
+        if name:
+            harnesses = [h for h in harnesses if h.name == name]
+            if not harnesses:
+                return (f"(no harness named '{name}' — "
+                        "check the [[harness]] entries in config.toml)")
+        results = harness_mod.summarize_all(self._cfg, harnesses, force=force)
+        lines = [f"  {r['harness']}: {r['status']}"
+                 + (f" ({r['error']})" if r.get("error") else "")
+                 for r in results]
+        return "harness summaries:\n" + "\n".join(lines)
+
     # ---- cross-session memory (write + forget; recall = search/ask) ----
 
     def remember(self, text: str, title: str | None = None,
@@ -469,6 +513,10 @@ def _call_tool(brain: Brain, name: str, args: dict) -> str:
         return brain.forget(args["query"])
     if name == "brain_ingest":
         return brain.ingest(force=bool(args.get("force")))
+    if name == "brain_harness":
+        return (brain.harness_summarize(name=args.get("name"),
+                                        force=bool(args.get("force")))
+                if args.get("action") == "summarize" else brain.harness_stats())
     raise ValueError(f"unknown tool: {name}")
 
 

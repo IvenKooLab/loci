@@ -1,0 +1,221 @@
+"""Harness memory hub: register AI coding tools (zcode, codex, ekko, ...) and
+distill each one's native memory directory into a summary note that lives in
+loci's own memory pool — so "what does every agent currently know" becomes one
+searchable, chartable answer instead of a dozen scattered MEMORY.md files.
+
+Two halves:
+  stats      — pure filesystem + index bookkeeping, zero LLM cost
+  summarize  — one LLM call per changed harness, fingerprint-gated (an
+               unchanged harness costs nothing, so `watch` can call it freely)
+
+Each harness is a [[harness]] entry in config.toml:
+    [[harness]]
+    name = "zcode"
+    type = "zcode"                      # zcode | codex | generic
+    paths = ["~/.zcode/cli/memories"]
+    icon = "⚡"                          # emoji, or a file in the icons dir
+
+`type` presets know where memories live:
+  zcode   <root>/projects/*/memory/*.md      (+ fallback: recursive *.md)
+  codex   <root>/*.md                        (+ fallback: recursive *.md)
+  generic <root>/**/*.md
+"""
+from __future__ import annotations
+
+import hashlib
+import re
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+
+DEFAULT_ICONS = {"zcode": "⚡", "codex": "🐙", "claude": "🧠", "ekko": "🦜",
+                 "dsh": "🐳", "cursor": "🖥️", "copilot": "🛩️", "kimi": "🌙"}
+
+SUMMARY_PROMPT = (
+    "You maintain the memory digest of one AI coding agent ('harness'). "
+    "Given excerpts from its memory files, write a markdown digest with these "
+    "sections: ## Scope (what this agent manages), ## Active projects, "
+    "## Recent focus, ## Open items. Be concrete; mention memory file names "
+    "when they matter. Reply in the dominant language of the excerpts. "
+    "Under 400 words. Reply with ONLY the markdown body, no code fences."
+)
+
+# per-digest input caps: newest files first, ~700 chars each, 14k total
+_PER_FILE_CHARS = 700
+_TOTAL_CHARS = 14_000
+
+
+@dataclass
+class Harness:
+    name: str
+    type: str
+    icon: str
+    roots: list[Path] = field(default_factory=list)
+
+
+def load_harnesses(cfg) -> list[Harness]:
+    out = []
+    for h in getattr(cfg, "harnesses", None) or []:
+        name = str(h.get("name", "")).strip()
+        if not name:
+            continue
+        htype = str(h.get("type", "generic")).strip().lower() or "generic"
+        icon = str(h.get("icon", "") or "").strip() \
+            or DEFAULT_ICONS.get(name) or DEFAULT_ICONS.get(htype) or "🗂️"
+        raw = h.get("paths") or ([h["path"]] if h.get("path") else [])
+        roots = [Path(str(p)).expanduser().resolve()
+                 for p in raw if str(p).strip()]
+        out.append(Harness(name, htype, icon, roots))
+    return out
+
+
+def memory_files(h: Harness) -> list[Path]:
+    """All markdown files this harness owns, per its type preset."""
+    files: set[Path] = set()
+    for root in h.roots:
+        if not root.exists():
+            continue
+        if h.type == "zcode":
+            files.update(root.glob("projects/*/memory/*.md"))
+        elif h.type == "codex":
+            files.update(root.glob("*.md"))
+        if not files:                       # preset found nothing: fall back
+            files.update(root.rglob("*.md"))
+    return sorted(files)
+
+
+def fingerprint(files: list[Path]) -> str:
+    """Content fingerprint over (relative name, content hash), order-stable."""
+    lines = []
+    for p in files:
+        try:
+            digest = hashlib.sha1(p.read_bytes()).hexdigest()
+        except OSError:
+            digest = "unreadable"
+        lines.append(f"{p.name}:{digest}")
+    return hashlib.sha1("\n".join(lines).encode()).hexdigest()[:16]
+
+
+def summary_path(cfg, h: Harness) -> Path:
+    from loci.memories import slugify
+    return Path(cfg.memories["path"]).expanduser() / "harness" / f"{slugify(h.name)}.md"
+
+
+def _stored_fingerprint(cfg, h: Harness) -> str | None:
+    p = summary_path(cfg, h)
+    if not p.exists():
+        return None
+    m = re.search(r"^fingerprint:\s*(\S+)",
+                  p.read_text(encoding="utf-8", errors="ignore"), re.M)
+    return m.group(1) if m else None
+
+
+def stats(cfg, store, harnesses: list[Harness]) -> list[dict]:
+    """Per-harness stats: file count, total chars, last update, indexed chunks,
+    summary freshness. Zero LLM cost."""
+    per_source = store.per_source()
+    roots_by_h = [(h, [str(r) for r in h.roots]) for h in harnesses]
+    out = []
+    for h, roots in roots_by_h:
+        files = memory_files(h)
+        chunks = sum(n for src, n in per_source.items()
+                     if any(src.startswith(r) for r in roots))
+        last = max((p.stat().st_mtime for p in files if p.exists()), default=0.0)
+        fp = fingerprint(files)
+        stored = _stored_fingerprint(cfg, h)
+        out.append({
+            "name": h.name, "type": h.type, "icon": h.icon,
+            "files": len(files), "chars": sum(
+                p.stat().st_size for p in files if p.exists()),
+            "chunks": chunks,
+            "last_updated": datetime.fromtimestamp(last).strftime("%Y-%m-%d %H:%M")
+                            if last else "",
+            "summary": {"path": str(summary_path(cfg, h)),
+                        "status": ("fresh" if stored == fp else
+                                   "stale" if stored else "missing")},
+        })
+    return out
+
+
+def _digest_input(files: list[Path]) -> str:
+    """Newest-first excerpt bundle within the token budget."""
+    parts, budget = [], _TOTAL_CHARS
+    for p in sorted(files, key=lambda p: p.stat().st_mtime if p.exists() else 0,
+                    reverse=True):
+        if budget <= 0:
+            break
+        text = p.read_text(encoding="utf-8", errors="ignore").strip()
+        part = f"### {p.name}\n{text[:_PER_FILE_CHARS]}\n\n"
+        parts.append(part[:budget])
+        budget -= len(parts[-1])
+    return "".join(parts)
+
+
+def _llm_digest(llm_cfg: dict, bundle: str) -> str:
+    from openai import OpenAI
+    client = OpenAI(base_url=llm_cfg["base_url"], api_key=llm_cfg["api_key"])
+    resp = client.chat.completions.create(
+        model=llm_cfg["model"],
+        messages=[{"role": "system", "content": SUMMARY_PROMPT},
+                  {"role": "user", "content": bundle}],
+        temperature=0.2,
+    )
+    body = (resp.choices[0].message.content or "").strip()
+    return re.sub(r"^```(?:markdown)?\n|\n```$", "", body).strip()
+
+
+def summarize(cfg, h: Harness, force: bool = False) -> dict:
+    """Write/refresh one harness summary note. Fingerprint-gated: unchanged
+    harnesses return early with zero LLM cost. Best-effort indexing after."""
+    files = memory_files(h)
+    fp = fingerprint(files)
+    out = summary_path(cfg, h)
+    if not files:
+        return {"harness": h.name, "status": "empty", "path": str(out)}
+    if not force and _stored_fingerprint(cfg, h) == fp:
+        return {"harness": h.name, "status": "unchanged", "path": str(out)}
+    try:
+        body = _llm_digest(cfg.llm, _digest_input(files))
+    except Exception as e:
+        return {"harness": h.name, "status": "error",
+                "error": f"{type(e).__name__}: {e}", "path": str(out)}
+    out.parent.mkdir(parents=True, exist_ok=True)
+    iso = datetime.now().strftime("%Y-%m-%d %H:%M")
+    front = ("---\n"
+             "tags: [memory, harness, summary]\n"
+             f"updated: {iso}\n"
+             f"harness: {h.name}\n"
+             f"type: {h.type}\n"
+             f'icon: "{h.icon}"\n'
+             f"fingerprint: {fp}\n"
+             f"files: {len(files)}\n"
+             "---\n")
+    tmp = out.with_suffix(".md.tmp")
+    tmp.write_text(f"{front}# {h.name} · memory digest\n\n{body}\n",
+                   encoding="utf-8")
+    tmp.rename(out)
+    try:
+        from loci.memories import index_memory_file
+        index_memory_file(cfg, str(out))
+    except Exception:
+        pass                                # replayable via `loci ingest`
+    return {"harness": h.name, "status": "written", "path": str(out)}
+
+
+def summarize_all(cfg, harnesses: list[Harness], force: bool = False) -> list[dict]:
+    return [summarize(cfg, h, force=force) for h in harnesses]
+
+
+def stats_table(rows: list[dict]) -> str:
+    """ASCII table for CLI / MCP output."""
+    if not rows:
+        return ("(no [[harness]] entries in config.toml — add one per AI tool:\n"
+                '  [[harness]]\n  name = "zcode"\n  type = "zcode"\n'
+                '  paths = ["~/.zcode/cli/memories"])')
+    head = f'{"harness":<12} {"type":<9} {"files":>5} {"chunks":>6}  {"last update":<16} summary'
+    lines = [head, "-" * len(head)]
+    for r in rows:
+        lines.append(f'{r["name"]:<12} {r["type"]:<9} {r["files"]:>5} '
+                     f'{r["chunks"]:>6}  {r["last_updated"]:<16} '
+                     f'{r["summary"]["status"]}')
+    return "\n".join(lines)
