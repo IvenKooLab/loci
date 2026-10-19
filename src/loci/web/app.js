@@ -32,6 +32,7 @@ const I18N = {
     expired: "session expired — sign in again", rejected: "token rejected",
     noHarness: "No [[harness]] entries configured.",
     noFiles: "(empty)",
+    pickFile: "Pick a memory file on the left.",
     files: "files", chunks: "chunks", updated: "updated",
     fresh: "fresh", stale: "stale", missing: "missing",
     indexing: "indexing…", summarizing: "summarizing…",
@@ -60,6 +61,7 @@ const I18N = {
     expired: "会话过期——请重新登录", rejected: "token 被拒绝",
     noHarness: "尚未配置 [[harness]] 条目。",
     noFiles: "（空）",
+    pickFile: "在左侧选择一个记忆文件。",
     files: "个文件", chunks: "块", updated: "更新于",
     fresh: "最新", stale: "待更新", missing: "未生成",
     indexing: "索引中…", summarizing: "总结中…",
@@ -190,83 +192,101 @@ async function runQuery() {
 }
 
 
-/* ---------- harness drilldown (iOS-Files-style nested navigation) ---------- */
-let drill = null;                       // {name, display, files, path: [], file: null}
+/* ---------- harness drilldown: left file tree + right preview ----------
+   Icons are hand-drawn SF-Symbols-style SVGs (no emoji): a folder glyph and
+   a "memory" glyph (document outline with three linked synapse nodes). The
+   tree renders fully expanded; folders collapse on click. */
+const ICO = {
+  chevron: '<svg class="chev" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
+  dir: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M3 7.2c0-1 .8-1.8 1.8-1.8h3.6c.5 0 1 .2 1.3.6l1.2 1.4h7.3c1 0 1.8.8 1.8 1.8v8.6c0 1-.8 1.8-1.8 1.8H4.8c-1 0-1.8-.8-1.8-1.8V7.2z"/></svg>',
+  memory: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M6 3.8h8.2L19 8.6v10.6c0 1-.8 1.8-1.8 1.8H6c-1 0-1.8-.8-1.8-1.8V5.6c0-1 .8-1.8 1.8-1.8z"/><path d="M14 3.8v5h5"/><circle cx="8.6" cy="13.2" r="1.15" fill="currentColor" stroke="none"/><circle cx="12.6" cy="16.4" r="1.15" fill="currentColor" stroke="none"/><circle cx="15.6" cy="11.6" r="1.15" fill="currentColor" stroke="none"/><path d="M9.7 13.9l1.8 1.7 2.2-3.4 1 .6" stroke-width="1.3"/></svg>',
+};
+
+let drill = null;                       // {name, display, files, tree}
 
 async function openDrilldown(name) {
   try {
     const data = await api(`/harness-files?name=${encodeURIComponent(name)}`);
-    drill = { ...data, path: [], file: null };
+    drill = { ...data, tree: buildTree(data.files), name };
     $("#drilldown").classList.remove("hidden");
-    $("#dd-view").classList.add("hidden");
-    $("#dd-list").classList.remove("hidden");
-    renderDrill();
+    $("#dd-title").textContent = data.display;
+    renderTree();
+    // land on the harness digest when one exists, else prompt
+    const digest = `harness/${name}.md`;
+    const hasDigest = await api("/memories").then(
+      (r) => r.memories.some((m) => m.name === digest)).catch(() => false);
+    if (hasDigest) {
+      const { text } = await api(`/memory?name=${encodeURIComponent(digest)}`);
+      $("#dd-view").textContent = text;
+    } else {
+      $("#dd-view").textContent = t("pickFile");
+    }
     $("#drilldown").scrollIntoView({ behavior: "smooth", block: "nearest" });
   } catch (e) { alert(e.message); }
 }
 
-function drillAt(prefix) {
-  // entries under `prefix`: [{kind:'dir'|'file', name, file?}]
-  const out = new Map();
-  for (const f of drill.files) {
+function buildTree(files) {
+  const root = { dirs: new Map(), files: [] };
+  for (const f of files) {
     const parts = f.rel.split("/");
-    const at = parts.slice(0, prefix.length);
-    if (prefix.length && at.join("/") !== prefix.join("/")) continue;
-    const next = parts[prefix.length];
-    if (!next) continue;
-    const isFile = parts.length === prefix.length + 1;
-    out.set(next, isFile ? { kind: "file", name: next, file: f }
-                         : { kind: "dir", name: next });
-  }
-  return [...out.values()].sort((a, b) =>
-    a.kind === b.kind ? a.name.localeCompare(b.name)
-    : a.kind === "dir" ? -1 : 1);
-}
-
-function renderDrill() {
-  const crumbs = $("#crumbs");
-  crumbs.innerHTML = "";
-  const mk = (label, depth) => {
-    const b = document.createElement("button");
-    b.className = "crumb";
-    b.textContent = label;
-    b.addEventListener("click", () => {
-      drill.path = drill.path.slice(0, depth);
-      drill.file = null;
-      $("#dd-view").classList.add("hidden");
-      $("#dd-list").classList.remove("hidden");
-      renderDrill();
+    let node = root;
+    parts.forEach((p, i) => {
+      if (i === parts.length - 1) node.files.push({ name: p, ...f });
+      else {
+        if (!node.dirs.has(p)) node.dirs.set(p, { dirs: new Map(), files: [] });
+        node = node.dirs.get(p);
+      }
     });
-    crumbs.appendChild(b);
-  };
-  mk(drill.display, 0);
-  drill.path.forEach((part, i) => mk(part, i + 1));
-
-  const list = $("#dd-list");
-  const entries = drillAt(drill.path);
-  list.innerHTML = entries.map((e) => e.kind === "dir"
-    ? `<li data-kind="dir" data-name="${e.name}"><span class="ico">📁</span> ${e.name}</li>`
-    : `<li data-kind="file" data-rel="${e.file.rel}" data-path="${encodeURIComponent(e.file.path)}">
-         <span class="ico">📄</span> ${e.name}
-         <small>${e.file.mtime} · ${e.file.size}B</small></li>`
-  ).join("") || `<li class="muted" style="cursor:default">(${t("noFiles")})</li>`;
-  list.querySelectorAll("li[data-kind=dir]").forEach((li) =>
-    li.addEventListener("click", () => {
-      drill.path.push(li.dataset.name);
-      renderDrill();
-    }));
-  list.querySelectorAll("li[data-kind=file]").forEach((li) =>
-    li.addEventListener("click", () => openDrillFile(li.dataset.path, li.dataset.rel)));
+  }
+  return root;
 }
 
-async function openDrillFile(encPath, rel) {
+function renderTree() {
+  const tree = $("#dd-tree");
+  tree.innerHTML = "";
+
+  const fileLi = (f) => {
+    const li = document.createElement("li");
+    li.className = "file";
+    li.innerHTML = `${ICO.memory}<span class="fname">${f.name}</span>`;
+    li.addEventListener("click", () => {
+      tree.querySelectorAll("li.file.on").forEach((x) => x.classList.remove("on"));
+      li.classList.add("on");
+      openDrillFile(f);
+    });
+    return li;
+  };
+
+  const dirUl = (node, depth) => {          // fully expanded by default
+    const ul = document.createElement("ul");
+    for (const [name, child] of [...node.dirs.entries()].sort((a, b) =>
+      a[0].localeCompare(b[0]))) {
+      const li = document.createElement("li");
+      li.className = "dir";
+      const head = document.createElement("div");
+      head.className = "dir-head";
+      head.innerHTML = `${ICO.chevron}${ICO.dir}<span>${name}</span>`;
+      head.addEventListener("click", () => li.classList.toggle("closed"));
+      li.appendChild(head);
+      li.appendChild(dirUl(child, depth + 1));
+      ul.appendChild(li);
+    }
+    for (const f of node.files.sort((a, b) => a.name.localeCompare(b.name))) {
+      ul.appendChild(fileLi(f));
+    }
+    return ul;
+  };
+
+  // top level: root files first, then folders
+  tree.appendChild(dirUl(drill.tree, 0));
+}
+
+async function openDrillFile(f) {
   const view = $("#dd-view");
-  view.classList.remove("hidden");
-  $("#dd-list").classList.add("hidden");
   view.textContent = "…";
   try {
-    const { text } = await api(`/source-file?path=${encPath}`);
-    view.textContent = `# ${rel}\n\n${text}`;
+    const { text } = await api(`/source-file?path=${encodeURIComponent(f.path)}`);
+    view.textContent = `# ${f.rel}\n\n${text}`;
   } catch (e) { view.textContent = t("errorPrefix") + e.message; }
 }
 
