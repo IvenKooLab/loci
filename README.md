@@ -21,6 +21,17 @@ loci combines vector search with BM25 and returns answers with `file > section` 
 
 [Quick start](#quick-start) · [Web console](#web-console) · [MCP setup](#connect-your-ai-tools) · [Usage guide](docs/guide.en.md) · [中文说明](README.zh-CN.md)
 
+![loci console — synthetic-data demo](docs/assets/console-demo-light.png)
+
+*Actual console UI with fictional demo data. No personal knowledge base, account or API key is connected; counts are illustrative.*
+
+<details>
+<summary>Dark theme preview</summary>
+
+![loci console — dark theme, fictional demo data](docs/assets/console-demo-dark.png)
+
+</details>
+
 ## What you can do
 
 | Need | How loci helps |

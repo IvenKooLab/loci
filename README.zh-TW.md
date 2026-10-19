@@ -1,266 +1,128 @@
-# loci 🧠
+<p align="center">
+  <img src="docs/assets/loci-banner.svg" alt="loci — shared memory for your AI tools" width="100%">
+</p>
 
-[![English](https://img.shields.io/badge/English-README-6E7681)](README.md)
-[![简体中文](https://img.shields.io/badge/简体中文-README-6E7681)](README.zh-CN.md)
-[![繁體中文](https://img.shields.io/badge/繁體中文-README-0969DA)](README.zh-TW.md)
-[![日本語](https://img.shields.io/badge/日本語-README-6E7681)](README.ja.md)
-[![한국어](https://img.shields.io/badge/한국어-README-6E7681)](README.ko.md)
+<p align="center">
+  <a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.ja.md">日本語</a> · <a href="README.ko.md">한국어</a>
+</p>
 
-> *本翻譯可能落後於英文主文件（canonical）。*
+<p align="center">
+  <a href="https://github.com/IvenKooLab/loci/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/IvenKooLab/loci/ci.yml?branch=main&amp;label=CI" alt="CI"></a>
+  <a href="https://pypi.org/project/loci-rag/"><img src="https://img.shields.io/pypi/v/loci-rag?color=367d65" alt="PyPI"></a>
+  <img src="https://img.shields.io/badge/Python-3.11%2B-367d65" alt="Python 3.11+">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-367d65" alt="MIT license"></a>
+</p>
 
-[![CI](https://github.com/IvenKooLab/loci/actions/workflows/ci.yml/badge.svg)](https://github.com/IvenKooLab/loci/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/IvenKooLab/loci/blob/main/LICENSE)
-[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://github.com/IvenKooLab/loci)
-[![loci MCP server — quality and maintenance score on Glama](https://glama.ai/mcp/servers/IvenKooLab/loci/badges/score.svg)](https://glama.ai/mcp/servers/IvenKooLab/loci)
-[![ModelScope MCP Square](https://img.shields.io/badge/ModelScope-MCP-7C3AED)](https://modelscope.cn/mcp/servers/IvenKooLab/loci)
+**將散落的筆記、專案文件與 Agent 記憶，整理成可搜尋、提問及追溯來源的知識庫。終端機、瀏覽器與 MCP 用戶端都能使用。**
 
-> 兩千年前的演說家把講稿放進腦中宮殿的房間，走一遍就能想起來。**loci 為你的檔案做同樣的事。**
->
-> *Loci* 是所有記憶宮殿背後的方法：把知識放進位置，沿路徑回憶。
+loci 結合向量檢索與 BM25，回答附上「檔案 > 章節」引用。檔案與索引保存在本機；向量化及對話請求會送往你設定的服務，也可以搭配本機模型離線運作。
 
-**給散落在十幾個目錄裡的專案文件、筆記、聊天記錄，裝一個可問答的「第二大腦」——外加一個 MCP server，讓你的 AI 客戶端也能直接使用。**
+[快速開始](#快速開始) · [Web 管理介面](#web-管理介面) · [接入-ai-工具](#接入-ai-工具) · [詳細指南（簡中）](docs/guide.zh-CN.md)
 
-本地檔案 → 標題感知切分 → 向量化 → 混合檢索（向量 + BM25）→ 帶章節引用的 LLM 回答。索引完全保存在你的機器上；只有向量化/對話調用會出去，走任意 OpenAI 相容 API（智譜 / DeepSeek / Kimi / OpenAI / …）。
+![loci 管理介面與記憶檔案預覽](docs/assets/console-demo-light.png)
 
-> **核心論點**（來自對 13 個高星工具的研究——詳見[競品分析](docs/research/competitive-landscape.md)）：不要再造一個聊天 App。做**所有聊天應用都能掛載的記憶層**。Claude Desktop、Cursor、Cline 或任何 MCP 宿主，都能免費成為 loci 的介面。
+*實際介面搭配虛構示範資料；未連接個人知識庫、帳號或金鑰。圖中的統計數字僅供展示。*
 
-## Demo
+<details>
+<summary>查看深色介面</summary>
 
-真實會話，索引自 [minimax-h3-turing](https://github.com/IvenKooLab/minimax-h3-turing) 的文件（路徑已縮短顯示）：
+![loci console — dark theme, fictional demo data](docs/assets/console-demo-dark.png)
 
-```
-$ python main.py search "what the 22G card can and cannot do" -k 3
+</details>
 
-[1] minimax-h3-turing/docs/en/01-hardware-limits.md > 01 · What a 2080Ti 22G Can and Cannot Do    (similarity 0.562)
-[2] minimax-h3-turing/docs/en/02-w4a8-vs-w4a4.md > 02 · Quantization Measured > You Can Try Without 22G  (similarity 0.446)
-[3] minimax-h3-turing/docs/en/01-hardware-limits.md > ... > 3. VRAM is just barely enough — manage it  (similarity 0.504)
+## 可以用來做什麼
 
-$ python main.py ask "How should I choose between T8 aggressive mode and the final-render mode, and why?"
+| 需求 | loci 的做法 |
+|---|---|
+| 找回以前討論的決策 | 跨目錄混合檢索，支援標籤、路徑與日期篩選 |
+| 提問後核對依據 | 回答引用原始章節，可逐項驗證結論 |
+| 在不同 AI 工具間保留脈絡 | MCP 共用同一實例，長期記憶儲存為 Markdown |
+| 檢視各個 Agent 記住的內容 | 自動探索 harness，瀏覽檔案、統計與摘要 |
+| 以視覺化介面管理知識庫 | 內建搜尋、問答、記憶編輯、索引與稽核介面 |
 
-Answer:
-* Drafts / preview / shot selection: use T8 aggressive mode — a 43% speedup
-  (2.7 min/clip), and "a different picture of equal quality" is fine for picking shots.
-* Final shots: use final-render mode (no T8). T8 makes the numerical trajectory
-  fork, so re-running with the same seed produces a different clip — which breaks
-  the reproducibility final outputs need.
+原生支援 Markdown、純文字、HTML、org-mode 與聊天匯出；可選擴充套件提供 PDF、Word 與 OCR 支援。可繼續使用現有編輯器或 Obsidian 知識庫。
 
-[source: docs/en/08-t8-blockcache-4step.md > Practical Advice (4-step Turbo route)]
-[source: docs/en/06-faq.md > 12. Cache-style accelerators break "same-seed re-runs"]
-```
+## 快速開始
 
-混合檢索意味著中文查詢也能命中英文文件（反之亦然）——關鍵詞證據（BM25）補上向量檢索的盲區，而且每條引用都指向**章節**，不只是檔案。
-
-### 混合檢索真的有用嗎？（10 條雙語查詢實測）
-
-```
-$ python scripts/eval_retrieval.py scripts/eval_cases.example.jsonl
-vector-only: 9/10  →  hybrid: 10/10
-```
-
-## 記憶路線：兩種 Provider
-
-`--rerank` 會對融合後的候選做精排：
-
-| Provider | 方式 | 代價 |
-|---|---|---|
-| `llm`（預設） | 由你的對話模型做 0–3 分逐條評分 | 一次額外 LLM 調用 |
-| `local` | 交叉編碼器，需 `pip install 'loci-rag[rerank]'` | GPU 上 5 對約 30–70 毫秒——離線、免費 |
-
-## 它與 Obsidian / 筆記應用的關係
-
-不衝突——兩者分層協作。Obsidian（或任意編輯器）是筆記前端；loci 是**跨庫檢索引擎**：把 `sources` 指向任意目錄（Obsidian 庫、專案文件、聊天導出），一次查詢覆蓋全部——從終端、腳本或經 MCP 的 AI 代理。Obsidian 原生細節都能理解：frontmatter `tags:`（`--tag` 過濾）、`[[雙鏈]]`（`links` 命令）、程式碼塊永不切斷、單行筆記也能搜到。
-
-## 安裝與快速開始
-
-需要 Python 3.11+（使用標準庫 `tomllib`）。
+需要 **Python 3.11+**。從原始碼開始即可取得設定範例：
 
 ```bash
-# 方式 A：從 PyPI 安裝（附帶 `loci` 和 `loci-mcp` 兩個命令）
-pip install "loci-rag[pdf,docx]"   # 可選 extras：PDF 含表格、Word 文件
-
-# 方式 B：免安裝快速開始
-pip install -r requirements.txt
-
-# 1. 設定：複製範例並填入你的值
+git clone https://github.com/IvenKooLab/loci.git
+cd loci
+python -m pip install -e .
 cp config.example.toml config.toml
-
-# 2. 灌庫（增量——按內容 hash 去重，可安全重跑）
-loci ingest            # 或: python main.py ingest
-
-# 3. 提問
-loci ask "what did I write about X?"
 ```
 
-### 工作流
-
-```mermaid
-flowchart TD
-    A["pip install loci-rag"] --> B["cp config.example.toml config.toml<br>fill API keys + source dirs"]
-    B --> C["loci ingest — hybrid index built"]
-    C --> D["loci watch — index stays fresh (optional)"]
-    C --> E{"What do you need?"}
-    E -->|"a synthesized answer"| F["loci ask --verify<br>claim-by-claim audit"]
-    E -->|"raw excerpts to quote"| G["loci search --tag memory"]
-    E -->|"back-and-forth"| H["loci chat"]
-    E -->|"scattered notes on a topic"| I["loci wiki topic<br>consolidate into a wiki page"]
-    F --> J["loci remember —<br>keep what you learned"]
-    I --> J
-```
-
-## 命令
-
-| 命令 | 作用 |
-|---|---|
-| `ingest` | 掃描來源目錄，索引新增/變更檔案，清理已刪除檔案（`--force` 全量重建） |
-| `search "query"` | 純檢索——帶 `路徑 > 章節` 麵包屑的排序結果 |
-| `ask "question"` | 檢索 + LLM 回答，帶 `[source: path > section]` 引用 |
-| `ask "…" --verify` | 追加逐條主張審計（✓ 支援 / ~ 部分 / ✗ 不支援） |
-| `links "note"` | 顯示某筆記的 `[[雙鏈]]` 出入圖譜 |
-| `chat` | 多輪問答循環（`/clear`、`/exit`） |
-| `wiki topic` | 把索引中關於某主題的內容蒸餾成一頁 wiki |
-| `remember text` | 寫入持久記憶筆記並立即索引 |
-| `ask "…" --rewrite` | LLM 改寫查詢（關鍵詞版 + 跨語言變體）後再檢索 |
-| `feedback good\|bad` | 為上一次 ask 用到的 chunk 評分；被打負評的 chunk 後續降權 |
-| `wiki --suggest` | 推薦值得寫 wiki 頁但還沒有頁面的主題 |
-| `bench cases.jsonl` | 檢索基準測試：hit@k，純向量 vs 混合 |
-| `sync push\|pull` | 經 git 在多台機器間同步 memories/wiki（[sync] remote） |
-| `serve-http` | HTTP REST API（search/ask/remember/stats），Bearer 驗證 |
-| `graph build` / `graph show 实体` | 知識圖譜：對 memories/wiki 抽取實體關係（graph.json） |
-| `stats` | 索引概況：每個來源的 chunk 數、模型、檢索設定 |
-| `doctor` | 健康檢查：設定、來源目錄、embed/LLM 端點、儲存 |
-| `watch` | 輪詢來源保持索引最新（可選） |
-| `python mcp_server.py` | MCP server（stdio，見下文） |
-
-過濾運算元（`search` 和 `ask` 均可自由組合）：
-
-| 參數 | 過濾範圍 |
-|---|---|
-| `--tag foo` | frontmatter 標籤含 `foo` 的檔案 |
-| `--in docs/en` | 路徑含該子字串的檔案 |
-| `--since 2026-08` / `--since 2026-08-15` | 該日期之後修改的檔案 |
-| `-e "exact phrase"` | 含精確短語的 chunk |
-| `-k N` | 返回 N 條（預設 5） |
-
-## 一份記憶，所有 IDE
-
-每個 MCP 宿主掛載的都是**同一個** loci server（同一 `config.toml`、同一索引），因此一個工具寫入的記憶，其他所有工具都能召回：
+編輯 `config.toml`：填寫 `[llm]`、`[embed]`，並將 `[[sources]].path` 改為筆記目錄。向量服務須支援 `/embeddings`；對話與向量服務可使用不同供應商。
 
 ```bash
-# Claude Code
-claude mcp add loci -- loci-mcp
+loci ingest
+loci search "部署決策"
+loci ask "我們決定如何部署？原因是什麼？"
 ```
 
-```jsonc
-// Cursor / Cline / Qoder / Trae（mcpServers JSON——各平台形狀一致）
-{ "mcpServers": { "loci": { "command": "loci-mcp" } } }
+已有設定時可直接安裝 `python -m pip install loci-rag`，並以 `LOCI_HOME` 指定實例目錄。PDF、Word 擴充：`python -m pip install 'loci-rag[pdf,docx]'`。
+
+> 可透過 `BRAIN_LLM_API_KEY`、`BRAIN_EMBED_API_KEY` 傳入金鑰。更換向量模型後，請執行 `loci ingest --force` 重建索引。
+
+## Web 管理介面
+
+```bash
+loci serve-http
 ```
 
-然後，在任意一個裡：*「記住 staging 密碼每週一輪換」* → `brain_remember` → 稍後在**另一個** IDE 裡：*「staging 密碼什麼時候輪換？」* → 得到帶引用的回答。記憶以純 markdown 存放在 `memories` 目錄（git 友好、無鎖定），統一打 `memory` 標籤，`loci search --tag memory` 可專搜記憶。
+開啟 **[127.0.0.1:8765/ui](http://127.0.0.1:8765/ui)**。介面支援英文／簡體中文、淺色／深色切換，無須額外建置前端。
 
-> **跨 IDE 提示**：預設的 `store` / `memories` 路徑相對於 loci 的啟動目錄。如果你的 IDE 從不同專案目錄啟動，請在 `config.toml` 裡把兩者指向同一個絕對位置——例如 `store.path = "~/.loci/store"`、`memories.path = "~/.loci/memories"`——所有 IDE 即共享同一份記憶庫。
+預設信任本機回環位址的匿名連線，並授予管理員權限。透過反向代理或 SSH 通道存取時，請設定 `[http] local_admin = false` 並使用角色權杖。[存取控制說明（簡中）](docs/guide.zh-CN.md#web-管理台)。
 
-## 生態
+[loci-dsh](https://github.com/IvenKooLab/loci-dsh) 可透過同一 HTTP 後端，將搜尋、問答與速記加入 DeepSeek Harness 工作台。
 
-- **[loci-dsh](https://github.com/IvenKooLab/loci-dsh)** —— [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的視覺化外掛：在 dsh Web UI 側邊欄裡搜尋、提問、速記記憶、查看索引狀態，經本機 REST 呼叫 `loci serve-http`。
+## 接入 AI 工具
 
-## 接入任意 MCP 宿主
-
-加入 `claude_desktop_config.json`（Claude Desktop）或你的 MCP 客戶端配置：
+讓 MCP 用戶端指向**相同的 `LOCI_HOME`**，共用設定、索引與記憶：
 
 ```json
 {
   "mcpServers": {
     "loci": {
-      "command": "python",
-      "args": ["/path/to/second-brain-rag/mcp_server.py"]
+      "command": "loci-mcp",
+      "env": { "LOCI_HOME": "/absolute/path/to/your/loci-instance" }
     }
   }
 }
 ```
 
-除工具外，server 還支援完整協議：
+實例目錄須包含 `config.toml`。若找不到 `loci-mcp`，請改用執行檔的絕對路徑。
 
-- **Resources** —— `resources/list` 暴露 `brain://stats` 和每個已索引檔案的 `brain://note/…` 資源（經 `resources/read` 讀取原始 markdown）
-- **Prompts** —— 三個預置模板：`brain-briefing`、`study-plan`、`contradiction-check`
-
-## 工具一覽
-
-| 工具 | 用途 |
+| MCP 工具 | 用途 |
 |---|---|
-| `brain_search(query, k?, tag?, in?)` | 帶麵包屑的排序摘錄 |
-| `brain_ask(question, verify?)` | 基於索引的引用式回答；`verify=true` 追加逐條審計 |
-| `brain_wiki(topic)` | **記憶鞏固**——把索引蒸餾成互鏈 wiki 頁 |
-| `brain_remember(text, title?, tags?)` | **寫入持久記憶**——跨會話、跨 IDE 共享 |
-| `brain_forget(query)` | 軟刪除匹配記憶（進 `.trash` 資料夾） |
-| `brain_links(note)` | 筆記的出入 `[[wikilink]]` 圖譜 |
-| `brain_stats()` | 索引概況（每個來源的 chunk 數） |
-| `brain_ingest(force?)` | 增量重建索引 |
+| `brain_search` · `brain_ask` | 搜尋片段與附帶引用的回答 |
+| `brain_remember` · `brain_forget` | 儲存或撤回長期記憶 |
+| `brain_links` · `brain_graph` | 探索筆記連結與知識關係 |
+| `brain_wiki` · `brain_harness` | 整理專題知識與 Agent 記憶 |
+| `brain_stats` · `brain_ingest` | 查看及更新索引 |
 
-## 全離線：Ollama
+## 日常工作流程
 
-索引天然本地——向量和對話調用也可以。任何 OpenAI 相容服務都行，[Ollama](https://ollama.com) 已端到端驗證：
-
-```toml
-[llm]
-base_url = "http://localhost:11434/v1"
-api_key = "ollama"          # 任意非空佔位符
-model = "qwen2.5:0.5b"
-
-[embed]
-base_url = "http://localhost:11434/v1"
-api_key = "ollama"
-model = "all-minilm"
+```bash
+loci watch
+loci remember "展示使用預備環境" --title "展示環境約定"
+loci search "展示環境" --tag memory
+loci ask "準備展示時應注意什麼？" --verify
+loci harness
 ```
 
-此配置下 `ingest` / `search` / `ask` 雲端調用為零。換更大的本地對話模型即可獲得更好的回答——管線與模型無關。
+索引會增量更新，記憶保留為可讀的 Markdown。跨機器請同步原始檔案與記憶，分別建立本機索引；不要將金鑰存入儲存庫。
 
-## 設定
+## 文件
 
-| 鍵 | 含義 |
-|---|---|
-| `[llm]` | base_url / api_key / model——任意 OpenAI 相容端點 |
-| `[embed]` | 同上；model 須為 embedding 模型（如 `embedding-3`） |
-| `[[sources]]` | 文件目錄列表，遞迴掃描 `.md` / `.txt` / `.html` / `.org`（裝了 extras 還支援 `.pdf` / `.docx`） |
-| `[[sources]] chunk_size` / `chunk_overlap` | 按目錄覆蓋切分參數 |
-| `[chunk]` | 全域切分參數（預設 800 字元 / 100 重疊） |
-| `[top_k]` | 每次搜尋的命中數（預設 5） |
-| `[retrieval]` | `hybrid`（向量+BM25 融合，預設開）、`rrf_k`、`rerank`（LLM 重排，預設關） |
-| `[memories]` / `[wiki]` | 記憶筆記與 wiki 頁的目錄（自動併入索引） |
-| `[watch]` | 輪詢間隔秒數 |
+[使用指南（簡中）](docs/guide.zh-CN.md) · [English guide](docs/guide.en.md) · [設定範例](config.example.toml) · [架構](docs/ARCHITECTURE.md) · [更新紀錄](CHANGELOG.md) · [路線圖](docs/roadmap.md) · [參與貢獻](CONTRIBUTING.md)
 
-API key 也可用環境變數 `BRAIN_LLM_API_KEY` / `BRAIN_EMBED_API_KEY`（覆蓋設定檔）。
+執行時使用 OpenAI 相容 SDK 與 ChromaDB，不依賴 LangChain 或 LlamaIndex。測試離線執行，無須 API key：
 
-- **知識圖譜**：`loci graph build` 從記憶與 wiki 頁抽取實體關係三元組，存入人類可讀的 `graph.json`；`brain_graph(entity)` 展示概念間的連接（每條邊帶來源引用），wiki 生成時以圖譜關係作補充上下文
-- **OCR**（`[ocr]` extra）：圖片與掃描版 PDF 也能識別入庫
-- **HTML / org-mode 載入器**（標準庫實作，零新依賴）
+```bash
+python -m pip install -e '.[dev,pdf]'
+pytest
+```
 
-## 設計決策
-
-- **核心約 500 行，不用 LangChain**——每個環節都可讀、可改、可學，整個引擎一次能讀完
-- **MCP 優先**——AI 宿主生態就是 UI 層，無需自己維護 Web 應用
-- **混合檢索預設開啟**——向量 + 原生 BM25（CJK 友好分詞）經 RRF 融合
-- **引用必帶，且帶麵包屑**——`路徑 > 章節`，結論隨時可查證
-- **索引健壯、可檢視**——防禦性載入器（解析失敗的跳過且不卡死）、內容 hash 增量、真實清理、`stats` / `doctor` 命令讓索引永不黑箱
-- **小筆記也能搜到**——不做最小 chunk 過濾，一行筆記同樣入庫
-- **金鑰不入程式碼**——`config.toml`（已 gitignore）或環境變數
-
-## 定位對比
-
-| | loci | AnythingLLM (65k★) | Khoj (37k★) | RAGFlow (90k★) |
-|---|---|---|---|---|
-| 定位 | 個人檢索**後端** + MCP | 全能聊天平台 | 自託管 AI 助手 | 企業級 RAG 引擎 |
-| 體量 | 2 個執行時依賴，無 Docker | 桌面/Docker | Django 服務 + worker | Docker + DeepDoc 模型 |
-| 介面 | 你的終端與你的代理 | 內建 Web/桌面 | Web + Obsidian/Emacs | Web |
-| MCP server | ✅ 原生 | 消費端 | — | — |
-| 核心可讀性 | ✅ 約 500 行 | ✗ | ✗ | ✗ |
-| 多用戶 | 設計上不做 | ✅ | ✅ | ✅ |
-
-（完整數據與推理見[競品分析](docs/research/competitive-landscape.md)。）
-
-## 路線圖
-
-見 [docs/roadmap.md](docs/roadmap.md)——重排序、GraphRAG 實驗、更多載入器。
-
-## 授權條款
-
-MIT
+[GitHub](https://github.com/IvenKooLab/loci) · [Gitee](https://gitee.com/IvenKooLab/loci) · [MIT](LICENSE)
