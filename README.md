@@ -1,510 +1,136 @@
-# loci 🧠
+<p align="center">
+  <img src="docs/assets/loci-banner.svg" alt="loci — shared memory for your AI tools" width="100%">
+</p>
 
-[![English](https://img.shields.io/badge/English-README-0969DA)](README.md)
-[![简体中文](https://img.shields.io/badge/简体中文-README-6E7681)](README.zh-CN.md)
-[![繁體中文](https://img.shields.io/badge/繁體中文-README-6E7681)](README.zh-TW.md)
-[![日本語](https://img.shields.io/badge/日本語-README-6E7681)](README.ja.md)
-[![Gitee Stars](https://gitee.com/IvenKooLab/loci/badge/star.svg?theme=dark)](https://gitee.com/IvenKooLab/loci)
-[![한국어](https://img.shields.io/badge/한국어-README-6E7681)](README.ko.md)
+<p align="center">
+  <a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.ja.md">日本語</a> · <a href="README.ko.md">한국어</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/IvenKooLab/loci/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/IvenKooLab/loci/ci.yml?branch=main&amp;label=CI" alt="CI"></a>
+  <a href="https://pypi.org/project/loci-rag/"><img src="https://img.shields.io/pypi/v/loci-rag?color=367d65" alt="PyPI"></a>
+  <img src="https://img.shields.io/badge/Python-3.11%2B-367d65" alt="Python 3.11+">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-367d65" alt="MIT license"></a>
+</p>
 
 <!-- mcp-name: io.github.IvenKooLab/loci -->
 
-[![CI](https://img.shields.io/github/actions/workflow/status/IvenKooLab/loci/ci.yml?branch=main&label=CI)](https://github.com/IvenKooLab/loci/actions/workflows/ci.yml)
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)
-[![loci MCP server — quality and maintenance score on Glama](https://glama.ai/mcp/servers/IvenKooLab/loci/badges/score.svg)](https://glama.ai/mcp/servers/IvenKooLab/loci)
-[![ModelScope MCP Square](https://img.shields.io/badge/ModelScope-MCP-7C3AED)](https://modelscope.cn/mcp/servers/IvenKooLab/loci)
-[![Featured in awesome-mcp-servers](https://img.shields.io/badge/featured_in-awesome--mcp--servers-8A2BE2)](https://github.com/punkpeye/awesome-mcp-servers)
+**Turn scattered notes, project docs and agent memories into a knowledge base you can search and ask questions about — from your terminal, browser or MCP client.**
 
-> Two thousand years ago, orators stored their speeches in the rooms of a
-> palace and walked through them to remember. **loci does the same for your
-> files.**
->
-> *Loci* is the method behind every memory palace: place knowledge in
-> locations, recall it by walking the path.
+loci combines vector search with BM25 and returns answers with `file > section` citations. Your files and index stay on your machine. Embedding and chat requests go to the providers you configure; local endpoints can keep the entire workflow offline.
 
-![loci demo](docs/assets/loci-demo.gif)
+[Quick start](#quick-start) · [Web console](#web-console) · [MCP setup](#connect-your-ai-tools) · [Usage guide](docs/guide.en.md) · [中文说明](README.zh-CN.md)
 
-**A queryable "second brain" for the project docs, notes, and chat logs scattered
-across a dozen directories — and an MCP server so your AI agents can use it too.**
+## What you can do
 
-Local files → heading-aware chunking → embeddings → hybrid retrieval (vector +
-BM25) → LLM answer with section-level citations. The index lives entirely on
-your machine; only embedding/chat calls go out, to any OpenAI-compatible API
-(Zhipu / DeepSeek / Kimi / OpenAI / …).
+| Need | How loci helps |
+|---|---|
+| Find a decision buried in your notes | Hybrid search across directories, with tag, path and date filters |
+| Ask a question and check the evidence | Answers cite source sections; optional claim-by-claim verification |
+| Carry context between AI tools | MCP tools share one instance; durable memories are Markdown files |
+| See what each coding agent remembers | Harness discovery, file browsing, per-tool stats and digest notes |
+| Manage the knowledge base visually | Built-in Web console for search, Q&A, memories, indexing and audit |
 
-> **The thesis** (from studying the 90k-star platforms and the graveyard of
-> dead lightweight tools — see
-> [our competitive landscape study](docs/research/competitive-landscape.md)):
-> don't build another chat app. Build the **memory layer that every chat app
-> can mount**. Claude Desktop, Cursor, Cline, or any MCP host becomes this
-> project's UI, for free.
+Markdown, text, HTML, org-mode and chat exports work out of the box. Optional extras add PDF, Word and OCR support. Keep using your existing note editor or Obsidian vault.
 
-## Demo
+## Quick start
 
-Real session, indexed against the docs of
-[minimax-h3-turing](https://github.com/IvenKooLab/minimax-h3-turing)
-(paths shortened for display):
-
-```
-$ python main.py search "what the 22G card can and cannot do" -k 3
-
-[1] minimax-h3-turing/docs/en/01-hardware-limits.md > 01 · What a 2080Ti 22G Can and Cannot Do    (similarity 0.562)
-[2] minimax-h3-turing/docs/en/02-w4a8-vs-w4a4.md > 02 · Quantization Measured > You Can Try Without 22G  (similarity 0.446)
-[3] minimax-h3-turing/docs/en/01-hardware-limits.md > ... > 3. VRAM is just barely enough — manage it  (similarity 0.504)
-
-$ python main.py ask "How should I choose between T8 aggressive mode and the final-render mode, and why?"
-
-Answer:
-* Drafts / preview / shot selection: use T8 aggressive mode — a 43% speedup
-  (2.7 min/clip), and "a different picture of equal quality" is fine for picking shots.
-* Final shots: use final-render mode (no T8). T8 makes the numerical trajectory
-  fork, so re-running with the same seed produces a different clip — which breaks
-  the reproducibility final outputs need.
-
-[source: docs/en/08-t8-blockcache-4step.md > Practical Advice (4-step Turbo route)]
-[source: docs/en/06-faq.md > 12. Cache-style accelerators break "same-seed re-runs"]
-```
-
-Hybrid retrieval means a Chinese query still finds the English doc (and vice
-versa) — keyword evidence (`BM25`) catches what embeddings miss, and every
-citation points at a **section**, not just a file.
-
-### Does hybrid actually help? (mini-eval, 10 bilingual queries)
-
-```
-$ python scripts/eval_retrieval.py scripts/eval_cases.example.jsonl
-vector-only: 9/10  →  hybrid: 10/10
-```
-
-Hybrid also fixed the #1 ranking on keyword-ish queries (e.g. "T8 block cache
-threshold speedup": vector put an FAQ first, hybrid puts the actual T8
-writeup first). Run it against your own corpus with your own cases file.
-
-### Reranking: two providers
-
-`--rerank` reorders the fused candidates for precision:
-
-| Provider | How | Cost |
-|---|---|---|
-| `llm` (default) | pointwise 0–3 relevance scoring by your chat model | one extra LLM call |
-| `local` | cross-encoder, via `pip install 'loci[rerank]'` | ~30–70 ms for 5 pairs on GPU — offline, free |
+Requires **Python 3.11+**. Start from source so the example configuration is available:
 
 ```bash
-python main.py search "T8 speedup" --rerank          # provider from config
-python main.py search "T8 speedup" --rerank local    # cross-encoder (BAAI/bge-reranker-base)
-```
-
-The local model downloads on first use (~1.1 GB; set `HF_ENDPOINT=https://hf-mirror.com`
-if HuggingFace is slow in your region). Measured on a 2080 Ti, bilingual query.
-
-### Office documents, PDF tables, web pages, org files, chat logs
-
-- **PDFs**: with the `[pdf]` extra, PyMuPDF4LLM extracts pages as markdown —
-  **tables come through as pipe rows** (plain pypdf text is the fallback)
-- **Word**: with the `[docx]` extra, `.docx` paragraphs and table rows are indexed
-- **HTML**: `.html` / `.htm` pages become text with headings preserved (stdlib
-  `html.parser`, zero dependencies — `<meta charset>` honored, script/style skipped)
-- **org-mode**: `.org` notes convert faithfully — `#+TITLE` becomes the h1 with
-  `*`-sections nested under it, `#+FILETAGS` become searchable tags
-- **Chat exports**: drop a ChatGPT or Claude `conversations.json` into any
-  source directory — it becomes one searchable document per conversation,
-  tagged `chatlog` (`search --tag chatlog` scopes to chat history)
-
-## How it relates to Obsidian / your note app
-
-It doesn't compete — the two layer up. Obsidian (or any editor) is the
-note-taking frontend; this is the **cross-vault search engine**: point
-`sources` at any directories (Obsidian vaults, project docs, chat exports)
-and query all of them at once — from your terminal, your scripts, or your AI
-agent via MCP. Obsidian-native details are understood: frontmatter `tags:`
-(filter with `search --tag`), `[[wikilinks]]` (walk the graph with `links`),
-code blocks are never cut mid-block, and one-line notes stay searchable.
-
-## How it works
-
-```mermaid
-%%{init: {'theme':'base','themeVariables':{'background':'#000000','primaryColor':'#000000','primaryTextColor':'#00FF41','primaryBorderColor':'#00FF41','lineColor':'#00FF41','secondaryColor':'#001a00','tertiaryColor':'#000000','clusterBkg':'#000000','clusterBorder':'#00FF41','edgeLabelBackground':'#000000','fontSize':'14px','fontFamily':'trebuchet ms, verdana, arial, sans-serif'},'themeCSS':'.nodeLabel { color: #00FF41 !important; } .edgeLabel { background: #000 !important; color: #00FF41 !important; } .cluster-label { color: #00FF41 !important; }'}}%%
-flowchart LR
-    subgraph sources["📥 Your machine"]
-        notes["Obsidian / markdown notes"]
-        docs["PDF tables · docx · project docs"]
-        chats["ChatGPT / Claude exports"]
-        mem["memories/ — agent-written notes"]
-        wikidir["wiki/ — consolidated pages"]
-    end
-
-    subgraph loci["🧠 loci — local index, nothing leaves the machine"]
-        ingest["ingest / watch<br>loaders → chunker → embedder"]
-        store[("ChromaDB<br>hybrid index")]
-        retrieve["hybrid retrieval<br>vector + BM25 → RRF"]
-        mcp["loci-mcp<br>8 tools · resources · prompts"]
-    end
-
-    subgraph hosts["🖥️ Your AI hosts"]
-        ide["Claude Code · Qoder · Trae<br>Cursor · Cline"]
-        desktop["Claude Desktop"]
-        term["Terminal<br>search / ask / chat / wiki"]
-    end
-
-    api["☁️ OpenAI-compatible API<br>Zhipu / DeepSeek / Kimi / OpenAI<br>or 100% offline via Ollama"]
-
-    sources --> ingest --> store
-    mem -. auto-indexed .-> store
-    wikidir -. auto-indexed .-> store
-    store --> retrieve
-    retrieve --> term
-    retrieve --> mcp
-    mcp <--> ide
-    mcp <-.-> desktop
-    retrieve -. "embedding + chat calls only" .-> api
-```
-
-The write path in one line: `loaders → chunker (heading-aware split) → embedder → store (ChromaDB, persistent)` — incremental, deduplicated by content hash.
-
-## Install & quick start
-
-Requires Python 3.11+ (uses the stdlib `tomllib`).
-
-```bash
-# option A: install from PyPI (adds `loci` and `loci-mcp` commands)
-pip install "loci-rag[pdf,docx]"   # optional extras: PDF w/ tables, Word documents
-
-# option B: zero-install quickstart
-pip install -r requirements.txt
-
-# 1. Configure: copy the example and fill in your values
+git clone https://github.com/IvenKooLab/loci.git
+cd loci
+python -m pip install -e .
 cp config.example.toml config.toml
-#    Any OpenAI-compatible endpoint works — see the provider table below.
-#    Switching the embedding model later? Vectors from different models don't
-#    mix: re-run `loci ingest --force` to rebuild the index.
-
-# 2. Ingest (incremental — deduplicated by content hash, safe to re-run)
-loci ingest            # or: python main.py ingest
-
-# 3. Ask
-loci ask "what did I write about X?"
 ```
 
-### Providers
-
-`[llm]` and `[embed]` can point at different providers (chat via DeepSeek,
-embeddings via OpenAI — mixing is fine). The only rule: the `[embed]` endpoint
-must offer an OpenAI-style `/embeddings` API.
-
-| Provider | `base_url` | chat model | embedding model | Notes |
-|---|---|---|---|---|
-| OpenAI *(default)* | `https://api.openai.com/v1` | `gpt-4o-mini` | `text-embedding-3-small` | |
-| Zhipu (GLM) | `https://open.bigmodel.cn/api/paas/v4` | `glm-4.6` | `embedding-3` | |
-| DeepSeek | `https://api.deepseek.com` | `deepseek-chat` | — | no `/embeddings`; pair `[embed]` with another provider |
-| Kimi (Moonshot) | `https://api.moonshot.cn/v1` | `kimi-k2` | — | same — pair `[embed]` elsewhere |
-| Ollama *(local)* | `http://localhost:11434/v1` | `llama3.1`, `qwen2.5:7b`, … | `nomic-embed-text` | 100% offline; any api_key accepted |
-
-### The workflow
-
-```mermaid
-%%{init: {'theme':'base','themeVariables':{'background':'#000000','primaryColor':'#000000','primaryTextColor':'#00FF41','primaryBorderColor':'#00FF41','lineColor':'#00FF41','secondaryColor':'#001a00','tertiaryColor':'#000000','clusterBkg':'#000000','clusterBorder':'#00FF41','edgeLabelBackground':'#000000','fontSize':'14px','fontFamily':'trebuchet ms, verdana, arial, sans-serif'},'themeCSS':'.nodeLabel { color: #00FF41 !important; } .edgeLabel { background: #000 !important; color: #00FF41 !important; } .cluster-label { color: #00FF41 !important; }'}}%%
-flowchart TD
-    A["pip install loci-rag"] --> B["cp config.example.toml config.toml<br>fill API keys + source dirs"]
-    B --> C["loci ingest — hybrid index built"]
-    C --> D["loci watch — index stays fresh (optional)"]
-    C --> E{"What do you need?"}
-    E -->|"a synthesized answer"| F["loci ask --verify<br>claim-by-claim audit"]
-    E -->|"raw excerpts to quote"| G["loci search --tag memory"]
-    E -->|"back-and-forth"| H["loci chat"]
-    E -->|"scattered notes on a topic"| I["loci wiki topic<br>consolidate into a wiki page"]
-    F --> J["loci remember —<br>keep what you learned"]
-    I --> J
-```
-
-## Commands
-
-| Command | What it does |
-|---|---|
-| `ingest` | scan sources, index new/changed files, prune deleted ones (`--force` re-embeds everything) |
-| `search "query"` | retrieval only — ranked excerpts with `path > section` breadcrumbs |
-| `ask "question"` | retrieval + LLM answer with `[source: path > section]` citations |
-| `ask "…" --verify` | additionally audit the answer claim-by-claim against the sources (✓ supported, ~ partial, ✗ unsupported) |
-
-Filter operators (combine freely, on `search` and `ask`):
-
-| Flag | Filters to |
-|---|---|
-| `--tag foo` | files whose frontmatter tags contain `foo` |
-| `--in docs/en` | files whose path contains the substring |
-| `--since 2026-08` / `--since 2026-08-15` | files modified on/after that date |
-| `-e "exact phrase"` | chunks containing the exact phrase |
-| `-k N` | return N hits (default 5) |
-| `links "note"` | show the `[[wikilink]]` graph around a note — outbound and inbound |
-| `chat` | multi-turn Q&A loop with conversation memory (`/clear`, `/exit`) |
-| `watch` | keep the index current by polling sources (interval in `[watch]`) |
-| `ask "…" --rewrite` | LLM-rewrite the query (keyword + cross-language variants) before retrieval |
-| `feedback good\|bad` | rate the chunks used in the last ask; bad-rated chunks sink in future results |
-| `wiki --suggest` | suggest wiki-worthy topics that don't have a page yet |
-| `bench cases.jsonl` | retrieval benchmark: hit@k, vector-only vs hybrid |
-| `sync push\|pull` | sync memories/wiki across machines via git ([sync] remote) |
-| `serve-http` | HTTP REST API (search/ask/remember/stats) with Bearer auth |
-| `graph build` / `graph show ENTITY` | knowledge graph over memories/wiki (LLM-extracted triples in graph.json) |
-| `stats` | what's in the index: chunks per source, models, retrieval settings |
-| `doctor` | health check: config, source dirs, embed/LLM endpoints, store (exit code 1 on failure — CI-friendly) |
-| `python mcp_server.py` | MCP server over stdio (see below) |
-
-## One memory, every IDE
-
-Because every MCP host mounts the *same* loci server (same `config.toml`, same
-index), memory written from one tool is recalled from every other:
+Edit `config.toml`: fill in `[llm]` and `[embed]`, and change `[[sources]].path` to your notes directory. The embedding endpoint must support `/embeddings`; chat and embeddings may use different providers.
 
 ```bash
-# Claude Code
-claude mcp add loci -- loci-mcp
+loci ingest
+loci search "deployment decisions"
+loci ask "What did we decide about deployment, and why?"
 ```
 
-```jsonc
-// Cursor / Cline / Qoder / Trae (mcpServers JSON — same shape everywhere)
-{ "mcpServers": { "loci": { "command": "loci-mcp" } } }
-```
+Already have a configuration? Install the package with `python -m pip install loci-rag` and set `LOCI_HOME` to your instance directory. For optional document support, use `python -m pip install 'loci-rag[pdf,docx]'`.
 
-Then, from any of them: *"remember that the staging password rotates on
-Mondays"* → `brain_remember` → later, from a *different* IDE:
-*"when does the staging password rotate?"* → answered, with the memory cited.
-Memories live as plain markdown in the `memories` directory (git-friendly, no
-lock-in) and are tagged `memory`, so `loci search --tag memory` scopes to them.
-
-> **Cross-IDE tip**: the default `store` / `memories` paths are relative to the
-> directory loci is launched from. If your IDEs start in different project
-> folders, point both at one absolute location in `config.toml` — e.g.
-> `store.path = "~/.loci/store"` and `memories.path = "~/.loci/memories"` —
-> and every IDE shares the exact same memory store.
-
-```mermaid
-%%{init: {'theme':'base','themeVariables':{'background':'#000000','primaryColor':'#000000','primaryTextColor':'#00FF41','primaryBorderColor':'#00FF41','lineColor':'#00FF41','actorBkg':'#000000','actorBorder':'#00FF41','actorTextColor':'#00FF41','signalColor':'#00FF41','signalTextColor':'#00FF41','noteBkgColor':'#001a00','noteBorderColor':'#00FF41','activationBkgColor':'#001a00','edgeLabelBackground':'#000000','fontSize':'14px','fontFamily':'trebuchet ms, verdana, arial, sans-serif'},'themeCSS':'.messageText { fill: #00FF41 !important; } .actor { fill: #000 !important; stroke: #00FF41 !important; } text.actor { fill: #00FF41 !important; }'}}%%
-sequenceDiagram
-    participant CC as Claude Code
-    participant L as loci-mcp
-    participant S as ChromaDB (local)
-    participant T as Trae / Qoder / any IDE
-    CC->>L: brain_remember("deploy rotates Mondays")
-    L->>S: write memory.md + embed + index
-    Note over S: persists across sessions and IDEs
-    T->>L: brain_search("password rotation")
-    L->>S: hybrid retrieval
-    L-->>T: cited answer — the memory is recalled
-```
-
-## Real-world deployments
-
-Two production setups that informed loci's design:
-
-- **Shared memory across AI coding tools** — two agents (different CLIs) mount
-  the *same* loci MCP server; each tool's native memory directory is a
-  `[[sources]]` entry, so memory written on one side is recalled from the
-  other, and `brain_remember` writes land in the shared pool.
-- **Chat-app → knowledge-base pipeline** — documents messaged to a bot are
-  committed to a private git repo; every machine pulls that repo on a timer
-  and keeps its *own* local loci index fresh, so anything sent from the phone
-  is searchable from every IDE and agent minutes later. Along the way this
-  surfaced a real-world quirk: chat-app transfers can corrupt one zip member
-  of a `.docx` — loci now salvages the text instead of skipping the file.
-
-Rule of thumb for multi-machine setups: **sync source files, never indexes or
-keys**. The vector index is machine-local (rebuild it with `loci ingest`);
-credentials never belong in the repo.
-
-## Harness memory hub
-
-Running several AI coding tools? Each keeps its own memory directory. loci
-discovers them automatically — a built-in registry (ZCode, Codex, DeepSeek
-Harness, Claude Code) is probed per machine (home dirs, app bundles,
-`DSH_HOME`), and every hit shows up as a card with its real memory stats.
-Nothing is invented on disk: a tool with no markdown memories simply shows
-zero. To override detection or add another tool, register it explicitly:
-
-```toml
-[[harness]]
-name = "zcode"
-type = "zcode"                        # knows projects/*/memory/*.md
-paths = ["~/.zcode/cli/memories"]
-icon = "⚡"                            # emoji, or a file in the icons dir
-
-[[harness]]
-name = "my-tool"
-type = "generic"                      # recursive *.md scan
-paths = ["~/notes/from-my-agent"]
-```
-
-- `loci harness` — per-tool stats (files, indexed chunks, last update, digest
-  freshness), zero LLM cost
-- `loci harness --summarize` — distill each tool's memories into a digest note
-  in the shared pool (`memories/harness/<name>.md`), fingerprint-gated: an
-  unchanged tool costs nothing, so `watch` can refresh on every cycle with
-  `[watch] auto_summarize = true`
-- MCP `brain_harness` — same two actions from any agent ("how is every tool
-  doing lately?")
+> API keys can be supplied through `BRAIN_LLM_API_KEY` and `BRAIN_EMBED_API_KEY`. After changing the embedding model, rebuild with `loci ingest --force`.
 
 ## Web console
 
-`loci serve-http` now ships a built-in console at `http://127.0.0.1:8765/ui`
-(no extra dependencies, no build step): harness cards with icons, shared-memory
-create/edit/soft-delete, index stats with one-click ingest & re-summarize, and
-a search/ask box.
-
-Access control via multiple tokens and roles in `config.toml`:
-
-```toml
-[[auth.tokens]]
-token = "long-random-secret-1"
-role = "admin"                        # + ingest, re-summarize, audit log
-label = "my-laptop"
-
-[[auth.tokens]]
-token = "long-random-secret-2"
-role = "viewer"                       # read-only browsing
-label = "phone"
+```bash
+loci serve-http
 ```
 
-Roles stack: `viewer` (read) < `editor` (+ create/edit/delete memories)
-< `admin` (+ ingest / re-summarize / audit). The legacy single `[http]` token
-keeps working and maps to admin. On your own machine no login is needed —
-anonymous connections from 127.0.0.1 are trusted as admin (disable with
-`[http] local_admin = false` when serving behind a reverse proxy or SSH
-tunnel, where remote traffic also arrives on loopback). Write and admin
-actions are audited to the service log and to `GET /audit`. The console binds
-to 127.0.0.1 like the API — reach it from other devices through an SSH tunnel
-or a TLS reverse proxy. The UI toggles 中文/EN in the header.
+Open **[127.0.0.1:8765/ui](http://127.0.0.1:8765/ui)** to browse harness memories, search, ask questions, edit shared notes and inspect indexing activity. The console includes Chinese/English and light/dark switches; no frontend build is required.
 
-## Ecosystem
+By default, anonymous loopback clients have admin access. Behind a reverse proxy or SSH tunnel, set `[http] local_admin = false` and configure role-based tokens. See [access control](docs/guide.en.md#web-console).
 
-- **[loci-dsh](https://github.com/IvenKooLab/loci-dsh)** — visual plugin for
-  [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): search,
-  ask, quick-capture memories and watch index stats from a sidebar in the dsh
-  web UI, talking to `loci serve-http` over local REST.
+For DeepSeek Harness, [loci-dsh](https://github.com/IvenKooLab/loci-dsh) brings search, Q&A and memory capture into the Harness workbench through the same HTTP backend.
 
-## Mount it in any MCP host
+## Connect your AI tools
 
-Add to `claude_desktop_config.json` (Claude Desktop) or your MCP client's
-config:
+Point each MCP client at the **same `LOCI_HOME`** so they share the same config, index and memory files:
 
 ```json
 {
   "mcpServers": {
     "loci": {
-      "command": "python",
-      "args": ["/path/to/loci/mcp_server.py"],
-      "env": { "LOCI_HOME": "/path/to/instance" }
+      "command": "loci-mcp",
+      "env": { "LOCI_HOME": "/absolute/path/to/your/loci-instance" }
     }
   }
 }
 ```
 
-`LOCI_HOME` anchors config, index, memories and wiki at one directory — no
-matter the process's cwd. Handy for MCP mounts and for running `serve-http`
-under launchd/cron/systemd, where a wrapper script's `cd` wouldn't apply.
+Use an absolute executable path if your client cannot find `loci-mcp`. The instance directory must contain your `config.toml`.
 
-The server exposes three tools (zero dependencies beyond the core):
-
-| Tool | Purpose |
+| MCP tools | Purpose |
 |---|---|
-| `brain_search(query, k?, tag?, in?)` | ranked excerpts with breadcrumbs |
-| `brain_ask(question, verify?)` | grounded answer with citations; `verify=true` adds a claim-by-claim audit |
-| `brain_links(note)` | outbound/inbound `[[wikilink]]` graph around a note |
-| `brain_stats()` | index overview (chunks per source) |
-| `brain_graph(entity?)` | knowledge-graph relations for an entity (omit for hub entities) |
-| `brain_remember(text, title?, tags?)` | **write a memory** — durable, shared across sessions and IDEs |
-| `brain_forget(query)` | soft-delete matching memories (they go to a `.trash` folder) |
-| `brain_harness(action, name?, force?)` | per-AI-tool memory stats, or refresh their digest notes |
-| `brain_wiki(topic)` | **memory consolidation** — distill the index into a curated wiki page about a topic |
-| `brain_ingest(force?)` | incremental re-index |
+| `brain_search` · `brain_ask` | Retrieve excerpts or get cited answers |
+| `brain_remember` · `brain_forget` | Store or retract durable memories |
+| `brain_links` · `brain_graph` | Explore note links and extracted relations |
+| `brain_wiki` · `brain_harness` | Consolidate knowledge and inspect agent memories |
+| `brain_stats` · `brain_ingest` | Inspect and refresh the index |
 
-Beyond tools, the server speaks the full protocol:
+The server also exposes note resources and briefing, study-plan and contradiction-check prompts. See the [MCP guide](docs/guide.en.md#mount-it-in-any-mcp-host) for details.
 
-- **Resources** — `resources/list` exposes `brain://stats` plus one
-  `brain://note/…` resource per indexed file (raw markdown via `resources/read`)
-- **Prompts** — three ready-made templates: `brain-briefing`, `study-plan`,
-  `contradiction-check`; hosts render them with your topic pre-filled
-
-## Fully offline with Ollama
-
-The index is local by design — and the embedding/chat calls can be too. Any
-OpenAI-compatible server works; [Ollama](https://ollama.com) is verified
-end-to-end:
-
-```toml
-[llm]
-base_url = "http://localhost:11434/v1"
-api_key = "ollama"          # any non-empty placeholder
-model = "qwen2.5:0.5b"
-
-[embed]
-base_url = "http://localhost:11434/v1"
-api_key = "ollama"
-model = "all-minilm"
-```
-
-With this config, `ingest` / `search` / `ask` make zero cloud calls.
-Swap in a bigger local chat model for better answers — the pipeline is
-model-agnostic.
-
-## Configuration
-
-| Key | Meaning |
-|---|---|
-| `[llm]` | base_url / api_key / model — any OpenAI-compatible endpoint |
-| `[embed]` | same; the model must be an embedding model (e.g. `text-embedding-3-small`) |
-| `[[sources]]` | document directories, scanned recursively for `.md` / `.txt` / `.html` / `.org` (plus `.pdf`/`.docx`/images with the matching extras) |
-| `[[sources]] chunk_size` / `chunk_overlap` | optional per-directory chunking override — wins over the global `[chunk]` block |
-| `[chunk]` | chunking params (default 800 chars / 100 overlap) |
-| `[top_k]` | number of hits per search (default 5) |
-| `[retrieval]` | `hybrid` (vector+BM25 fusion, default on), `rrf_k`, `rerank` (LLM reranking, default off) |
-| `[watch]` | poll `interval` seconds |
-
-API keys can also come from the environment variables `BRAIN_LLM_API_KEY` /
-`BRAIN_EMBED_API_KEY` (these override the config file).
-
-## Development
+## A small daily workflow
 
 ```bash
-git clone https://github.com/IvenKooLab/loci && cd loci
-pip install -e ".[pdf,docx]"        # editable install for hacking on loci
-pip install -r requirements-dev.txt
-pytest                              # fully offline, no API keys needed
+loci watch                            # keep changed documents indexed
+loci remember "Use staging for demos" --title "Demo environment"
+loci search "demo environment" --tag memory
+loci ask "How should I prepare a demo?" --verify
+loci harness                          # inspect detected agent memories
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the ground rules (no frameworks,
-tests stay offline, citations are sacred).
+Indexing is incremental. Notes stay readable as Markdown. For multiple machines, sync source files and memory notes, then rebuild each local index; keep credentials out of the repository.
 
-## Design decisions
+<details>
+<summary><strong>See a retrieval session</strong></summary>
 
-- **~300 lines of core, no LangChain** — every stage is readable, hackable,
-  and learnable. The whole engine fits in one sitting.
-- **MCP-first** — the agent ecosystem is the UI layer. No web app to maintain.
-- **Hybrid retrieval on by default** — vector search fused with a native
-  ~60-line BM25 (CJK-aware tokenizer) via Reciprocal Rank Fusion.
-- **Citations always, with breadcrumbs** — `path > section`, so claims are
-  verifiable at a glance.
-- **Robust, inspectable indexing** — defensive loaders (skip what can't be
-  parsed, never hang), content-hash incrementality, real pruning, `stats` and
-  `doctor` so the index is never a black box.
-- **Tiny notes stay searchable** — no minimum-chunk filter; a one-line note is
-  still indexed (a lesson from watching other tools drop or choke on them).
-- **Keys never in code** — `config.toml` (gitignored) or env vars.
+![loci terminal demo](docs/assets/loci-demo.gif)
 
-## Where it sits
+The [usage guide](docs/guide.en.md#demo) includes the original bilingual retrieval example and a small evaluation you can rerun against your own corpus.
 
-| | loci | AnythingLLM (65k★) | Khoj (37k★) | RAGFlow (90k★) |
-|---|---|---|---|---|
-| Positioning | personal retrieval **backend** + MCP | all-in-one chat platform | self-hosted AI assistant | enterprise RAG engine |
-| Footprint | 2 runtime deps, no Docker | desktop app / Docker | Django server + workers | Docker, DeepDoc models |
-| UI | your terminal & your agents | built-in web/desktop | web + Obsidian/Emacs | web |
-| MCP server | ✅ native | consumer | — | — |
-| Hackable core | ✅ ~300 lines | ❌ | ❌ | ❌ |
-| Multi-user | by design, no | ✅ | ✅ | ✅ |
+</details>
 
-(Full data and reasoning: [competitive landscape study](docs/research/competitive-landscape.md).)
+## Documentation
 
-## Roadmap
+| Guide | Covers |
+|---|---|
+| [Usage guide](docs/guide.en.md) / [中文指南](docs/guide.zh-CN.md) | Commands, filters, harness setup, access control and local models |
+| [Configuration example](config.example.toml) | Provider settings, source directories and runtime options |
+| [Architecture](docs/ARCHITECTURE.md) | Modules and the retrieval pipeline |
+| [Changelog](CHANGELOG.md) · [Roadmap](docs/roadmap.md) | Released changes and planned work |
+| [Contributing](CONTRIBUTING.md) | Development conventions and offline testing |
 
-See [docs/roadmap.md](docs/roadmap.md) — reranking, GraphRAG experiments, more loaders.
+loci uses the OpenAI-compatible SDK and ChromaDB, with no LangChain or LlamaIndex dependency. BM25, loaders and the MCP transport are implemented in the project.
 
-## License
+```bash
+python -m pip install -e '.[dev,pdf]'
+pytest  # offline tests; no API keys required
+```
 
-MIT
+Find loci on [Glama](https://glama.ai/mcp/servers/IvenKooLab/loci), [ModelScope](https://modelscope.cn/mcp/servers/IvenKooLab/loci) and [awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers). Source: [GitHub](https://github.com/IvenKooLab/loci) · [Gitee](https://gitee.com/IvenKooLab/loci). Licensed under [MIT](LICENSE).
