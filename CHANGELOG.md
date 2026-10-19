@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.8.0 — 2026-10-17
+
+Harness memory hub + built-in web console, from running loci as the shared
+memory layer for several AI coding tools at once.
+
+### Added
+- **Harness memory hub**: register each AI tool's native memory directory as a
+  `[[harness]]` entry (type presets for zcode's `projects/*//memory` layout and
+  codex's flat dir; `generic` covers everything else). `loci harness` prints
+  per-tool stats (files / indexed chunks / last update / digest freshness) with
+  zero LLM cost; `loci harness --summarize` distills each tool's memories into
+  a digest note in the shared pool, fingerprint-gated so unchanged harnesses
+  cost nothing. New MCP tool `brain_harness` (stats | summarize)
+- **Web console** at `http://127.0.0.1:8765/ui` (serve-http, zero new
+  dependencies): harness cards with icons, shared-memory CRUD (create / edit /
+  soft-delete to `.trash`), index stats with trigger buttons for ingest and
+  re-summarize, search & ask box
+- **Multi-token access control**: `[[auth.tokens]]` entries with roles —
+  viewer (read-only) < editor (+ memory writes) < admin (+ ingest /
+  re-summarize / audit). The legacy single `[http]` token keeps working and
+  maps to admin. Write and admin actions are audited to the service log and a
+  `GET /audit` ring buffer
+- **`watch --auto-summarize`** (`[watch] auto_summarize = true`): refresh
+  harness digests on every poll cycle — the fingerprint gate makes no-change
+  cycles free
+
 ## v0.7.0 — 2026-10-13
 
 Hardening release, driven by the first production deployment (a zcode + codex

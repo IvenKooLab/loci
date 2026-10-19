@@ -310,6 +310,60 @@ Rule of thumb for multi-machine setups: **sync source files, never indexes or
 keys**. The vector index is machine-local (rebuild it with `loci ingest`);
 credentials never belong in the repo.
 
+## Harness memory hub
+
+Running several AI coding tools? Each keeps its own memory directory. Register
+them once and loci becomes the pane of glass over all of them:
+
+```toml
+[[harness]]
+name = "zcode"
+type = "zcode"                        # knows projects/*/memory/*.md
+paths = ["~/.zcode/cli/memories"]
+icon = "⚡"                            # emoji, or a file in the icons dir
+
+[[harness]]
+name = "codex"
+type = "codex"                        # flat *.md directory
+paths = ["~/.codex/memories"]
+```
+
+- `loci harness` — per-tool stats (files, indexed chunks, last update, digest
+  freshness), zero LLM cost
+- `loci harness --summarize` — distill each tool's memories into a digest note
+  in the shared pool (`memories/harness/<name>.md`), fingerprint-gated: an
+  unchanged tool costs nothing, so `watch` can refresh on every cycle with
+  `[watch] auto_summarize = true`
+- MCP `brain_harness` — same two actions from any agent ("how is every tool
+  doing lately?")
+
+## Web console
+
+`loci serve-http` now ships a built-in console at `http://127.0.0.1:8765/ui`
+(no extra dependencies, no build step): harness cards with icons, shared-memory
+create/edit/soft-delete, index stats with one-click ingest & re-summarize, and
+a search/ask box.
+
+Access control via multiple tokens and roles in `config.toml`:
+
+```toml
+[[auth.tokens]]
+token = "long-random-secret-1"
+role = "admin"                        # + ingest, re-summarize, audit log
+label = "my-laptop"
+
+[[auth.tokens]]
+token = "long-random-secret-2"
+role = "viewer"                       # read-only browsing
+label = "phone"
+```
+
+Roles stack: `viewer` (read) < `editor` (+ create/edit/delete memories)
+< `admin` (+ ingest / re-summarize / audit). The legacy single `[http]` token
+keeps working and maps to admin. Write and admin actions are audited to the
+service log and to `GET /audit`. The console binds to 127.0.0.1 like the API —
+reach it from other devices through an SSH tunnel or a TLS reverse proxy.
+
 ## Ecosystem
 
 - **[loci-dsh](https://github.com/IvenKooLab/loci-dsh)** — visual plugin for
@@ -349,6 +403,7 @@ The server exposes three tools (zero dependencies beyond the core):
 | `brain_graph(entity?)` | knowledge-graph relations for an entity (omit for hub entities) |
 | `brain_remember(text, title?, tags?)` | **write a memory** — durable, shared across sessions and IDEs |
 | `brain_forget(query)` | soft-delete matching memories (they go to a `.trash` folder) |
+| `brain_harness(action, name?, force?)` | per-AI-tool memory stats, or refresh their digest notes |
 | `brain_wiki(topic)` | **memory consolidation** — distill the index into a curated wiki page about a topic |
 | `brain_ingest(force?)` | incremental re-index |
 

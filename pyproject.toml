@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "loci-rag"
-version = "0.7.0"
+version = "0.8.0"
 description = "A local 'second brain': RAG over your scattered notes and docs, with an MCP server so AI agents can use it too."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -47,3 +47,6 @@ Roadmap = "https://github.com/IvenKooLab/loci/blob/main/docs/roadmap.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+loci = ["web/*"]
