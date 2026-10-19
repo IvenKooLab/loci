@@ -253,6 +253,18 @@ th { color: var(--muted); font-weight: 500; font-size: 12px; }
 }
 .linklike:hover { background: var(--panel2); }
 
+/* ---- audit explainer ---- */
+.info-card {
+  background: var(--panel); border-radius: 14px;
+  box-shadow: var(--card-shadow);
+  padding: 14px 16px; margin-bottom: 12px;
+  font-size: 13px; color: var(--muted); line-height: 1.65;
+}
+.info-card .info-title { color: var(--fg); font-weight: 600; margin: 0 0 6px; }
+.info-card p { margin: 2px 0; }
+.info-card b { color: var(--fg); font-weight: 600; }
+#audit-wrap { margin-bottom: 12px; }
+
 /* ---- login dialog ---- */
 .overlay {
   position: fixed; inset: 0; z-index: 50;

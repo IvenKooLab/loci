@@ -22,10 +22,13 @@ const I18N = {
     btnSave: "Save", btnDelete: "Delete",
     phEditor: "pick a note on the left, or create a new one",
     btnIngest: "Re-index (ingest)", btnSummarize: "Re-summarize harnesses",
-    auditNote: "Write & admin events since the service last restarted (full history in the service log).",
+    auditIntro: "Audit trail of every write and admin action on this loci instance.",
+    auditP1: "<b>What gets logged:</b> memory create / edit / delete, remember, ingest triggers, harness re-summarize.",
+    auditP2: "<b>Who it's for:</b> when several people or agents share this instance via [[auth.tokens]], trace exactly who changed what, and when.",
+    auditP3: "<b>Retention:</b> newest 500 events in memory (cleared on service restart); the full history goes to the service log.",
     adminRequired: "admin role required.",
     thTime: "time", thWho: "who", thRole: "role", thAction: "action", thDetail: "detail",
-    noEvents: "no events yet",
+    noEvents: "No events yet — create or edit a memory in the Memories tab, then come back and watch it appear here.",
     loginTitle: "loci console",
     loginHint: "This instance requires a token. Paste one from [[auth.tokens]] in config.toml.",
     phToken: "Bearer token", btnSignin: "Sign in",
@@ -51,10 +54,13 @@ const I18N = {
     btnSave: "保存", btnDelete: "删除",
     phEditor: "在左侧选择一条记忆，或新建一条",
     btnIngest: "重建索引（ingest）", btnSummarize: "重新生成 harness 摘要",
-    auditNote: "自服务上次重启以来的写入与管理事件（完整历史见服务日志）。",
+    auditIntro: "本 loci 实例所有写入与管理操作的审计记录。",
+    auditP1: "<b>记录什么：</b>记忆的新建 / 编辑 / 删除、remember、触发 ingest、重新生成 harness 摘要。",
+    auditP2: "<b>给谁看：</b>多人或多 agent 通过 [[auth.tokens]] 共用本实例时，精确追溯「谁在什么时候改了什么」。",
+    auditP3: "<b>保留多久：</b>内存中最近 500 条（服务重启后清零）；完整历史在服务日志。",
     adminRequired: "需要 admin 角色。",
     thTime: "时间", thWho: "操作者", thRole: "角色", thAction: "动作", thDetail: "详情",
-    noEvents: "暂无事件",
+    noEvents: "暂无事件——去「记忆」页新建或编辑一条，然后回来看它出现在这里。",
     loginTitle: "loci 管理台",
     loginHint: "本实例要求鉴权。请粘贴 config.toml 中 [[auth.tokens]] 里的 token。",
     phToken: "Bearer token", btnSignin: "登录",
@@ -92,7 +98,8 @@ function applyI18n() {
   document.documentElement.lang = lang;
   document.title = t("title");
   applyTheme();
-  document.querySelectorAll("[data-i18n]").forEach((el) => el.textContent = t(el.dataset.i18n));
+  // dictionary strings are static code (no user input), so rich text is safe
+  document.querySelectorAll("[data-i18n]").forEach((el) => el.innerHTML = t(el.dataset.i18n));
   document.querySelectorAll("[data-i18n-ph]").forEach((el) => el.placeholder = t(el.dataset.i18nPh));
   $("#lang-btn").textContent = lang === "zh" ? "EN" : "中文";
 }
@@ -388,7 +395,7 @@ async function loadStats() {
 async function loadAudit() {
   const admin = isAdmin();
   $("#audit-hint").classList.toggle("hidden", admin);
-  $("#audit-table").classList.toggle("hidden", !admin);
+  $("#audit-wrap").classList.toggle("hidden", !admin);
   if (!admin) { $("#audit-hint").textContent = t("adminRequired"); return; }
   const { audit } = await api("/audit");
   $("#audit-table tbody").innerHTML = audit.map((a) =>
