@@ -10,10 +10,11 @@
 <header>
   <span class="logo">🧠 loci <em>console</em></span>
   <nav>
-    <button data-tab="dash" class="on">Overview</button>
-    <button data-tab="mem">Memories</button>
-    <button data-tab="stats">Index</button>
-    <button data-tab="audit">Audit</button>
+    <button data-tab="dash" class="on" data-i18n="navDash">Overview</button>
+    <button data-tab="mem" data-i18n="navMem">Memories</button>
+    <button data-tab="stats" data-i18n="navStats">Index</button>
+    <button data-tab="audit" data-i18n="navAudit">Audit</button>
+    <button id="lang-btn" title="switch language">中文</button>
   </nav>
   <span id="who" class="who"></span>
 </header>
@@ -22,13 +23,13 @@
   <!-- Overview -->
   <section id="tab-dash">
     <div class="row">
-      <input id="q" placeholder="Search the knowledge base…">
-      <button id="qbtn">Search</button>
-      <input id="ask" placeholder="Ask a question…">
-      <button id="askbtn">Ask</button>
+      <input id="q" data-i18n-ph="phSearch" placeholder="Search the knowledge base…">
+      <button id="qbtn" data-i18n="btnSearch">Search</button>
+      <input id="ask" data-i18n-ph="phAsk" placeholder="Ask a question…">
+      <button id="askbtn" data-i18n="btnAsk">Ask</button>
     </div>
     <pre id="answer" class="answer hidden"></pre>
-    <h2>Harnesses</h2>
+    <h2 data-i18n="hHarnesses">Harnesses</h2>
     <div id="cards" class="cards"></div>
   </section>
 
@@ -38,21 +39,22 @@
       <div class="list-pane">
         <div class="row">
           <select id="mem-filter">
-            <option value="">all</option>
-            <option value="shared">shared</option>
-            <option value="harness">harness</option>
+            <option value="" data-i18n="optAll">all</option>
+            <option value="shared" data-i18n="optShared">shared</option>
+            <option value="harness" data-i18n="optHarness">harness</option>
           </select>
-          <button id="mem-new">＋ New memory</button>
+          <button id="mem-new" data-i18n="btnNew">＋ New memory</button>
         </div>
         <ul id="mem-list"></ul>
       </div>
       <div class="edit-pane">
         <div class="row">
-          <span id="mem-title" class="muted">select a memory</span>
-          <button id="mem-save" class="hidden">Save</button>
-          <button id="mem-del" class="hidden danger">Delete</button>
+          <span id="mem-title" class="muted" data-i18n="pickNote">select a memory</span>
+          <button id="mem-save" class="hidden" data-i18n="btnSave">Save</button>
+          <button id="mem-del" class="hidden danger" data-i18n="btnDelete">Delete</button>
         </div>
-        <textarea id="mem-text" placeholder="pick a note on the left, or create a new one"></textarea>
+        <textarea id="mem-text" data-i18n-ph="phEditor"
+          placeholder="pick a note on the left, or create a new one"></textarea>
       </div>
     </div>
   </section>
@@ -60,8 +62,8 @@
   <!-- Index -->
   <section id="tab-stats" class="hidden">
     <div class="row">
-      <button id="ingest-btn">Re-index (ingest)</button>
-      <button id="summarize-btn">Re-summarize harnesses</button>
+      <button id="ingest-btn" data-i18n="btnIngest">Re-index (ingest)</button>
+      <button id="summarize-btn" data-i18n="btnSummarize">Re-summarize harnesses</button>
       <span id="busy" class="muted"></span>
     </div>
     <pre id="stats-out" class="block"></pre>
@@ -69,20 +71,27 @@
 
   <!-- Audit -->
   <section id="tab-audit" class="hidden">
-    <p class="muted">Write & admin events since the service last restarted (full history in the service log).</p>
+    <p id="audit-hint" class="muted hidden"></p>
+    <p class="muted" data-i18n="auditNote">Write &amp; admin events since the service last restarted (full history in the service log).</p>
     <table id="audit-table"><thead>
-      <tr><th>time</th><th>who</th><th>role</th><th>action</th><th>detail</th></tr>
+      <tr>
+        <th data-i18n="thTime">time</th>
+        <th data-i18n="thWho">who</th>
+        <th data-i18n="thRole">role</th>
+        <th data-i18n="thAction">action</th>
+        <th data-i18n="thDetail">detail</th>
+      </tr>
     </thead><tbody></tbody></table>
   </section>
 </main>
 
-<!-- login -->
+<!-- login: only appears when the server rejects anonymous/local access -->
 <div id="login" class="overlay hidden">
   <div class="dialog">
-    <h2>loci console</h2>
-    <p class="muted">Paste an API token (see <code>[[auth.tokens]]</code> in config.toml).</p>
-    <input id="token" type="password" placeholder="Bearer token">
-    <button id="login-btn">Sign in</button>
+    <h2 data-i18n="loginTitle">loci console</h2>
+    <p class="muted" data-i18n="loginHint">This instance requires a token. Paste one from [[auth.tokens]] in config.toml.</p>
+    <input id="token" type="password" data-i18n-ph="phToken" placeholder="Bearer token">
+    <button id="login-btn" data-i18n="btnSignin">Sign in</button>
     <p id="login-err" class="danger"></p>
   </div>
 </div>

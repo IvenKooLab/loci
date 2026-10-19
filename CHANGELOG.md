@@ -16,7 +16,10 @@ memory layer for several AI coding tools at once.
 - **Web console** at `http://127.0.0.1:8765/ui` (serve-http, zero new
   dependencies): harness cards with icons, shared-memory CRUD (create / edit /
   soft-delete to `.trash`), index stats with trigger buttons for ingest and
-  re-summarize, search & ask box
+  re-summarize, search & ask box. Opens with no login on your own machine —
+  anonymous loopback connections are trusted as admin (`[http] local_admin`,
+  set `false` behind a reverse proxy/tunnel) — and the UI toggles 中文/EN
+  (defaults to the browser language)
 - **Multi-token access control**: `[[auth.tokens]]` entries with roles —
   viewer (read-only) < editor (+ memory writes) < admin (+ ingest /
   re-summarize / audit). The legacy single `[http]` token keeps working and

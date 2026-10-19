@@ -60,10 +60,17 @@ path = "D:/notes"                                    # change to your directory
 # Web console & API access control (serve-http). Roles: viewer (read-only)
 # < editor (+ create/edit/delete memories) < admin (+ ingest, re-summarize,
 # audit). The legacy [http] token keeps working and maps to admin.
+# Anonymous connections from 127.0.0.1 are trusted as admin by default so the
+# console opens with no login on your own machine — set local_admin = false
+# when serving behind a reverse proxy or SSH tunnel (tunneled traffic also
+# arrives on loopback).
 # [[auth.tokens]]
 # token = "paste-a-long-random-secret"
 # role = "admin"
 # label = "my-laptop"
+
+[http]
+# local_admin = true   # loopback anonymous connections get admin (see above)
 
 [chunk]
 size = 800        # target chunk length (characters)
