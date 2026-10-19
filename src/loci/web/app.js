@@ -65,6 +65,19 @@ const I18N = {
 };
 let lang = localStorage.getItem(LANG_KEY)
   || ((navigator.language || "en").toLowerCase().startsWith("zh") ? "zh" : "en");
+
+/* ---------- theme: light (iOS flat white) by default, manual toggle ---------- */
+const THEME_KEY = "loci.theme";
+let theme = localStorage.getItem(THEME_KEY) === "dark" ? "dark" : "light";
+function applyTheme() {
+  document.documentElement.dataset.theme = theme;
+  $("#theme-btn").textContent = theme === "dark" ? "☀️" : "🌙";
+}
+$("#theme-btn").addEventListener("click", () => {
+  theme = theme === "dark" ? "light" : "dark";
+  localStorage.setItem(THEME_KEY, theme);
+  applyTheme();
+});
 const t = (k, ...a) => {
   const v = (I18N[lang] ?? I18N.en)[k] ?? I18N.en[k] ?? k;
   return typeof v === "function" ? v(...a) : v;
@@ -72,6 +85,7 @@ const t = (k, ...a) => {
 function applyI18n() {
   document.documentElement.lang = lang;
   document.title = t("title");
+  applyTheme();
   document.querySelectorAll("[data-i18n]").forEach((el) => el.textContent = t(el.dataset.i18n));
   document.querySelectorAll("[data-i18n-ph]").forEach((el) => el.placeholder = t(el.dataset.i18nPh));
   $("#lang-btn").textContent = lang === "zh" ? "EN" : "中文";
