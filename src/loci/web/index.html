@@ -86,9 +86,14 @@
 
   <!-- Audit -->
   <section id="tab-audit" class="hidden">
-    <p id="audit-hint" class="muted hidden"></p>
-    <p class="muted" data-i18n="auditNote">Write &amp; admin events since the service last restarted (full history in the service log).</p>
-    <table id="audit-table"><thead>
+    <div class="info-card">
+      <p class="info-title" data-i18n="auditIntro">Audit trail of every write and admin action on this loci instance.</p>
+      <p data-i18n="auditP1"><b>What gets logged:</b> memory create / edit / delete, remember, ingest triggers, harness re-summarize.</p>
+      <p data-i18n="auditP2"><b>Who it's for:</b> when several people or agents share this instance via [[auth.tokens]], trace exactly who changed what, and when.</p>
+      <p data-i18n="auditP3"><b>Retention:</b> newest 500 events in memory (cleared on service restart); the full history goes to the service log.</p>
+    </div>
+    <div id="audit-wrap" class="tablewrap">
+      <table id="audit-table"><thead>
       <tr>
         <th data-i18n="thTime">time</th>
         <th data-i18n="thWho">who</th>
@@ -97,6 +102,8 @@
         <th data-i18n="thDetail">detail</th>
       </tr>
     </thead><tbody></tbody></table>
+    </div>
+    <p id="audit-hint" class="muted hidden"></p>
   </section>
 </main>
 
