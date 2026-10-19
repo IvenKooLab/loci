@@ -38,11 +38,13 @@
     <div id="cards" class="cards"></div>
     <div id="drilldown" class="hidden">
       <div class="row">
-        <nav id="crumbs" class="crumbs"></nav>
+        <span id="dd-title" class="dd-title"></span>
         <button id="drill-close" class="linklike">✕</button>
       </div>
-      <ul id="dd-list" class="dd-list"></ul>
-      <pre id="dd-view" class="block hidden"></pre>
+      <div class="dd-split">
+        <ul id="dd-tree" class="dd-tree"></ul>
+        <pre id="dd-view" class="block"></pre>
+      </div>
     </div>
   </section>
 
