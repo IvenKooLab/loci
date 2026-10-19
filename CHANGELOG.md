@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.8.1 — 2026-10-19
 
 ### Fixed
 - Web console file access now checks resolved directory components, blocking
@@ -9,6 +9,16 @@
 - HTTP write/admin backend failures return JSON errors instead of dropping
   the connection. POST requests reject malformed/non-object JSON, invalid
   content lengths, and bodies larger than 1 MiB before dispatch.
+
+### Documentation
+- Rebuilt all five README editions (English, Simplified/Traditional Chinese,
+  Japanese and Korean) around setup, the Web console and MCP integration.
+- Added light/dark console screenshots using fictional, isolated demo data,
+  plus a read-only preview script to reproduce them without personal data.
+- Moved detailed command and configuration references into usage guides.
+
+### Packaging
+- Aligned Python package and MCP registry versions at 0.8.1.
 
 ## v0.8.0 — 2026-10-17
 
