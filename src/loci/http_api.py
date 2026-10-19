@@ -32,12 +32,20 @@ from collections import deque
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit, parse_qs, unquote
+from urllib.parse import urlsplit, parse_qs
 
 from loci.mcp_server import Brain
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 ROLES = {"viewer": 0, "editor": 1, "admin": 2}
+
+
+def _within(path: Path, root: Path) -> bool:
+    """Compare resolved path components, not similarly named directory prefixes."""
+    try:
+        return path.resolve().is_relative_to(root.resolve())
+    except (OSError, RuntimeError, ValueError):
+        return False
 
 
 def _auth_table(cfg) -> list[dict]:
@@ -182,19 +190,22 @@ def _make_handler(brain, cfg, entries, audit):
         # ---- path-jailed file access ----
 
         def _safe_memory(self, name: str) -> Path | None:
-            p = (mem_dir / name).resolve()
-            return p if p.is_file() and p.suffix == ".md" \
-                and str(p).startswith(str(mem_dir)) else None
+            try:
+                p = (mem_dir / name).resolve()
+                return p if _within(p, mem_dir) and p.is_file() \
+                    and p.suffix == ".md" else None
+            except (OSError, RuntimeError, ValueError):
+                return None
 
         def _safe_source(self, path: str) -> Path | None:
             roots = [r for h in _harnesses() for r in h.roots] + [mem_dir]
             try:
-                p = Path(unquote(path)).expanduser().resolve()
-            except (OSError, RuntimeError):
+                p = Path(path).expanduser().resolve()
+                if p.suffix not in (".md", ".txt") or not p.is_file():
+                    return None
+                return p if any(_within(p, r) for r in roots) else None
+            except (OSError, RuntimeError, ValueError):
                 return None
-            if p.suffix not in (".md", ".txt") or not p.is_file():
-                return None
-            return p if any(str(p).startswith(str(r)) for r in roots) else None
 
         def _reindex_file(self, path: Path) -> None:
             try:
@@ -223,7 +234,7 @@ def _make_handler(brain, cfg, entries, audit):
             if route.startswith("/icons/"):         # logos: public, non-sensitive
                 name = Path(route[len("/icons/"):]).name
                 p = icons_dir / name
-                if p.is_file() and str(p.resolve()).startswith(str(icons_dir)):
+                if p.is_file() and _within(p, icons_dir):
                     ctypes = {".png": "image/png", ".svg": "image/svg+xml",
                               ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
                               ".gif": "image/gif", ".webp": "image/webp"}
@@ -254,7 +265,7 @@ def _make_handler(brain, cfg, entries, audit):
                 files = []
                 for p in harness_mod.memory_files(h):
                     rel = next((str(p.relative_to(r)) for r in h.roots
-                                if str(p).startswith(str(r))), p.name)
+                                if p.is_relative_to(r)), p.name)
                     st = p.stat()
                     files.append({
                         "path": str(p), "rel": rel,
@@ -294,11 +305,23 @@ def _make_handler(brain, cfg, entries, audit):
                 self.headers.get("Authorization", ""),
                 self.client_address[0], local_admin)
             route = urlsplit(self.path).path
-            length = int(self.headers.get("Content-Length", 0))
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+            except ValueError:
+                return self._json(400, {"error": "invalid Content-Length"})
+            if length < 0:
+                return self._json(400, {"error": "invalid Content-Length"})
+            if length > 1 << 20:
+                return self._json(413, {"error": "JSON body exceeds 1 MiB"})
             try:
                 body = json.loads(self.rfile.read(length) or b"{}")
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, UnicodeDecodeError):
                 return self._json(400, {"error": "invalid JSON body"})
+            if not isinstance(body, dict):
+                return self._json(400, {"error": "JSON body must be an object"})
+            return self._guard(lambda: self._post(route, body))
+
+        def _post(self, route, body):
             if route in ("/search", "/ask"):
                 if not allowed(self.entry, "read"):
                     return self._json(401, {"error": "unauthorized"})
@@ -388,7 +411,7 @@ def _make_handler(brain, cfg, entries, audit):
             rows = []
             for p in sorted(list(mem_dir.glob("*.md"))
                             + list(mem_dir.glob("harness/*.md"))):
-                if p.parent.name == ".trash":
+                if not self._safe_memory(str(p)) or p.parent.name == ".trash":
                     continue
                 rel = p.relative_to(mem_dir)
                 group = "harness" if rel.parts[0] == "harness" else "shared"

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Web console file access now checks resolved directory components, blocking
+  sibling directories with matching prefixes and symlinks escaping memory,
+  harness-source, or icon roots. Memory listings omit escaped symlinks.
+- HTTP write/admin backend failures return JSON errors instead of dropping
+  the connection. POST requests reject malformed/non-object JSON, invalid
+  content lengths, and bodies larger than 1 MiB before dispatch.
+
 ## v0.8.0 — 2026-10-17
 
 Harness memory hub + built-in web console, from running loci as the shared
