@@ -360,9 +360,13 @@ label = "phone"
 
 Roles stack: `viewer` (read) < `editor` (+ create/edit/delete memories)
 < `admin` (+ ingest / re-summarize / audit). The legacy single `[http]` token
-keeps working and maps to admin. Write and admin actions are audited to the
-service log and to `GET /audit`. The console binds to 127.0.0.1 like the API —
-reach it from other devices through an SSH tunnel or a TLS reverse proxy.
+keeps working and maps to admin. On your own machine no login is needed —
+anonymous connections from 127.0.0.1 are trusted as admin (disable with
+`[http] local_admin = false` when serving behind a reverse proxy or SSH
+tunnel, where remote traffic also arrives on loopback). Write and admin
+actions are audited to the service log and to `GET /audit`. The console binds
+to 127.0.0.1 like the API — reach it from other devices through an SSH tunnel
+or a TLS reverse proxy. The UI toggles 中文/EN in the header.
 
 ## Ecosystem
 

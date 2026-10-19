@@ -70,6 +70,22 @@ def resolve_auth(entries: list[dict], authorization: str) -> dict | None:
     return None
 
 
+def effective_entry(resolved: dict | None, authorization: str, client_ip: str,
+                    local_admin: bool = True) -> dict | None:
+    """Loopback connections without any credentials are trusted as admin — the
+    console binds to 127.0.0.1 anyway, so typing a token on your own machine is
+    pure friction. A presented-but-invalid token is still rejected (a viewer's
+    typo must never escalate to admin). Disable the trust with
+    `[http] local_admin = false` when serving through a reverse proxy or SSH
+    tunnel (tunneled traffic also arrives on loopback!)."""
+    if resolved is not None:
+        return resolved
+    if local_admin and not authorization.strip() \
+            and client_ip in ("127.0.0.1", "::1"):
+        return {"token": "", "role": "admin", "label": "local"}
+    return None
+
+
 def allowed(entry: dict | None, level: str) -> bool:
     """level: read | write | admin."""
     if entry is None:
@@ -120,6 +136,7 @@ def _make_handler(brain, cfg, entries, audit):
     mem_dir = Path(cfg.memories["path"]).expanduser().resolve()
     icons_dir = Path(cfg.http.get("icons", "./icons")).expanduser().resolve()
     from loci import harness as harness_mod
+    local_admin = bool(cfg.http.get("local_admin", True))
 
     def _harnesses():
         return harness_mod.load_harnesses(cfg)
@@ -188,7 +205,10 @@ def _make_handler(brain, cfg, entries, audit):
         # ---- verbs ----
 
         def do_GET(self):
-            self.entry = resolve_auth(entries, self.headers.get("Authorization", ""))
+            self.entry = effective_entry(
+                resolve_auth(entries, self.headers.get("Authorization", "")),
+                self.headers.get("Authorization", ""),
+                self.client_address[0], local_admin)
             route, q = urlsplit(self.path).path, self._query()
             if route == "/ui":                      # public shell; data is authed
                 if self._file("index.html", "text/html; charset=utf-8"):
@@ -248,7 +268,10 @@ def _make_handler(brain, cfg, entries, audit):
             self._json(404, {"error": "not found"})
 
         def do_POST(self):
-            self.entry = resolve_auth(entries, self.headers.get("Authorization", ""))
+            self.entry = effective_entry(
+                resolve_auth(entries, self.headers.get("Authorization", "")),
+                self.headers.get("Authorization", ""),
+                self.client_address[0], local_admin)
             route = urlsplit(self.path).path
             length = int(self.headers.get("Content-Length", 0))
             try:
@@ -290,7 +313,10 @@ def _make_handler(brain, cfg, entries, audit):
             self._json(404, {"error": "not found"})
 
         def do_DELETE(self):
-            self.entry = resolve_auth(entries, self.headers.get("Authorization", ""))
+            self.entry = effective_entry(
+                resolve_auth(entries, self.headers.get("Authorization", "")),
+                self.headers.get("Authorization", ""),
+                self.client_address[0], local_admin)
             if not allowed(self.entry, "write"):
                 return self._json(401, {"error": "unauthorized"})
             if urlsplit(self.path).path != "/memory":

@@ -215,7 +215,7 @@ role = "viewer"                       # 只读浏览
 label = "手机"
 ```
 
-角色层层递进：`viewer`（只读）< `editor`（+记忆增删改）< `admin`（+ingest / 重总结 / 审计）。旧的 `[http]` 单 token 继续有效，视为 admin。写操作和管理操作会审计到服务日志与 `GET /audit`。管理台与 API 一样只绑 127.0.0.1——其他设备访问请走 SSH 隧道或带 TLS 的反代。
+角色层层递进：`viewer`（只读）< `editor`（+记忆增删改）< `admin`（+ingest / 重总结 / 审计）。旧的 `[http]` 单 token 继续有效，视为 admin。**本机打开无需登录**——来自 127.0.0.1 的匿名连接默认信任为 admin（走反代或 SSH 隧道时请设 `[http] local_admin = false`，隧道流量同样以 loopback 形式到达）。写操作和管理操作会审计到服务日志与 `GET /audit`。管理台与 API 一样只绑 127.0.0.1——其他设备访问请走 SSH 隧道或带 TLS 的反代。界面右上角可切换 中文/EN。
 
 ## 真实部署场景
 

@@ -1,5 +1,6 @@
-"""Multi-token role auth: legacy token merge, role ordering, bad tokens."""
-from loci.http_api import _auth_table, resolve_auth, allowed
+"""Multi-token role auth: legacy token merge, role ordering, bad tokens,
+loopback anonymous trust."""
+from loci.http_api import _auth_table, resolve_auth, allowed, effective_entry
 
 
 class Cfg:
@@ -38,3 +39,20 @@ def test_no_tokens_generates_random_admin():
     entries = _auth_table(Cfg())
     assert len(entries) == 1 and entries[0]["role"] == "admin"
     assert len(entries[0]["token"]) >= 16
+
+
+def test_loopback_anonymous_trusted_as_admin():
+    # no token presented, from the loopback: the console's main case
+    e = effective_entry(None, "", "127.0.0.1", local_admin=True)
+    assert e is not None and e["role"] == "admin" and e["label"] == "local"
+    assert effective_entry(None, "", "::1", local_admin=True)["role"] == "admin"
+    # a valid token still wins over the anonymous local identity
+    named = effective_entry({"token": "t", "role": "viewer", "label": "phone"},
+                            "Bearer t", "127.0.0.1", local_admin=True)
+    assert named["role"] == "viewer"
+    # a wrong token is rejected, never escalated to local admin
+    assert effective_entry(None, "Bearer wrong", "127.0.0.1") is None
+    # off-loopback anonymous stays unauthorized
+    assert effective_entry(None, "", "192.168.1.5", local_admin=True) is None
+    # and the trust can be disabled entirely (reverse proxy / tunnel setups)
+    assert effective_entry(None, "", "127.0.0.1", local_admin=False) is None
