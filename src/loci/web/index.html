@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>loci console</title>
+<link rel="stylesheet" href="/ui/style.css">
+</head>
+<body>
+<header>
+  <span class="logo">🧠 loci <em>console</em></span>
+  <nav>
+    <button data-tab="dash" class="on">Overview</button>
+    <button data-tab="mem">Memories</button>
+    <button data-tab="stats">Index</button>
+    <button data-tab="audit">Audit</button>
+  </nav>
+  <span id="who" class="who"></span>
+</header>
+
+<main>
+  <!-- Overview -->
+  <section id="tab-dash">
+    <div class="row">
+      <input id="q" placeholder="Search the knowledge base…">
+      <button id="qbtn">Search</button>
+      <input id="ask" placeholder="Ask a question…">
+      <button id="askbtn">Ask</button>
+    </div>
+    <pre id="answer" class="answer hidden"></pre>
+    <h2>Harnesses</h2>
+    <div id="cards" class="cards"></div>
+  </section>
+
+  <!-- Memories -->
+  <section id="tab-mem" class="hidden">
+    <div class="split">
+      <div class="list-pane">
+        <div class="row">
+          <select id="mem-filter">
+            <option value="">all</option>
+            <option value="shared">shared</option>
+            <option value="harness">harness</option>
+          </select>
+          <button id="mem-new">＋ New memory</button>
+        </div>
+        <ul id="mem-list"></ul>
+      </div>
+      <div class="edit-pane">
+        <div class="row">
+          <span id="mem-title" class="muted">select a memory</span>
+          <button id="mem-save" class="hidden">Save</button>
+          <button id="mem-del" class="hidden danger">Delete</button>
+        </div>
+        <textarea id="mem-text" placeholder="pick a note on the left, or create a new one"></textarea>
+      </div>
+    </div>
+  </section>
+
+  <!-- Index -->
+  <section id="tab-stats" class="hidden">
+    <div class="row">
+      <button id="ingest-btn">Re-index (ingest)</button>
+      <button id="summarize-btn">Re-summarize harnesses</button>
+      <span id="busy" class="muted"></span>
+    </div>
+    <pre id="stats-out" class="block"></pre>
+  </section>
+
+  <!-- Audit -->
+  <section id="tab-audit" class="hidden">
+    <p class="muted">Write & admin events since the service last restarted (full history in the service log).</p>
+    <table id="audit-table"><thead>
+      <tr><th>time</th><th>who</th><th>role</th><th>action</th><th>detail</th></tr>
+    </thead><tbody></tbody></table>
+  </section>
+</main>
+
+<!-- login -->
+<div id="login" class="overlay hidden">
+  <div class="dialog">
+    <h2>loci console</h2>
+    <p class="muted">Paste an API token (see <code>[[auth.tokens]]</code> in config.toml).</p>
+    <input id="token" type="password" placeholder="Bearer token">
+    <button id="login-btn">Sign in</button>
+    <p id="login-err" class="danger"></p>
+  </div>
+</div>
+
+<script src="/ui/app.js"></script>
+</body>
+</html>

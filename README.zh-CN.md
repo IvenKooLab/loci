@@ -176,6 +176,47 @@ claude mcp add loci -- loci-mcp
 
 > **跨 IDE 提示**：默认的 `store` / `memories` 路径相对于 loci 的启动目录。给 MCP 挂载加 `env: { "LOCI_HOME": "~/.loci" }` 即可把整个实例（config/索引/memories/wiki）锚定在同一目录，所有 IDE 共享同一份记忆库，无需手动改路径。
 
+## Harness 记忆中枢
+
+同时用多个 AI 编码工具？每个都有自己的记忆目录。注册一次，loci 就成为俯瞰全部的统一界面：
+
+```toml
+[[harness]]
+name = "zcode"
+type = "zcode"                        # 内置识别 projects/*/memory/*.md 结构
+paths = ["~/.zcode/cli/memories"]
+icon = "⚡"                            # emoji，或 icons 目录下的图片文件名
+
+[[harness]]
+name = "codex"
+type = "codex"                        # 平铺 *.md 目录
+paths = ["~/.codex/memories"]
+```
+
+- `loci harness`——每个工具的统计（文件数、索引 chunks、最近更新、摘要新鲜度），零 LLM 成本
+- `loci harness --summarize`——把每个工具的记忆蒸馏成一篇摘要笔记进共享池（`memories/harness/<name>.md`），按内容指纹增量：记忆没变就零成本，所以 `watch` 可以配合 `[watch] auto_summarize = true` 每轮刷新
+- MCP `brain_harness`——任一 agent 里同样两个动作（"各工具最近都在忙什么？"）
+
+## Web 管理台
+
+`loci serve-http` 现在内置管理台：`http://127.0.0.1:8765/ui`（零新增依赖、无构建步骤）——harness 图标卡片、共享记忆增删改（删除进 `.trash`）、索引统计与一键 ingest / 重新总结、搜索与问答框。
+
+多 token + 角色的权限管理，写进 `config.toml`：
+
+```toml
+[[auth.tokens]]
+token = "长随机密钥-1"
+role = "admin"                        # 额外可 ingest、重新总结、看审计
+label = "我的笔记本"
+
+[[auth.tokens]]
+token = "长随机密钥-2"
+role = "viewer"                       # 只读浏览
+label = "手机"
+```
+
+角色层层递进：`viewer`（只读）< `editor`（+记忆增删改）< `admin`（+ingest / 重总结 / 审计）。旧的 `[http]` 单 token 继续有效，视为 admin。写操作和管理操作会审计到服务日志与 `GET /audit`。管理台与 API 一样只绑 127.0.0.1——其他设备访问请走 SSH 隧道或带 TLS 的反代。
+
 ## 真实部署场景
 
 两个影响了 loci 设计的生产部署：
@@ -221,6 +262,7 @@ claude mcp add loci -- loci-mcp
 | `brain_wiki(topic)` | **记忆巩固**——把索引蒸馏成互链 wiki 页 |
 | `brain_remember(text, title?, tags?)` | **写入持久记忆**——跨会话、跨 IDE 共享 |
 | `brain_forget(query)` | 软删除匹配记忆（进 `.trash` 文件夹） |
+| `brain_harness(action, name?, force?)` | 各 AI 工具记忆统计，或刷新其摘要笔记 |
 | `brain_links(note)` | 笔记的出入 `[[wikilink]]` 图谱 |
 | `brain_stats()` | 索引概况（每个来源的 chunk 数） |
 | `brain_ingest(force?)` | 增量重建索引 |

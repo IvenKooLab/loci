@@ -40,6 +40,31 @@ path = "D:/notes"                                    # change to your directory
 # [[sources]]
 # path = "C:/Users/me/Documents/project-docs"       # uses the global [chunk] defaults
 
+# Harness memory hub: register each AI tool's native memory directory, get
+# per-tool stats (`loci harness`) and an auto-generated digest note per tool
+# (`loci harness --summarize`, MCP brain_harness). type presets:
+#   zcode   <root>/projects/*/memory/*.md
+#   codex   <root>/*.md
+#   generic <root>/**/*.md
+# [[harness]]
+# name = "zcode"
+# type = "zcode"
+# paths = ["~/.zcode/cli/memories"]
+# icon = "⚡"                                        # emoji, or a file in the icons dir
+
+# [[harness]]
+# name = "codex"
+# type = "codex"
+# paths = ["~/.codex/memories"]
+
+# Web console & API access control (serve-http). Roles: viewer (read-only)
+# < editor (+ create/edit/delete memories) < admin (+ ingest, re-summarize,
+# audit). The legacy [http] token keeps working and maps to admin.
+# [[auth.tokens]]
+# token = "paste-a-long-random-secret"
+# role = "admin"
+# label = "my-laptop"
+
 [chunk]
 size = 800        # target chunk length (characters)
 overlap = 100     # overlap between neighboring chunks
@@ -53,6 +78,8 @@ rrf_k = 60        # RRF smoothing constant; higher = flatter fusion weights
 
 [watch]
 interval = 30     # seconds between scans in `watch` mode
+auto_summarize = false  # refresh harness digest notes each cycle (LLM cost
+                        # only when a harness's memories actually changed)
 
 [store]
 path = "./chroma_db"   # where the vector store lives on disk
