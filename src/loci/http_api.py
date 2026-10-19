@@ -22,6 +22,7 @@ The legacy single [http] token keeps working and maps to admin.
 from __future__ import annotations
 
 import json
+import re
 import secrets
 import sys
 import threading
@@ -244,6 +245,26 @@ def _make_handler(brain, cfg, entries, audit):
             if route == "/harness":
                 return self._guard(lambda: self._json(
                     200, {"harness": harness_mod.stats(cfg, brain._store, _harnesses())}))
+            if route == "/harness-files":
+                name = q.get("name", "")
+                matches = [h for h in _harnesses() if h.name == name]
+                if not matches:
+                    return self._json(404, {"error": f"no harness named '{name}'"})
+                h = matches[0]
+                files = []
+                for p in harness_mod.memory_files(h):
+                    rel = next((str(p.relative_to(r)) for r in h.roots
+                                if str(p).startswith(str(r))), p.name)
+                    st = p.stat()
+                    files.append({
+                        "path": str(p), "rel": rel,
+                        "size": st.st_size,
+                        "mtime": datetime.fromtimestamp(
+                            st.st_mtime).strftime("%Y-%m-%d %H:%M"),
+                    })
+                return self._json(200, {"name": h.name,
+                                        "display": h.display or h.name,
+                                        "files": files})
             if route == "/memories":
                 return self._guard(lambda: self._json(200, {
                     "memories": self._list_memories()}))
@@ -365,22 +386,31 @@ def _make_handler(brain, cfg, entries, audit):
 
         def _list_memories(self):
             rows = []
-            for group, pattern in (("shared", "*.md"), ("harness", "harness/*.md")):
-                for p in sorted(mem_dir.glob(pattern)):
-                    if p.parent.name == ".trash":
-                        continue
-                    rows.append({
-                        "name": str(p.relative_to(mem_dir)),
-                        "group": group,
-                        "size": p.stat().st_size,
-                        "mtime": datetime.fromtimestamp(
-                            p.stat().st_mtime).strftime("%Y-%m-%d %H:%M"),
-                        "title": (p.read_text(encoding="utf-8", errors="ignore")
-                                  [:400].split("title: ")[-1].splitlines()[0]
-                                  .strip(' "') if p.read_text(
-                                      encoding="utf-8", errors="ignore")
-                                  .startswith("---") else p.stem),
-                    })
+            for p in sorted(list(mem_dir.glob("*.md"))
+                            + list(mem_dir.glob("harness/*.md"))):
+                if p.parent.name == ".trash":
+                    continue
+                rel = p.relative_to(mem_dir)
+                group = "harness" if rel.parts[0] == "harness" else "shared"
+                # harness: which tool owns this note (harness/<name>.md);
+                # title: frontmatter title:, else the file stem — never the
+                # raw '---' fence a title-less frontmatter would yield
+                head = p.read_text(encoding="utf-8", errors="ignore")[:400]
+                title = ""
+                if head.startswith("---"):
+                    m = re.search(r"^title:\s*(.+)$", head, re.M)
+                    if m:
+                        title = m.group(1).strip().strip('"')[:80]
+                rows.append({
+                    "name": str(rel),
+                    "group": group,
+                    "harness": rel.parts[1].rsplit(".", 1)[0]
+                               if group == "harness" else "",
+                    "size": p.stat().st_size,
+                    "mtime": datetime.fromtimestamp(
+                        p.stat().st_mtime).strftime("%Y-%m-%d %H:%M"),
+                    "title": title or p.stem,
+                })
             return rows
 
         def log_message(self, fmt, *args):
