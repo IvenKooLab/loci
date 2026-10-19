@@ -19,6 +19,17 @@ loci 将向量检索与 BM25 结合，回答附带「文件 > 章节」引用。
 
 [快速开始](#快速开始) · [Web 管理台](#web-管理台) · [接入-ai-工具](#接入-ai-工具) · [完整使用指南](docs/guide.zh-CN.md) · [English](README.md)
 
+![loci console — synthetic-data demo](docs/assets/console-demo-light.png)
+
+*真实管理台界面，使用虚构演示数据；未连接个人知识库、账号或密钥，统计数字仅用于展示。*
+
+<details>
+<summary>查看深色界面</summary>
+
+![loci console — dark theme, fictional demo data](docs/assets/console-demo-dark.png)
+
+</details>
+
 ## 你可以用它做什么
 
 | 想解决的问题 | loci 的做法 |

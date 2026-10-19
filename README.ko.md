@@ -1,265 +1,128 @@
-# loci 🧠
+<p align="center">
+  <img src="docs/assets/loci-banner.svg" alt="loci — shared memory for your AI tools" width="100%">
+</p>
 
-[![English](https://img.shields.io/badge/English-README-6E7681)](README.md)
-[![简体中文](https://img.shields.io/badge/简体中文-README-6E7681)](README.zh-CN.md)
-[![繁體中文](https://img.shields.io/badge/繁體中文-README-6E7681)](README.zh-TW.md)
-[![日本語](https://img.shields.io/badge/日本語-README-6E7681)](README.ja.md)
-[![한국어](https://img.shields.io/badge/한국어-README-0969DA)](README.ko.md)
+<p align="center">
+  <a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.ja.md">日本語</a> · <a href="README.ko.md">한국어</a>
+</p>
 
-> *이 번역은 영어 README(canonical)보다 늦을 수 있습니다.*
+<p align="center">
+  <a href="https://github.com/IvenKooLab/loci/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/IvenKooLab/loci/ci.yml?branch=main&amp;label=CI" alt="CI"></a>
+  <a href="https://pypi.org/project/loci-rag/"><img src="https://img.shields.io/pypi/v/loci-rag?color=367d65" alt="PyPI"></a>
+  <img src="https://img.shields.io/badge/Python-3.11%2B-367d65" alt="Python 3.11+">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-367d65" alt="MIT license"></a>
+</p>
 
-[![CI](https://github.com/IvenKooLab/loci/actions/workflows/ci.yml/badge.svg)](https://github.com/IvenKooLab/loci/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/IvenKooLab/loci/blob/main/LICENSE)
-[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://github.com/IvenKooLab/loci)
-[![loci MCP server — quality and maintenance score on Glama](https://glama.ai/mcp/servers/IvenKooLab/loci/badges/score.svg)](https://glama.ai/mcp/servers/IvenKooLab/loci)
-[![ModelScope MCP Square](https://img.shields.io/badge/ModelScope-MCP-7C3AED)](https://modelscope.cn/mcp/servers/IvenKooLab/loci)
+**흩어진 노트, 프로젝트 문서, Agent의 기억을 검색하고 질문하며 출처까지 확인할 수 있는 지식 베이스로 만드세요. 터미널, 브라우저, MCP 클라이언트에서 사용할 수 있습니다.**
 
-> 2000년 전, 연설가들은 연설문을 정신 속 궁전의 방마다 하나씩 두고 그 방들을 걸어 다니며 기억해냈습니다. **loci는 여러분의 파일에 똑같은 일을 해줍니다.**
->
-> *Loci*는 모든 기억의 궁전(memory palace) 뒤에 있는 방법입니다. 지식을 장소에 두고, 경로를 따라 걸으며 회상합니다.
+loci는 벡터 검색과 BM25를 결합하고 답변에 `파일 > 섹션` 인용을 붙입니다. 파일과 인덱스는 로컬에 저장됩니다. 임베딩과 채팅 요청은 설정한 서비스로 전송되며, 로컬 모델로 전체 과정을 오프라인에서 실행할 수도 있습니다.
 
-**열몇 개 디렉터리에 흩어진 프로젝트 문서, 노트, 채팅 로그를 위한, 질문 가능한 "제2의 뇌" — 그리고 MCP 서버까지内置되어 AI 에이전트도 바로 사용할 수 있습니다.**
+[빠른 시작](#빠른-시작) · [Web 콘솔](#web-콘솔) · [AI 도구 연결](#ai-도구-연결) · [상세 가이드 · 영어](docs/guide.en.md)
 
-로컬 파일 → 헤더 인식 청킹 → 임베딩 → 하이브리드 검색(벡터 + BM25) → 섹션 단위 출처 인용이 붙은 LLM 답변. 인덱스는 전부 여러분의 머신에 저장되고, 임베딩/채팅 호출만 외부로 나가며, 어떤 OpenAI 호환 API(智谱 / DeepSeek / Kimi / OpenAI / …)든 사용할 수 있습니다.
+![loci 콘솔과 기억 파일 미리보기](docs/assets/console-demo-light.png)
 
-> **핵심 철학** (13개 고스타 도구에 대한 연구 기반 — 전문은 [경쟁 분석](docs/research/competitive-landscape.md) 참조): 채팅 앱을 하나 더 만들지 마세요. **모든 채팅 앱이 마운트할 수 있는 메모리 레이어**를 만드세요. Claude Desktop, Cursor, Cline 또는 어떤 MCP 호스트든 loci의 UI가 무료로 됩니다.
+*실제 UI에 가상의 데모 데이터를 넣어 촬영했습니다. 개인 지식 베이스, 계정, API 키에는 연결하지 않았으며 통계는 예시 값입니다.*
 
-## 데모
+<details>
+<summary>어두운 테마 미리보기</summary>
 
-[minimax-h3-turing](https://github.com/IvenKooLab/minimax-h3-turing) 문서를 인덱싱한 실제 세션 (표시용으로 경로 축약):
+![loci console — dark theme, fictional demo data](docs/assets/console-demo-dark.png)
 
-```
-$ python main.py search "what the 22G card can and cannot do" -k 3
+</details>
 
-[1] minimax-h3-turing/docs/en/01-hardware-limits.md > 01 · What a 2080Ti 22G Can and Cannot Do    (similarity 0.562)
-[2] minimax-h3-turing/docs/en/02-w4a8-vs-w4a4.md > 02 · Quantization Measured > You Can Try Without 22G  (similarity 0.446)
-[3] minimax-h3-turing/docs/en/01-hardware-limits.md > ... > 3. VRAM is just barely enough — manage it  (similarity 0.504)
+## 무엇을 할 수 있나요?
 
-$ python main.py ask "How should I choose between T8 aggressive mode and the final-render mode, and why?"
+| 필요한 작업 | loci의 기능 |
+|---|---|
+| 예전에 내린 결정 찾기 | 디렉터리를 가로지르는 하이브리드 검색과 태그·경로·날짜 필터 |
+| 답변의 근거 확인하기 | 섹션별 출처 인용과 선택적인 주장별 검증 |
+| AI 도구를 바꿔도 맥락 유지하기 | MCP로 같은 인스턴스를 공유하고 장기 기억을 Markdown으로 저장 |
+| 각 Agent의 기억 살펴보기 | harness 자동 탐색, 파일 보기, 통계와 요약 |
+| 화면에서 지식 베이스 관리하기 | 검색, 질문, 기억 편집, 인덱스 갱신과 감사 로그 |
 
-Answer:
-* Drafts / preview / shot selection: use T8 aggressive mode — a 43% speedup
-  (2.7 min/clip), and "a different picture of equal quality" is fine for picking shots.
-* Final shots: use final-render mode (no T8). T8 makes the numerical trajectory
-  fork, so re-running with the same seed produces a different clip — which breaks
-  the reproducibility final outputs need.
+Markdown, 텍스트, HTML, org-mode, 채팅 내보내기를 기본 지원합니다. PDF, Word, OCR은 선택 확장으로 제공됩니다. 기존 편집기나 Obsidian 저장소를 그대로 사용할 수 있습니다.
 
-[source: docs/en/08-t8-blockcache-4step.md > Practical Advice (4-step Turbo route)]
-[source: docs/en/06-faq.md > 12. Cache-style accelerators break "same-seed re-runs"]
-```
+## 빠른 시작
 
-하이브리드 검색 덕분에 중국어 쿼리도 영어 문서를 찾아냅니다(그 반대도 마찬가지). 키워드 증거(BM25)가 벡터 검색의 맹점을 메우고, 모든 인용은 파일이 아닌 **섹션**을 가리킵니다.
-
-### 하이브리드 검색은 실제로 효과가 있을까? (이중 언어 10개 쿼리 미니 평가)
-
-```
-$ python scripts/eval_retrieval.py scripts/eval_cases.example.jsonl
-vector-only: 9/10  →  hybrid: 10/10
-```
-
-## 리랭킹: 두 가지 프로바이더
-
-`--rerank`는 융합된 후보를 재정렬합니다:
-
-| 프로바이더 | 방식 | 비용 |
-|---|---|---|
-| `llm` (기본) | 채팅 모델로 후보별 0–3점 관련성 스코어링 | LLM 호출 1회 추가 |
-| `local` | 크로스 인코더, `pip install 'loci-rag[rerank]'` 필요 | GPU에서 5쌍 약 30–70ms — 오프라인, 무료 |
-
-## Obsidian / 노트 앱과의 관계
-
-경쟁하지 않습니다 — 계층이 다를 뿐입니다. Obsidian(또는 어떤 에디터)이 노트 작성의 프런트엔드라면, loci는 **크로스 볼트 검색 엔진**입니다. `sources`를 임의의 디렉터리(Obsidian 볼트, 프로젝트 문서, 채팅 내보내기)로 향하게 하면 터미널·스크립트·MCP를 통한 AI 에이전트 어디서든 한 번에 검색할 수 있습니다. Obsidian 네이티브 요소도 이해합니다: frontmatter `tags:`(`--tag` 필터), `[[위키링크]]`(links 명령), 코드 블록은 절대 잘리지 않고, 한 줄짜리 노트도 검색됩니다.
-
-## 설치 및 빠른 시작
-
-Python 3.11+ 필요(표준 라이브러리 `tomllib` 사용).
+**Python 3.11+**가 필요합니다. 설정 예제가 포함된 소스로 시작하려면:
 
 ```bash
-# 방법 A: PyPI에서 설치 (`loci`, `loci-mcp` 명령이 추가됨)
-pip install "loci-rag[pdf,docx]"   # 선택 extras: 표 포함 PDF, Word 문서
-
-# 방법 B: 설치 없는 퀵스타트
-pip install -r requirements.txt
-
-# 1. 설정: 예시를 복사하고 값 채우기
+git clone https://github.com/IvenKooLab/loci.git
+cd loci
+python -m pip install -e .
 cp config.example.toml config.toml
-
-# 2. 인제스트(증분 — 콘텐츠 해시 기반 중복 제거, 재실행 안전)
-loci ingest            # 또는: python main.py ingest
-
-# 3. 질문하기
-loci ask "what did I write about X?"
 ```
 
-### 워크플로
-
-```mermaid
-flowchart TD
-    A["pip install loci-rag"] --> B["cp config.example.toml config.toml<br>fill API keys + source dirs"]
-    B --> C["loci ingest — hybrid index built"]
-    C --> D["loci watch — index stays fresh (optional)"]
-    C --> E{"What do you need?"}
-    E -->|"a synthesized answer"| F["loci ask --verify<br>claim-by-claim audit"]
-    E -->|"raw excerpts to quote"| G["loci search --tag memory"]
-    E -->|"back-and-forth"| H["loci chat"]
-    E -->|"scattered notes on a topic"| I["loci wiki topic<br>consolidate into a wiki page"]
-    F --> J["loci remember —<br>keep what you learned"]
-    I --> J
-```
-
-## 명령
-
-| 명령 | 기능 |
-|---|---|
-| `ingest` | 소스 디렉터리 스캔, 신규/변경 파일 인덱스, 삭제된 파일 정리 (`--force` 전체 재구축) |
-| `search "query"` | 검색만 — `경로 > 섹션` 빵크럼이 붙은 랭킹 발췌 |
-| `ask "question"` | 검색 + 출처 인용이 붙은 LLM 답변 |
-| `ask "…" --verify` | 답변에 주장 단위 감사 추가 (✓ 지지 / ~ 부분 / ✗ 미지지) |
-| `links "note"` | 노트의 `[[위키링크]]` 출입 그래프 표시 |
-| `chat` | 대화 기억이 있는 다중 턴 Q&A 루프 (`/clear`, `/exit`) |
-| `wiki topic` | 인덱스의 해당 토픽 내용을 위키 페이지 하나로 증류 |
-| `remember text` | 영구 메모 노트를 쓰고 즉시 인덱스 |
-| `ask "…" --rewrite` | LLM으로 쿼리 재작성(키워드 + 다국어 변형) 후 검색 |
-| `feedback good\|bad` | 최근 ask에 사용된 청크 평가; bad 평가 청크는 이후 순위 하락 |
-| `wiki --suggest` | 아직 페이지 없는 wiki 작성 가치 토픽 추천 |
-| `bench cases.jsonl` | 검색 벤치마크: hit@k, 벡터만 vs 하이브리드 |
-| `sync push\|pull` | git으로 여러 머신 간 memories/wiki 동기화([sync] remote) |
-| `serve-http` | HTTP REST API(search/ask/remember/stats), Bearer 인증 |
-| `graph build` / `graph show 实体` | 지식 그래프: memories/wiki에서 개체 관계 추출(graph.json) |
-| `stats` | 인덱스 현황: 소스별 청크 수, 모델, 검색 설정 |
-| `doctor` | 헬스 체크: 설정, 소스 디렉터리, embed/LLM 엔드포인트, 스토어 |
-| `watch` | 소스 폴링으로 인덱스 최신 유지 (선택) |
-| `python mcp_server.py` | MCP 서버 (stdio, 아래 참조) |
-
-필터 연산자 (`search`와 `ask`에서 자유 조합):
-
-| 플래그 | 필터 대상 |
-|---|---|
-| `--tag foo` | frontmatter 태그에 `foo`를 포함하는 파일 |
-| `--in docs/en` | 경로에 해당 부분 문자열을 포함하는 파일 |
-| `--since 2026-08` / `--since 2026-08-15` | 해당 날짜 이후 수정된 파일 |
-| `-e "exact phrase"` | 정확한 구문을 포함하는 청크 |
-| `-k N` | 히트 수 (기본 5) |
-
-## 하나의 메모리, 모든 IDE
-
-모든 MCP 호스트가 마운트하는 것은 **같은** loci 서버(같은 `config.toml`, 같은 인덱스)입니다. 한 도구에서 쓴 메모리를 다른 모든 도구에서 불러올 수 있습니다:
+`config.toml`의 `[llm]`, `[embed]`를 설정하고 `[[sources]].path`를 노트 디렉터리로 바꾸세요. 임베딩 서비스는 `/embeddings`를 지원해야 합니다. 채팅과 임베딩에 서로 다른 공급자를 사용할 수 있습니다.
 
 ```bash
-# Claude Code
-claude mcp add loci -- loci-mcp
+loci ingest
+loci search "배포 결정"
+loci ask "배포 방식을 어떻게 결정했으며 이유는 무엇인가요?"
 ```
 
-```jsonc
-// Cursor / Cline / Qoder / Trae (mcpServers JSON — 어디서나 같은 형태)
-{ "mcpServers": { "loci": { "command": "loci-mcp" } } }
+설정이 이미 있다면 `python -m pip install loci-rag`로 설치하고 `LOCI_HOME`에 인스턴스 디렉터리를 지정하세요. PDF·Word 지원: `python -m pip install 'loci-rag[pdf,docx]'`.
+
+> 키는 `BRAIN_LLM_API_KEY`, `BRAIN_EMBED_API_KEY`로도 전달할 수 있습니다. 임베딩 모델을 바꾼 뒤에는 `loci ingest --force`로 인덱스를 다시 만드세요.
+
+## Web 콘솔
+
+```bash
+loci serve-http
 ```
 
-그 후 어디서든: *"staging 비밀번호는 월요일마다 교체한다고 기억해"* → `brain_remember` → 나중에 **다른** IDE에서: *"staging 비밀번호는 언제 교체?"* → 인용이 붙은 답변. 메모리는 `memories` 디렉터리의 평문 markdown으로 저장(git 친화적, 락인 없음)되며 `memory` 태그가 붙어 `loci search --tag memory`로 메모리만 검색할 수 있습니다.
+**[127.0.0.1:8765/ui](http://127.0.0.1:8765/ui)**를 여세요. UI는 영어·중국어 간체 및 밝은·어두운 테마 전환을 지원하며 별도의 프런트엔드 빌드가 필요하지 않습니다.
 
-> **크로스 IDE 팁**: 기본 `store` / `memories` 경로는 loci 실행 디렉터리 기준 상대 경로입니다. IDE마다 다른 프로젝트 폴더에서 실행한다면 `config.toml`에서 둘 다 하나의 절대 위치로 향하게 하세요 — 예: `store.path = "~/.loci/store"`, `memories.path = "~/.loci/memories"` — 그러면 모든 IDE가 정확히 같은 메모리 스토어를 공유합니다.
+기본적으로 루프백 주소의 익명 연결에는 관리자 권한이 부여됩니다. 리버스 프록시나 SSH 터널을 사용한다면 `[http] local_admin = false`와 역할별 토큰을 설정하세요. [접근 제어 · 영어](docs/guide.en.md#web-console).
 
-## 생태계
+DeepSeek Harness에서는 [loci-dsh](https://github.com/IvenKooLab/loci-dsh)를 통해 같은 HTTP 백엔드의 검색, 질문, 기억 저장 기능을 워크벤치에서 사용할 수 있습니다.
 
-- **[loci-dsh](https://github.com/IvenKooLab/loci-dsh)** — [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)용 시각화 플러그인: dsh Web UI 사이드바에서 검색·질문·메모 빠른 저장·인덱스 현황 확인. 로컬 REST로 `loci serve-http`에 연결.
+## AI 도구 연결
 
-## 어떤 MCP 호스트에든 마운트
-
-`claude_desktop_config.json`(Claude Desktop) 또는 MCP 클라이언트 설정에 추가:
+MCP 클라이언트들이 **같은 `LOCI_HOME`**을 가리키면 설정, 인덱스, 기억을 공유합니다.
 
 ```json
 {
   "mcpServers": {
     "loci": {
-      "command": "python",
-      "args": ["/path/to/second-brain-rag/mcp_server.py"]
+      "command": "loci-mcp",
+      "env": { "LOCI_HOME": "/absolute/path/to/your/loci-instance" }
     }
   }
 }
 ```
 
-도구 외에 서버는 완전한 프로토콜을 지원합니다:
+인스턴스 디렉터리에 `config.toml`이 있어야 합니다. 클라이언트가 `loci-mcp`를 찾지 못하면 실행 파일의 절대 경로를 지정하세요.
 
-- **Resources** — `resources/list`가 `brain://stats`와 인덱스된 파일마다 `brain://note/…` 리소스를 노출(`resources/read`로 원본 markdown 획득)
-- **Prompts** — 세 가지 템플릿: `brain-briefing`, `study-plan`, `contradiction-check`
-
-## 도구 목록
-
-| 도구 | 기능 |
+| MCP 도구 | 용도 |
 |---|---|
-| `brain_search(query, k?, tag?, in?)` | 빵크럼이 붙은 랭킹 발췌 |
-| `brain_ask(question, verify?)` | 검색 결과에 근거한 인용 답변; `verify=true`는 주장 단위 감사 추가 |
-| `brain_wiki(topic)` | **메모리 통합** — 인덱스의 내용을 상호 링크된 위키 페이지로 증류 |
-| `brain_remember(text, title?, tags?)` | **영구 메모리 쓰기** — 세션과 IDE를 넘어 공유 |
-| `brain_forget(query)` | 노트 주변의 `[[위키링크]]` 그래프 |
-| `brain_stats()` | 인덱스 개요(소스별 청크 수) |
-| `brain_ingest(force?)` | 증분 재인덱스 |
+| `brain_search` · `brain_ask` | 검색과 출처가 있는 답변 |
+| `brain_remember` · `brain_forget` | 장기 기억 저장 및 철회 |
+| `brain_links` · `brain_graph` | 노트 링크와 지식 관계 탐색 |
+| `brain_wiki` · `brain_harness` | 지식 정리와 Agent 기억 관리 |
+| `brain_stats` · `brain_ingest` | 인덱스 확인과 갱신 |
 
-## 완전 오프라인: Ollama
+## 일상적인 사용 흐름
 
-인덱스는 설계상 로컬 — 임베딩/채팅 호출도 그렇게 할 수 있습니다. 어떤 OpenAI 호환 서버든 동작하며, [Ollama](https://ollama.com)는 엔드투엔드로 검증되었습니다:
-
-```toml
-[llm]
-base_url = "http://localhost:11434/v1"
-api_key = "ollama"          # 비어있지 않은 임의의 플레이스홀더
-model = "qwen2.5:0.5b"
-
-[embed]
-base_url = "http://localhost:11434/v1"
-api_key = "ollama"
-model = "all-minilm"
+```bash
+loci watch
+loci remember "데모에는 스테이징 환경 사용" --title "데모 환경 결정"
+loci search "데모 환경" --tag memory
+loci ask "데모를 준비할 때 무엇을 확인해야 하나요?" --verify
+loci harness
 ```
 
-이 설정으로 `ingest` / `search` / `ask`는 클라우드 호출이 전혀 없습니다. 더 큰 로컬 채팅 모델로 바꾸면 답변 품질도 향상됩니다 — 파이프라인은 모델 비종속입니다.
+변경된 파일을 증분 색인하며 기억은 읽기 쉬운 Markdown으로 유지됩니다. 여러 기기에서는 원본 파일과 기억을 동기화하고 인덱스는 각 기기에서 다시 만드세요. 키는 저장소에 넣지 마세요.
 
-## 설정
+## 문서
 
-| 키 | 의미 |
-|---|---|
-| `[llm]` | base_url / api_key / model — 어떤 OpenAI 호환 엔드포인트든 |
-| `[embed]` | 동일; model은 embedding 모델이어야 함 (예: `embedding-3`) |
-| `[[sources]]` | 문서 디렉터리 목록, `.md` / `.txt` / `.html` / `.org`를 재귀 스캔 (extras 설치 시 `.pdf` / `.docx`도) |
-| `[[sources]] chunk_size` / `chunk_overlap` | 디렉터리별 청킹 설정 오버라이드 |
-| `[chunk]` | 전역 청킹 파라미터 (기본 800자 / 100 겹침) |
-| `[top_k]` | 검색당 히트 수 (기본 5) |
-| `[retrieval]` | `hybrid`(벡터+BM25 융합, 기본 ON), `rrf_k`, `rerank`(LLM 재정렬, 기본 OFF) |
-| `[memories]` / `[wiki]` | 메모리 노트와 wiki 페이지 디렉터리(자동으로 인덱스에 합류) |
-| `[watch]` | 폴링 간격 초 |
+[사용 가이드 · 영어](docs/guide.en.md) · [설정 예제](config.example.toml) · [아키텍처](docs/ARCHITECTURE.md) · [변경 기록](CHANGELOG.md) · [로드맵](docs/roadmap.md) · [기여 안내](CONTRIBUTING.md)
 
-API 키는 환경 변수 `BRAIN_LLM_API_KEY` / `BRAIN_EMBED_API_KEY`로도 제공 가능(설정 파일보다 우선).
+런타임에는 OpenAI 호환 SDK와 ChromaDB를 사용하며 LangChain이나 LlamaIndex에 의존하지 않습니다. 테스트는 API 키 없이 오프라인으로 실행할 수 있습니다.
 
-- **지식 그래프**: `loci graph build`가 메모리와 wiki 페이지에서 개체 관계를 추출해 사람이 읽을 수 있는 `graph.json`에 저장; `brain_graph(entity)`로 개념 간 연결 확인(각 에지에 출처 인용), wiki 생성 시 관계를 보조 컨텍스트로 주입
-- **OCR**(`[ocr]` extra): 이미지와 스캔 PDF도 인식해 인덱싱
-- **HTML / org-mode 로더**(표준 라이브러리만 사용, 새 의존성 없음)
+```bash
+python -m pip install -e '.[dev,pdf]'
+pytest
+```
 
-## 설계 결정
-
-- **핵심 약 500줄, LangChain 없음** — 모든 단계를 읽고, 고치고, 배울 수 있습니다. 엔진 전체가 한 번에 읽힙니다
-- **MCP 우선** — AI 호스트 생태계가 곧 UI 레이어. Web 앱 유지보수 불필요
-- **하이브리드 검색 기본 ON** — 벡터 검색과 네이티브 BM25(CJK 대응 토크나이저)를 RRF로 융합
-- **인용에는 항상 빵크럼** — `경로 > 섹션` 형태로 주장을 즉시 검증 가능
-- **견고하고 투명한 인덱싱** — 방어적 로더(파싱 불가는 건너뛰고 멈추지 않음), 콘텐츠 해시 증분, 실제 정리, `stats` / `doctor` 명령으로 인덱스는 결코 블랙박스가 되지 않습니다
-- **짧은 노트도 검색 가능** — 최소 청크 필터 없음. 한 줄 노트도 인덱스됩니다
-- **키는 코드에 두지 않음** — `config.toml`(gitignore됨) 또는 환경 변수
-
-## 포지셔닝 비교
-
-| | loci | AnythingLLM (65k★) | Khoj (37k★) | RAGFlow (90k★) |
-|---|---|---|---|---|
-| 포지셔닝 | 개인 검색 **백엔드** + MCP | 올인원 채팅 플랫폼 | 셀프호스팅 AI 어시스턴트 | 엔터프라이즈 RAG 엔진 |
-| 풋프린트 | 런타임 의존 2개, Docker 없음 | 데스크톱/Docker | Django 서버 + 워커 | Docker, DeepDoc 모델 |
-| UI | 여러분의 터미널과 에이전트 | 내장 웹/데스크톱 | 웹 + Obsidian/Emacs | 웹 |
-| MCP 서버 | ✅ 네이티브 | 컨슈머 | — | — |
-| 핵심 가독성 | ✅ 약 500줄 | ✗ | ✗ | ✗ |
-| 다중 사용자 | 설계상 없음 | ✅ | ✅ | ✅ |
-
-(전체 데이터와 논거는 [경쟁 분석](docs/research/competitive-landscape.md) 참조.)
-
-## 로드맵
-
-[docs/roadmap.md](docs/roadmap.md) 참조 — 리랭킹, GraphRAG 실험, 추가 로더.
-
-## 라이선스
-
-MIT
+[GitHub](https://github.com/IvenKooLab/loci) · [Gitee](https://gitee.com/IvenKooLab/loci) · [MIT](LICENSE)
