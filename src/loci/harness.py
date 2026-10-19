@@ -254,6 +254,7 @@ def summarize(cfg, h: Harness, force: bool = False) -> dict:
     iso = datetime.now().strftime("%Y-%m-%d %H:%M")
     front = ("---\n"
              "tags: [memory, harness, summary]\n"
+             f"title: {h.display or h.name} memory digest\n"
              f"updated: {iso}\n"
              f"harness: {h.name}\n"
              f"type: {h.type}\n"

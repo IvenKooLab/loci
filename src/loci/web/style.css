@@ -195,6 +195,44 @@ th, td { text-align: left; padding: 9px 12px; border-bottom: 0.5px solid var(--l
 tr:last-child td { border-bottom: 0; }
 th { color: var(--muted); font-weight: 500; font-size: 12px; }
 
+/* ---- harness drilldown (iOS Files style) ---- */
+#drilldown { margin-top: 14px; }
+.crumbs {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 2px;
+  background: none; padding: 0; border-radius: 0;
+}
+.crumbs .crumb {
+  appearance: none; border: 0; background: transparent;
+  color: var(--acc); font: 600 14px/1.2 inherit;
+  padding: 6px 8px; border-radius: 8px; cursor: pointer;
+}
+.crumbs .crumb:hover { background: var(--panel2); }
+.crumbs .crumb:not(:last-child)::after {
+  content: "›"; color: var(--muted); margin-left: 10px; font-weight: 400;
+}
+.linklike {
+  appearance: none; border: 0; background: transparent;
+  color: var(--muted); font-size: 15px; padding: 6px 10px;
+  border-radius: 8px; cursor: pointer;
+}
+.linklike:hover { background: var(--panel2); }
+.dd-list {
+  list-style: none; margin: 0; padding: 4px;
+  background: var(--panel); border-radius: 14px;
+  box-shadow: var(--card-shadow);
+  max-height: 420px; overflow: auto;
+}
+.dd-list li {
+  padding: 10px 12px; cursor: pointer; font-size: 13px;
+  border-bottom: 0.5px solid var(--line);
+  display: flex; align-items: center; gap: 8px;
+}
+.dd-list li:last-child { border-bottom: 0; }
+.dd-list li:hover { background: var(--panel2); }
+.dd-list li .ico { font-size: 16px; }
+.dd-list li small { color: var(--muted); margin-left: auto; font-size: 11px; white-space: nowrap; }
+#dd-view { margin-top: 10px; }
+
 /* ---- login dialog ---- */
 .overlay {
   position: fixed; inset: 0; z-index: 50;

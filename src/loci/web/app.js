@@ -30,6 +30,7 @@ const I18N = {
     phToken: "Bearer token", btnSignin: "Sign in",
     expired: "session expired — sign in again", rejected: "token rejected",
     noHarness: "No [[harness]] entries configured.",
+    noFiles: "(empty)",
     files: "files", chunks: "chunks", updated: "updated",
     fresh: "fresh", stale: "stale", missing: "missing",
     indexing: "indexing…", summarizing: "summarizing…",
@@ -56,6 +57,7 @@ const I18N = {
     phToken: "Bearer token", btnSignin: "登录",
     expired: "会话过期——请重新登录", rejected: "token 被拒绝",
     noHarness: "尚未配置 [[harness]] 条目。",
+    noFiles: "（空）",
     files: "个文件", chunks: "块", updated: "更新于",
     fresh: "最新", stale: "待更新", missing: "未生成",
     indexing: "索引中…", summarizing: "总结中…",
@@ -170,7 +172,7 @@ async function loadDash() {
     </div>`).join("")
     || `<p class="muted">${t("noHarness")}</p>`;
   cards.querySelectorAll(".card").forEach((c) =>
-    c.addEventListener("click", () => openMemory(`harness/${c.dataset.name}.md`)));
+    c.addEventListener("click", () => openDrilldown(c.dataset.name)));
 }
 
 async function runQuery() {
@@ -185,15 +187,109 @@ async function runQuery() {
   } catch (e) { out.textContent = t("errorPrefix") + e.message; }
 }
 
+
+/* ---------- harness drilldown (iOS-Files-style nested navigation) ---------- */
+let drill = null;                       // {name, display, files, path: [], file: null}
+
+async function openDrilldown(name) {
+  try {
+    const data = await api(`/harness-files?name=${encodeURIComponent(name)}`);
+    drill = { ...data, path: [], file: null };
+    $("#drilldown").classList.remove("hidden");
+    $("#dd-view").classList.add("hidden");
+    $("#dd-list").classList.remove("hidden");
+    renderDrill();
+    $("#drilldown").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  } catch (e) { alert(e.message); }
+}
+
+function drillAt(prefix) {
+  // entries under `prefix`: [{kind:'dir'|'file', name, file?}]
+  const out = new Map();
+  for (const f of drill.files) {
+    const parts = f.rel.split("/");
+    const at = parts.slice(0, prefix.length);
+    if (prefix.length && at.join("/") !== prefix.join("/")) continue;
+    const next = parts[prefix.length];
+    if (!next) continue;
+    const isFile = parts.length === prefix.length + 1;
+    out.set(next, isFile ? { kind: "file", name: next, file: f }
+                         : { kind: "dir", name: next });
+  }
+  return [...out.values()].sort((a, b) =>
+    a.kind === b.kind ? a.name.localeCompare(b.name)
+    : a.kind === "dir" ? -1 : 1);
+}
+
+function renderDrill() {
+  const crumbs = $("#crumbs");
+  crumbs.innerHTML = "";
+  const mk = (label, depth) => {
+    const b = document.createElement("button");
+    b.className = "crumb";
+    b.textContent = label;
+    b.addEventListener("click", () => {
+      drill.path = drill.path.slice(0, depth);
+      drill.file = null;
+      $("#dd-view").classList.add("hidden");
+      $("#dd-list").classList.remove("hidden");
+      renderDrill();
+    });
+    crumbs.appendChild(b);
+  };
+  mk(drill.display, 0);
+  drill.path.forEach((part, i) => mk(part, i + 1));
+
+  const list = $("#dd-list");
+  const entries = drillAt(drill.path);
+  list.innerHTML = entries.map((e) => e.kind === "dir"
+    ? `<li data-kind="dir" data-name="${e.name}"><span class="ico">📁</span> ${e.name}</li>`
+    : `<li data-kind="file" data-rel="${e.file.rel}" data-path="${encodeURIComponent(e.file.path)}">
+         <span class="ico">📄</span> ${e.name}
+         <small>${e.file.mtime} · ${e.file.size}B</small></li>`
+  ).join("") || `<li class="muted" style="cursor:default">(${t("noFiles")})</li>`;
+  list.querySelectorAll("li[data-kind=dir]").forEach((li) =>
+    li.addEventListener("click", () => {
+      drill.path.push(li.dataset.name);
+      renderDrill();
+    }));
+  list.querySelectorAll("li[data-kind=file]").forEach((li) =>
+    li.addEventListener("click", () => openDrillFile(li.dataset.path, li.dataset.rel)));
+}
+
+async function openDrillFile(encPath, rel) {
+  const view = $("#dd-view");
+  view.classList.remove("hidden");
+  $("#dd-list").classList.add("hidden");
+  view.textContent = "…";
+  try {
+    const { text } = await api(`/source-file?path=${encPath}`);
+    view.textContent = `# ${rel}\n\n${text}`;
+  } catch (e) { view.textContent = t("errorPrefix") + e.message; }
+}
+
+$("#drill-close").addEventListener("click", () => {
+  drill = null;
+  $("#drilldown").classList.add("hidden");
+});
+
 /* ---------- memories ---------- */
 async function loadMemories() {
   const { memories } = await api("/memories");
   const filter = $("#mem-filter").value;
+  const seen = new Set(memories.filter((m) => m.harness).map((m) => m.harness));
+  const sel = $("#mem-filter");
+  const opts = ["", "shared", ...seen];
+  if ([...sel.options].map((o) => o.value).join(",") !== opts.join(",")) {
+    sel.innerHTML = opts.map((v) =>
+      `<option value="${v}">${v === "" ? t("optAll") : v === "shared" ? t("optShared") : v}</option>`).join("");
+    sel.value = filter && opts.includes(filter) ? filter : "";
+  }
   const list = $("#mem-list");
   list.innerHTML = memories
-    .filter((m) => !filter || m.group === filter)
+    .filter((m) => !filter || m.group === filter || m.harness === filter)
     .map((m) => `<li data-name="${m.name}" class="${memSelection?.name === m.name ? "on" : ""}">
-      ${m.title || m.name}<small>${m.group === "shared" ? t("optShared") : t("optHarness")} · ${m.mtime} · ${m.size}B</small></li>`)
+      ${m.title || m.name}<small>${m.harness ? m.harness : t("optShared")} · ${m.mtime} · ${m.size}B</small></li>`)
     .join("");
   list.querySelectorAll("li").forEach((li) =>
     li.addEventListener("click", () => openMemory(li.dataset.name)));

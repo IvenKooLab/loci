@@ -146,6 +146,7 @@ def test_summarize_writes_gated_note(tmp_path, fake_llm):
     assert r1["status"] == "written" and fake_llm.calls == 1
     note = hm.summary_path(cfg, h).read_text(encoding="utf-8")
     assert "fingerprint:" in note and "tags: [memory, harness, summary]" in note
+    assert "title: t memory digest" in note   # proper title, not a raw fence
 
     r2 = hm.summarize(cfg, h)                    # unchanged: gated, zero LLM
     assert r2["status"] == "unchanged" and fake_llm.calls == 1
