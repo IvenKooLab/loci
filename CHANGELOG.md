@@ -6,9 +6,13 @@ Harness memory hub + built-in web console, from running loci as the shared
 memory layer for several AI coding tools at once.
 
 ### Added
-- **Harness memory hub**: register each AI tool's native memory directory as a
-  `[[harness]]` entry (type presets for zcode's `projects/*//memory` layout and
-  codex's flat dir; `generic` covers everything else). `loci harness` prints
+- **Harness memory hub**: AI tools are discovered automatically, Ekko-style —
+  a built-in registry (ZCode, Codex, DeepSeek Harness, Claude Code) with
+  per-machine probes (home dir / app bundle / `DSH_HOME`); detected tools show
+  up with their real memory stats, nothing is invented on disk. `[[harness]]`
+  config entries override the registry or add other tools (type presets know
+  zcode's `projects/*/memory` layout, codex-style flat dirs, and generic
+  recursive scanning). `loci harness` prints
   per-tool stats (files / indexed chunks / last update / digest freshness) with
   zero LLM cost; `loci harness --summarize` distills each tool's memories into
   a digest note in the shared pool, fingerprint-gated so unchanged harnesses

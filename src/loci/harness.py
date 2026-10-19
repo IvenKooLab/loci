@@ -23,6 +23,7 @@ Each harness is a [[harness]] entry in config.toml:
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -51,29 +52,98 @@ class Harness:
     type: str
     icon: str
     roots: list[Path] = field(default_factory=list)
+    display: str = ""                        # pretty name; falls back to `name`
+
+
+# Known harnesses, Ekko-style: a static registry (display name, type preset,
+# icon candidates, probe paths) plus per-machine detection. A harness shows up
+# when its probe hits (install home / app bundle / env var) — memory roots are
+# then scanned for real markdown; nothing is invented on disk. [[harness]]
+# config entries override or add to this registry by name.
+KNOWN_HARNESSES = {
+    "zcode": {
+        "display": "ZCode", "type": "zcode", "emoji": "⚡",
+        "icons": ["zcode-logo.png", "zcode.png"],
+        "probe": ["~/.zcode"],
+        "memory": ["~/.zcode/cli/memories"],
+    },
+    "codex": {
+        "display": "Codex", "type": "codex", "emoji": "🐙",
+        "icons": ["codex-openai.png", "codex.png"],
+        "probe": ["~/.codex"],
+        "memory": ["~/.codex/memories"],
+    },
+    "dsh": {
+        "display": "DeepSeek Harness", "type": "generic", "emoji": "🐳",
+        "icons": ["deepseek.svg", "deepseek.png", "dsh.png"],
+        "probe": ["$DSH_HOME", "/Applications/DeepSeek Harness.app",
+                  "~/Applications/DeepSeek Harness.app"],
+        "memory": ["$DSH_HOME"],             # empty until DSH_HOME is set
+    },
+    "claude": {
+        "display": "Claude Code", "type": "codex", "emoji": "🧠",
+        "icons": ["claude-code.svg", "claude.png"],
+        "probe": ["~/.claude"],
+        "memory": ["~/.claude/memories", "~/.claude/CLAUDE.md"],
+    },
+}
+
+
+def _expand(p: str) -> Path | None:
+    """~-expansion plus $ENV prefixes; None when the env var is unset/empty."""
+    if p.startswith("$"):
+        v = os.environ.get(p[1:], "").strip()
+        return Path(v).expanduser().resolve() if v else None
+    return Path(p).expanduser().resolve()
+
+
+def _icon_for(spec: dict, icons_dir: Path) -> str:
+    """First icon candidate present in the instance icons dir, else emoji."""
+    for f in spec.get("icons", []):
+        if (icons_dir / f).is_file():
+            return f
+    return spec.get("emoji", "🗂️")
 
 
 def load_harnesses(cfg) -> list[Harness]:
-    out = []
-    for h in getattr(cfg, "harnesses", None) or []:
+    icons_dir = Path(cfg.http.get("icons", "./icons")).expanduser()
+    out: dict[str, Harness] = {}
+    for name, spec in KNOWN_HARNESSES.items():          # registry + detection
+        probes = [_expand(p) for p in spec.get("probe", [])]
+        if not any(p and p.exists() for p in probes):
+            continue
+        roots = [r for r in (_expand(p) for p in spec.get("memory", []))
+                 if r is not None]
+        out[name] = Harness(name, spec["type"],
+                            _icon_for(spec, icons_dir), roots,
+                            display=spec.get("display", ""))
+    for h in getattr(cfg, "harnesses", None) or []:     # config overrides/adds
         name = str(h.get("name", "")).strip()
         if not name:
             continue
         htype = str(h.get("type", "generic")).strip().lower() or "generic"
-        icon = str(h.get("icon", "") or "").strip() \
-            or DEFAULT_ICONS.get(name) or DEFAULT_ICONS.get(htype) or "🗂️"
+        icon = str(h.get("icon", "") or "").strip()
         raw = h.get("paths") or ([h["path"]] if h.get("path") else [])
         roots = [Path(str(p)).expanduser().resolve()
                  for p in raw if str(p).strip()]
-        out.append(Harness(name, htype, icon, roots))
-    return out
+        prev = out.get(name)
+        out[name] = Harness(name, htype, icon or (prev.icon if prev else "🗂️"),
+                            roots,
+                            display=str(h.get("display", ""))
+                            or (prev.display if prev else ""))
+    return list(out.values())
 
 
 def memory_files(h: Harness) -> list[Path]:
-    """All markdown files this harness owns, per its type preset."""
+    """All markdown files this harness owns, per its type preset. Roots may be
+    directories (scanned per preset) or individual files (e.g. CLAUDE.md)."""
     files: set[Path] = set()
     for root in h.roots:
         if not root.exists():
+            continue
+        if root.is_file():
+            if root.suffix == ".md":
+                files.add(root)
             continue
         if h.type == "zcode":
             files.update(root.glob("projects/*/memory/*.md"))
@@ -124,7 +194,8 @@ def stats(cfg, store, harnesses: list[Harness]) -> list[dict]:
         fp = fingerprint(files)
         stored = _stored_fingerprint(cfg, h)
         out.append({
-            "name": h.name, "type": h.type, "icon": h.icon,
+            "name": h.name, "display": h.display or h.name,
+            "type": h.type, "icon": h.icon,
             "files": len(files), "chars": sum(
                 p.stat().st_size for p in files if p.exists()),
             "chunks": chunks,
@@ -191,7 +262,7 @@ def summarize(cfg, h: Harness, force: bool = False) -> dict:
              f"files: {len(files)}\n"
              "---\n")
     tmp = out.with_suffix(".md.tmp")
-    tmp.write_text(f"{front}# {h.name} · memory digest\n\n{body}\n",
+    tmp.write_text(f"{front}# {h.display or h.name} · memory digest\n\n{body}\n",
                    encoding="utf-8")
     tmp.rename(out)
     try:
@@ -212,10 +283,10 @@ def stats_table(rows: list[dict]) -> str:
         return ("(no [[harness]] entries in config.toml — add one per AI tool:\n"
                 '  [[harness]]\n  name = "zcode"\n  type = "zcode"\n'
                 '  paths = ["~/.zcode/cli/memories"])')
-    head = f'{"harness":<12} {"type":<9} {"files":>5} {"chunks":>6}  {"last update":<16} summary'
+    head = f'{"harness":<20} {"type":<9} {"files":>5} {"chunks":>6}  {"last update":<16} summary'
     lines = [head, "-" * len(head)]
     for r in rows:
-        lines.append(f'{r["name"]:<12} {r["type"]:<9} {r["files"]:>5} '
+        lines.append(f'{r.get("display") or r["name"]:<20} {r["type"]:<9} {r["files"]:>5} '
                      f'{r["chunks"]:>6}  {r["last_updated"]:<16} '
                      f'{r["summary"]["status"]}')
     return "\n".join(lines)

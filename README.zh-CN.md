@@ -178,7 +178,7 @@ claude mcp add loci -- loci-mcp
 
 ## Harness 记忆中枢
 
-同时用多个 AI 编码工具？每个都有自己的记忆目录。注册一次，loci 就成为俯瞰全部的统一界面：
+同时用多个 AI 编码工具？每个都有自己的记忆目录。loci **自动发现**它们——内置注册表（ZCode、Codex、DeepSeek Harness、Claude Code）按机器探测（home 目录 / 应用包 / `DSH_HOME` 环境变量），探测命中即以真实记忆统计出现在卡片里。不在磁盘上编造任何东西：没有 markdown 记忆的工具就如实显示为零。需要覆盖探测或接入其他工具时再显式注册：
 
 ```toml
 [[harness]]
@@ -188,9 +188,9 @@ paths = ["~/.zcode/cli/memories"]
 icon = "⚡"                            # emoji，或 icons 目录下的图片文件名
 
 [[harness]]
-name = "codex"
-type = "codex"                        # 平铺 *.md 目录
-paths = ["~/.codex/memories"]
+name = "my-tool"
+type = "generic"                      # 递归 *.md 扫描
+paths = ["~/notes/from-my-agent"]
 ```
 
 - `loci harness`——每个工具的统计（文件数、索引 chunks、最近更新、摘要新鲜度），零 LLM 成本

@@ -149,7 +149,7 @@ async function loadDash() {
   cards.innerHTML = harness.map((h) => `
     <div class="card" data-name="${h.name}">
       <div class="head">${iconHtml(h)}
-        <span class="name">${h.name}</span>
+        <span class="name">${h.display || h.name}</span>
         <span class="badge ${h.summary.status}">${t(h.summary.status)}</span>
       </div>
       <div class="meta">${h.files} ${t("files")} · ${h.chunks} ${t("chunks")}<br>${t("updated")} ${h.last_updated || "—"}</div>
