@@ -312,8 +312,12 @@ credentials never belong in the repo.
 
 ## Harness memory hub
 
-Running several AI coding tools? Each keeps its own memory directory. Register
-them once and loci becomes the pane of glass over all of them:
+Running several AI coding tools? Each keeps its own memory directory. loci
+discovers them automatically — a built-in registry (ZCode, Codex, DeepSeek
+Harness, Claude Code) is probed per machine (home dirs, app bundles,
+`DSH_HOME`), and every hit shows up as a card with its real memory stats.
+Nothing is invented on disk: a tool with no markdown memories simply shows
+zero. To override detection or add another tool, register it explicitly:
 
 ```toml
 [[harness]]
@@ -323,9 +327,9 @@ paths = ["~/.zcode/cli/memories"]
 icon = "⚡"                            # emoji, or a file in the icons dir
 
 [[harness]]
-name = "codex"
-type = "codex"                        # flat *.md directory
-paths = ["~/.codex/memories"]
+name = "my-tool"
+type = "generic"                      # recursive *.md scan
+paths = ["~/notes/from-my-agent"]
 ```
 
 - `loci harness` — per-tool stats (files, indexed chunks, last update, digest

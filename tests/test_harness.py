@@ -14,12 +14,72 @@ def make_cfg(tmp_path, entries):
     cfg.memories = {"path": str(tmp_path / "memories")}
     cfg.llm = {"base_url": "http://x", "api_key": "k", "model": "m"}
     cfg.chunk = {"size": 800, "overlap": 100}
+    cfg.http = {"icons": str(tmp_path / "icons")}
     return cfg
 
 
 def _write(p, text):
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(text, encoding="utf-8")
+
+
+@pytest.fixture(autouse=True)
+def _registry_off(monkeypatch):
+    """Tests are machine-independent: default to an empty discovery registry;
+    discovery tests install their own specs."""
+    monkeypatch.setattr(hm, "KNOWN_HARNESSES", {})
+
+
+def test_discovery_probes_and_env_expansion(tmp_path, monkeypatch):
+    home = tmp_path / "zhome"
+    home.mkdir()
+    monkeypatch.setattr(hm, "KNOWN_HARNESSES", {
+        "zcode": {"display": "ZCode", "type": "zcode", "emoji": "⚡",
+                  "icons": ["zcode.png"], "probe": ["~/.zzzcode-does-not-exist"],
+                  "memory": []},
+        "dsh": {"display": "DeepSeek Harness", "type": "generic", "emoji": "🐳",
+                "icons": [], "probe": ["$MY_DSH"],
+                "memory": ["$MY_DSH"]},
+    })
+    monkeypatch.setenv("MY_DSH", str(tmp_path / "dsh-data"))
+    (tmp_path / "dsh-data").mkdir()
+    cfg = make_cfg(tmp_path, [])
+    cfg.http = {"icons": str(tmp_path / "icons")}
+
+    found = {h.name: h for h in hm.load_harnesses(cfg)}
+    assert "zcode" not in found                    # probe missed
+    assert found["dsh"].display == "DeepSeek Harness"
+    assert found["dsh"].roots == [tmp_path / "dsh-data"]  # $ENV expanded
+    assert found["dsh"].icon == "🐳"               # no icon files installed
+
+
+def test_discovery_icon_candidate_from_icons_dir(tmp_path, monkeypatch):
+    monkeypatch.setattr(hm, "KNOWN_HARNESSES", {
+        "zcode": {"display": "ZCode", "type": "zcode", "emoji": "⚡",
+                  "icons": ["zcode.png"], "probe": [str(tmp_path)],
+                  "memory": []},
+    })
+    (tmp_path / "icons").mkdir()
+    (tmp_path / "icons" / "zcode.png").write_bytes(b"png")
+    cfg = make_cfg(tmp_path, [])
+    cfg.http = {"icons": str(tmp_path / "icons")}
+    (h,) = hm.load_harnesses(cfg)
+    assert h.icon == "zcode.png"
+
+
+def test_config_entry_overrides_discovered(tmp_path, monkeypatch):
+    monkeypatch.setattr(hm, "KNOWN_HARNESSES", {
+        "zcode": {"display": "ZCode", "type": "zcode", "emoji": "⚡",
+                  "icons": [], "probe": [str(tmp_path)],
+                  "memory": []},
+    })
+    cfg = make_cfg(tmp_path, [{"name": "zcode", "type": "generic",
+                               "paths": [str(tmp_path / "custom")],
+                               "icon": "🚀"}])
+    cfg.http = {"icons": str(tmp_path / "icons")}
+    (h,) = hm.load_harnesses(cfg)
+    assert h.type == "generic" and h.icon == "🚀"
+    assert h.roots == [tmp_path / "custom"]        # config wins over registry
 
 
 def test_zcode_preset_finds_project_memories(tmp_path):
