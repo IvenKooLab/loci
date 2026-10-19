@@ -8,7 +8,10 @@
 </head>
 <body>
 <header>
-  <span class="logo">🧠 loci <em>console</em></span>
+  <div class="brand">
+    <span class="logo">loci <em>console</em></span>
+    <span class="tagline" data-i18n="tagline">Shared memory layer for your AI coding tools</span>
+  </div>
   <nav>
     <button data-tab="dash" class="on" data-i18n="navDash">Overview</button>
     <button data-tab="mem" data-i18n="navMem">Memories</button>
@@ -16,6 +19,7 @@
     <button data-tab="audit" data-i18n="navAudit">Audit</button>
     <button id="lang-btn" title="switch language">中文</button>
     <button id="theme-btn" class="ghost" title="toggle dark mode">🌙</button>
+    <a id="gh-btn" href="https://github.com/IvenKooLab/loci" target="_blank" rel="noopener">GitHub ↗</a>
   </nav>
   <span id="who" class="who"></span>
 </header>

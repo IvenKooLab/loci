@@ -12,6 +12,7 @@ let memSelection = null;             // {name, isNew}
 const I18N = {
   en: {
     title: "loci console",
+    tagline: "Shared memory layer for your AI coding tools",
     navDash: "Overview", navMem: "Memories", navStats: "Index", navAudit: "Audit",
     phSearch: "Search the knowledge base…", phAsk: "Ask a question…",
     btnSearch: "Search", btnAsk: "Ask",
@@ -39,6 +40,7 @@ const I18N = {
   },
   zh: {
     title: "loci 管理台",
+    tagline: "AI 编码工具的共享记忆层",
     navDash: "总览", navMem: "记忆", navStats: "索引", navAudit: "审计",
     phSearch: "搜索知识库…", phAsk: "输入问题…",
     btnSearch: "搜索", btnAsk: "提问",
