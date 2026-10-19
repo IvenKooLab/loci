@@ -26,12 +26,12 @@ DEFAULTS = {
     "retrieval": {"hybrid": True, "rrf_k": 60, "rerank": False,
                   "rerank_provider": "llm",
                   "local_rerank_model": "BAAI/bge-reranker-base"},
-    "watch": {"interval": 30},
+    "watch": {"interval": 30, "auto_summarize": False},
     "memories": {"path": "./memories"},
     "wiki": {"path": "./wiki"},
     "chat": {"auto_extract": True},
     "sync": {"remote": ""},
-    "http": {"host": "127.0.0.1", "port": 8765, "token": ""},
+    "http": {"host": "127.0.0.1", "port": 8765, "token": "", "icons": "./icons"},
     "store": {"path": "./chroma_db"},
 }
 
@@ -51,6 +51,8 @@ class Config:
     http: dict = field(default_factory=dict)
     store: dict = field(default_factory=dict)
     sources: list = field(default_factory=list)
+    harnesses: list = field(default_factory=list)   # [[harness]] entries
+    auth: list = field(default_factory=list)        # [[auth.tokens]] entries
 
     def validate(self) -> None:
         problems = []
@@ -80,6 +82,8 @@ def load(path: str = "config.toml") -> Config:
             if isinstance(getattr(cfg, section), dict):
                 getattr(cfg, section).update(raw.get(section, {}))
         cfg.sources = raw.get("sources", [])
+        cfg.harnesses = raw.get("harness", [])
+        cfg.auth = raw.get("auth", {}).get("tokens", [])
     else:
         print(f"[warn] {path} not found — using defaults "
               f"(first run: cp config.example.toml config.toml)", file=sys.stderr)
@@ -91,6 +95,9 @@ def load(path: str = "config.toml") -> Config:
             v = getattr(cfg, section).get("path")
             if v and not Path(v).expanduser().is_absolute():
                 getattr(cfg, section)["path"] = str((base / v).resolve())
+        v = cfg.http.get("icons")
+        if v and not Path(v).expanduser().is_absolute():
+            cfg.http["icons"] = str((base / v).resolve())
         for s in cfg.sources:
             v = s.get("path")
             if v and not Path(v).expanduser().is_absolute():

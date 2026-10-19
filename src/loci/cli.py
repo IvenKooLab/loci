@@ -367,6 +367,26 @@ def cmd_stats(cfg) -> None:
         print(f"  {path:<{width}}  {n:>5} chunks")
 
 
+def cmd_harness(cfg, summarize: bool = False, force: bool = False,
+                as_json: bool = False) -> None:
+    """Per-harness memory stats; optionally refresh the summary notes first."""
+    from loci import harness as harness_mod
+    harnesses = harness_mod.load_harnesses(cfg)
+    if summarize and harnesses:
+        for r in harness_mod.summarize_all(cfg, harnesses, force=force):
+            detail = r.get("error", "")
+            print(f"  {r['harness']}: {r['status']}"
+                  + (f" ({detail})" if detail else ""))
+        print()
+    _, store = build(cfg)
+    rows = harness_mod.stats(cfg, store, harnesses)
+    if as_json:
+        import json
+        print(json.dumps(rows, ensure_ascii=False, indent=2))
+    else:
+        print(harness_mod.stats_table(rows))
+
+
 def cmd_doctor(cfg) -> int:
     checks: list[tuple[str, bool, str]] = []
     checks.append(("config file", Path("config.toml").exists(),
@@ -520,6 +540,14 @@ def main() -> None:
     p_bench.add_argument("-k", type=int, default=5, help="hits per query (default 5)")
 
     sub.add_parser("stats", help="show what is in the index")
+    p_harness = sub.add_parser(
+        "harness", help="per-AI-tool memory stats; optionally refresh summaries")
+    p_harness.add_argument("--summarize", action="store_true",
+                           help="(re)generate each harness's summary note (LLM)")
+    p_harness.add_argument("--force", action="store_true",
+                           help="re-summarize even when memories are unchanged")
+    p_harness.add_argument("--json", action="store_true",
+                           help="machine-readable output")
     sub.add_parser("doctor", help="check config, endpoints, and store health")
 
     args = parser.parse_args()
@@ -576,6 +604,9 @@ def main() -> None:
         serve()
     elif args.cmd == "stats":
         cmd_stats(cfg)
+    elif args.cmd == "harness":
+        cmd_harness(cfg, summarize=args.summarize, force=args.force,
+                    as_json=args.json)
     elif args.cmd == "doctor":
         sys.exit(cmd_doctor(cfg))
 
