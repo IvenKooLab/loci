@@ -171,6 +171,9 @@ h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; margin: 22px 0 1
 }
 .badge.fresh { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
 .badge.stale { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.badge.actionable { cursor: pointer; transition: transform 0.1s ease, filter 0.12s ease; }
+.badge.actionable:hover { filter: brightness(0.95); transform: scale(1.05); }
+.badge.actionable:active { transform: scale(0.95); }
 
 /* ---- memories: grouped list (iOS settings style) ---- */
 .split { display: grid; grid-template-columns: 300px 1fr; gap: 14px; }

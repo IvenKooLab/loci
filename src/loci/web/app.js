@@ -173,17 +173,34 @@ function iconHtml(h) {
 async function loadDash() {
   const { harness } = await api("/harness");
   const cards = $("#cards");
-  cards.innerHTML = harness.map((h) => `
+  cards.innerHTML = harness.map((h) => {
+    const stale = h.summary.status === "stale" && isAdmin();
+    return `
     <div class="card" data-name="${h.name}">
       <div class="head">${iconHtml(h)}
         <span class="name">${h.display || h.name}</span>
-        <span class="badge ${h.summary.status}">${t(h.summary.status)}</span>
+        <span class="badge ${h.summary.status}${stale ? " actionable" : ""}"
+              ${stale ? `data-h="${h.name}" title="${t("badgeTip")}"` : ""}>${t(h.summary.status)}</span>
       </div>
       <div class="meta">${h.files} ${t("files")} · ${h.chunks} ${t("chunks")}<br>${t("updated")} ${h.last_updated || "—"}</div>
-    </div>`).join("")
+    </div>`;
+  }).join("")
     || `<p class="muted">${t("noHarness")}</p>`;
   cards.querySelectorAll(".card").forEach((c) =>
     c.addEventListener("click", () => openDrilldown(c.dataset.name)));
+  // "stale" badge is a button: one click regenerates that harness's digest
+  cards.querySelectorAll(".badge.actionable").forEach((b) =>
+    b.addEventListener("click", async (ev) => {
+      ev.stopPropagation();                  // don't open the drilldown too
+      if (b.dataset.busy) return;
+      b.dataset.busy = "1";
+      b.textContent = "…";
+      try {
+        await api("/harness", { method: "POST",
+          body: JSON.stringify({ action: "summarize", name: b.dataset.h }) });
+      } catch (e) { alert(e.message); }
+      await loadDash();
+    }));
 }
 
 async function runQuery() {
