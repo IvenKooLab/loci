@@ -265,7 +265,7 @@ def summarize(cfg, h: Harness, force: bool = False) -> dict:
     tmp = out.with_suffix(".md.tmp")
     tmp.write_text(f"{front}# {h.display or h.name} · memory digest\n\n{body}\n",
                    encoding="utf-8")
-    tmp.rename(out)
+    tmp.replace(out)
     try:
         from loci.memories import index_memory_file
         index_memory_file(cfg, str(out))
