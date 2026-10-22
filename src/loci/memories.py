@@ -42,7 +42,7 @@ def write_memory(mem_dir: str, text: str, title: str | None = None,
              "---\n")
     tmp = path.with_suffix(".md.tmp")
     tmp.write_text(f"{front}# {title}\n\n{text.strip()}\n", encoding="utf-8")
-    tmp.rename(path)                           # atomic on same filesystem
+    tmp.replace(path)                          # atomic + overwrites on Windows
     return str(path.resolve())
 
 
