@@ -97,6 +97,8 @@ nav #gh-btn {
 }
 nav #gh-btn:hover { background: var(--panel2); }
 .who { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.ver { color: var(--muted); font-size: 11px; white-space: nowrap;
+  font-variant-numeric: tabular-nums; }
 
 main { padding: 20px 18px 40px; max-width: 1100px; margin: 0 auto; }
 .row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }

@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import platform
 import sys
 import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from loci import config, loaders, chunker  # noqa: E402
+from loci import __version__, config, loaders, chunker  # noqa: E402
 
 
 def parse_since(text: str) -> float:
@@ -464,12 +465,17 @@ def cmd_doctor(cfg) -> int:
         print(f"  {mark} {name:<16} {detail}")
     print(f"\n{len(checks) - failed}/{len(checks)} checks passed"
           + ("" if not failed else " — fix the ✗ items above"))
+    # which build is answering, so "did my upgrade land?" is one look away
+    print(f"loci {__version__} · python {platform.python_version()}"
+          f" · {platform.system().lower()}")
     return 1 if failed else 0
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="loci — Q&A over your personal knowledge base")
+    parser.add_argument("--version", action="version",
+                        version=f"loci {__version__}")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_ingest = sub.add_parser("ingest", help="scan source directories and incrementally index them")
