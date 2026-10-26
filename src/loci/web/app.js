@@ -316,14 +316,16 @@ async function runQuery() {
     }
     const data = await api("/search", { method: "POST",
       body: JSON.stringify({ query: q || ask }) });
-    if (Array.isArray(data.hits)) {
+    if (Array.isArray(data.hits) && data.hits.length) {
       out.classList.add("hidden");
       renderHits(data.hits);
-      if (data.hits.length) showEvidence(0); else closeEvidence();
+      showEvidence(0);
       return;
     }
-    out.classList.remove("hidden");            // older server: text view
+    // no hits (or an older server that sends only `result`): text view
     ul.classList.add("hidden");
+    closeEvidence();
+    out.classList.remove("hidden");
     out.textContent = data.result;
   } catch (e) {
     out.classList.remove("hidden");
