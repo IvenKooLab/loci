@@ -141,7 +141,7 @@ def load(path: str = "config.toml") -> Config:
         cfg.top_k["search"] = max(int(cfg.top_k["search"]), 1)
     except (TypeError, ValueError):
         cfg.top_k["search"] = DEFAULTS["top_k"]["search"]
-    known_tokenizers = ("default", "cjk_bigram", "jieba")
+    known_tokenizers = ("default", "cjk_bigram", "hyphen_join", "jieba")
     if cfg.bm25.get("tokenizer") not in known_tokenizers:
         print(f"[warn] bm25.tokenizer={cfg.bm25.get('tokenizer')!r} is not one of "
               f"{known_tokenizers} — using 'default'", file=sys.stderr)

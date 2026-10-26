@@ -1,11 +1,14 @@
-"""Tokenizer plugin tests: default CJK single-char vs jieba word-level."""
+"""Tokenizer plugin tests: the frozen default, plus the opt-in ones."""
+import re
+
 import pytest
 
 from conftest import build_index, make_cfg, write_corpus
 from loci import config
 from loci.bm25 import BM25, tokenize
 from loci.tokenizers import (cjk_bigram_tokenize, default_tokenize,
-                             get_tokenizer, jieba_tokenize)
+                             get_tokenizer, hyphen_join_tokenize,
+                             jieba_tokenize)
 
 
 # [1] the default tokenizer keeps the original behavior
@@ -42,6 +45,7 @@ def test_jieba_tokenizer_keeps_latin_runs():
 def test_get_tokenizer_known_names():
     assert get_tokenizer("default") is default_tokenize
     assert get_tokenizer("cjk_bigram") is cjk_bigram_tokenize
+    assert get_tokenizer("hyphen_join") is hyphen_join_tokenize
     assert get_tokenizer("jieba") is jieba_tokenize
 
 
@@ -93,28 +97,58 @@ def test_bigram_keeps_the_jieba_win():
     assert "b" not in scores
 
 
-# [3c] default: hyphenated compounds answer to the joined spelling
+# [3c] default is frozen; the hyphen fix lives in its own tokenizer
 
 
-def test_default_tokenizer_indexes_joined_hyphenate():
+def test_default_tokenizer_does_not_join_hyphenates():
+    # pinned on purpose: installs that never set [bm25] tokenizer must see the
+    # same token stream as v0.8.1, or their rankings move under them
     toks = default_tokenize("Wi-Fi reconnect")
+    assert toks == ["wi", "fi", "reconnect"]
+    assert "wifi" not in toks
+
+
+def test_hyphen_join_tokenizer_adds_the_joined_form():
+    toks = hyphen_join_tokenize("Wi-Fi reconnect")
     assert "wi" in toks and "fi" in toks
     assert "wifi" in toks               # so a `wifi` query finds "Wi-Fi"
 
 
-def test_default_tokenizer_joins_multi_part_hyphenates():
-    assert "wificlient" in default_tokenize("wifi-client")
+def test_hyphen_join_handles_multi_part_compounds():
+    assert "x86_64" not in hyphen_join_tokenize("x86-64 build")
+    assert "x8664" in hyphen_join_tokenize("x86-64 build")
 
 
-def test_bm25_matches_joined_hyphenate_in_both_directions():
+def test_bm25_default_still_needs_the_spelling_the_file_uses():
     corpus = {"c": "文档里提到了 Wi-Fi 重连风暴", "d": "其他内容"}
-    bm = BM25(corpus)
+    assert dict(BM25(corpus).score("Wi-Fi")).get("c", 0.0) > 0.0
+    assert "c" not in dict(BM25(corpus).score("wifi"))       # unchanged
+
+
+def test_bm25_hyphen_join_matches_both_spellings():
+    corpus = {"c": "文档里提到了 Wi-Fi 重连风暴", "d": "其他内容"}
+    bm = BM25(corpus, tokenizer=hyphen_join_tokenize)
     assert dict(bm.score("wifi")).get("c", 0.0) > 0.0
     assert dict(bm.score("Wi-Fi")).get("c", 0.0) > 0.0
 
 
+def test_default_tokenizer_matches_the_pre_registry_implementation():
+    """The exact expression v0.8.1 used, so any future edit to `default` shows
+    up here as a diff rather than as silently different search results."""
+    original = re.compile(r"[a-z0-9]+|[\u4e00-\u9fff]")
+    for text in ["Hello World 123",
+                 "Wi-Fi 重连风暴 state-of-the-art",
+                 "向量检索 embedding 混合 RAG-2026",
+                 "a-b c—d e_f"]:
+        assert default_tokenize(text) == original.findall(text.lower()), text
+
+
 def test_default_tokenizer_leaves_plain_text_alone():
     assert default_tokenize("Hello World 123") == ["hello", "world", "123"]
+
+
+def test_bigram_also_joins_hyphenates():
+    assert "wifi" in cjk_bigram_tokenize("Wi-Fi 重连")
 
 
 # [4] BM25 accepts an injected tokenizer

@@ -1,11 +1,14 @@
 """BM25 tokenizers behind a small registry, so `[bm25] tokenizer` in
 config.toml picks one by name without touching the ranking code.
 
-Three built-ins:
+Four built-ins. ``default`` is frozen: an install that never touches
+``[bm25]`` must keep returning exactly what it returned in v0.8.1, so every
+improvement ships under a new name and nobody is opted in silently.
 
-- ``default`` — latin/digit runs stay whole, CJK becomes single characters, and
-  hyphenated latin compounds also index their joined form (``Wi-Fi`` → ``wi``,
-  ``fi``, ``wifi``). Dependency-free; the historical behaviour plus that fix.
+- ``default`` — latin/digit runs whole, CJK as single characters. The historical
+  tokenizer, unchanged.
+- ``hyphen_join`` — ``default`` plus the joined form of hyphenated compounds
+  (``Wi-Fi`` → ``wi``, ``fi``, ``wifi``), so both spellings find each other.
 - ``cjk_bigram`` — CJK becomes overlapping bigrams, latin runs stay whole.
   ``检索`` matches inside ``全文检索`` while ``定期检查索引`` produces no
   ``检索`` bigram, so phrase-level precision arrives without a dictionary.
@@ -38,20 +41,41 @@ def register(name: str):
 
 @register("default")
 def default_tokenize(text: str) -> list[str]:
-    """Single-character CJK, whole latin words, plus joined hyphenates."""
+    """Whole latin/digit runs, CJK as single characters.
+
+    Byte-for-byte the tokenizer this project has always used. Do not "improve"
+    it: installs that never set `[bm25] tokenizer` must keep returning exactly
+    the results they returned before. New behaviour goes in a new name.
+    """
+    return _TOKEN.findall(text.lower())
+
+
+@register("hyphen_join")
+def hyphen_join_tokenize(text: str) -> list[str]:
+    """`default`, plus the joined form of hyphenated compounds.
+
+    "Wi-Fi" indexes as wi + fi + wifi, so both a `wifi` query and a `Wi-Fi`
+    query find it — under `default` the two spellings are mutually invisible.
+    Opt in with `[bm25] tokenizer = "hyphen_join"`; it adds recall, so rankings
+    for documents containing hyphens differ from `default`.
+    """
     lowered = text.lower()
     tokens = _TOKEN.findall(lowered)
-    # "Wi-Fi" indexes as wi + fi + wifi, so a `wifi` query and a `Wi-Fi` query
-    # both find it — the split alone made the two mutually invisible
     tokens.extend(m.group(0).replace("-", "") for m in _HYPHENATED.finditer(lowered))
     return tokens
 
 
 @register("cjk_bigram")
 def cjk_bigram_tokenize(text: str) -> list[str]:
-    """Overlapping CJK bigrams; a one-character run stays a single token."""
+    """Overlapping CJK bigrams, whole latin runs, joined hyphenates.
+
+    A one-character CJK run stays a single token. Intended for mixed
+    Chinese/English notes: it is the only tokenizer where `wifi` and `Wi-Fi`
+    meet and `检索` finds `全文检索`.
+    """
     lowered = text.lower()
     tokens = _LATIN_RUN.findall(lowered)
+    tokens.extend(m.group(0).replace("-", "") for m in _HYPHENATED.finditer(lowered))
     for run in _CJK_RUN.findall(lowered):
         if len(run) == 1:
             tokens.append(run)
