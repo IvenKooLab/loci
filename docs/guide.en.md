@@ -311,6 +311,7 @@ model-agnostic.
 | `[chunk]` | chunking params (default 800 chars / 100 overlap) |
 | `[top_k]` | number of hits per search (default 5) |
 | `[retrieval]` | `hybrid` (vector+BM25 fusion, default on), `rrf_k`, `rerank` (LLM reranking, default off) |
+| `[bm25]` | `tokenizer` for the lexical half: `default` (whole latin words, CJK single chars, hyphenates also joined), `cjk_bigram` (CJK bigrams — `检索` matches inside `全文检索`, recommended for Chinese notes), `jieba` (word segmentation, needs `loci-rag[zh]`) |
 | `[watch]` | poll `interval` seconds |
 
 API keys can also come from the environment variables `BRAIN_LLM_API_KEY` /

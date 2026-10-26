@@ -4,8 +4,8 @@ import pytest
 from conftest import build_index, make_cfg, write_corpus
 from loci import config
 from loci.bm25 import BM25, tokenize
-from loci.tokenizers import (default_tokenize, get_tokenizer,
-                             jieba_tokenize)
+from loci.tokenizers import (cjk_bigram_tokenize, default_tokenize,
+                             get_tokenizer, jieba_tokenize)
 
 
 # [1] the default tokenizer keeps the original behavior
@@ -41,12 +41,80 @@ def test_jieba_tokenizer_keeps_latin_runs():
 
 def test_get_tokenizer_known_names():
     assert get_tokenizer("default") is default_tokenize
+    assert get_tokenizer("cjk_bigram") is cjk_bigram_tokenize
     assert get_tokenizer("jieba") is jieba_tokenize
 
 
 def test_get_tokenizer_unknown_name_raises():
     with pytest.raises(ValueError):
         get_tokenizer("nope")
+
+
+# [3b] cjk_bigram: phrase matches survive inside longer words, decoys do not
+
+
+def test_bigram_keeps_phrase_inside_longer_word():
+    toks = cjk_bigram_tokenize("全文检索")
+    assert "检索" in toks
+    assert toks == ["全文", "文检", "检索"]
+
+
+def test_bigram_does_not_join_across_word_boundaries():
+    toks = cjk_bigram_tokenize("定期检查索引")
+    assert "检索" not in toks          # 检 and 索 are adjacent but not a word
+
+
+def test_bigram_keeps_latin_runs_whole():
+    assert "embedding" in cjk_bigram_tokenize("embedding 模型选型")
+
+
+def test_bigram_single_char_run_stays_a_token():
+    assert cjk_bigram_tokenize("检") == ["检"]
+
+
+def test_bigram_ranks_the_real_match_and_drops_the_decoy():
+    # the regression that motivated this tokenizer: under single-char CJK the
+    # decoy outranks the document that actually contains 检索
+    corpus = {"correct": "全文检索是知识库的核心能力",
+              "decoy": "定期检查索引状态并重建"}
+    single = dict(BM25(corpus).score("检索"))
+    assert single["decoy"] > single["correct"]
+
+    bigram = dict(BM25(corpus, tokenizer=cjk_bigram_tokenize).score("检索"))
+    assert bigram.get("correct", 0.0) > 0.0
+    assert "decoy" not in bigram
+
+
+def test_bigram_keeps_the_jieba_win():
+    # jieba's advertised case must keep working under bigrams
+    corpus = {"a": "向量检索是混合检索的一部分", "b": "向量数据库存储高维向量"}
+    scores = dict(BM25(corpus, tokenizer=cjk_bigram_tokenize).score("混合检索"))
+    assert scores.get("a", 0.0) > 0.0
+    assert "b" not in scores
+
+
+# [3c] default: hyphenated compounds answer to the joined spelling
+
+
+def test_default_tokenizer_indexes_joined_hyphenate():
+    toks = default_tokenize("Wi-Fi reconnect")
+    assert "wi" in toks and "fi" in toks
+    assert "wifi" in toks               # so a `wifi` query finds "Wi-Fi"
+
+
+def test_default_tokenizer_joins_multi_part_hyphenates():
+    assert "wificlient" in default_tokenize("wifi-client")
+
+
+def test_bm25_matches_joined_hyphenate_in_both_directions():
+    corpus = {"c": "文档里提到了 Wi-Fi 重连风暴", "d": "其他内容"}
+    bm = BM25(corpus)
+    assert dict(bm.score("wifi")).get("c", 0.0) > 0.0
+    assert dict(bm.score("Wi-Fi")).get("c", 0.0) > 0.0
+
+
+def test_default_tokenizer_leaves_plain_text_alone():
+    assert default_tokenize("Hello World 123") == ["hello", "world", "123"]
 
 
 # [4] BM25 accepts an injected tokenizer

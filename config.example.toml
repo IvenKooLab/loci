@@ -84,8 +84,16 @@ hybrid = true     # fuse vector search with BM25 (Reciprocal Rank Fusion)
 rrf_k = 60        # RRF smoothing constant; higher = flatter fusion weights
 
 [bm25]
-tokenizer = "default"   # "default" = CJK single-char (no deps) | "jieba" = word-level
-                        # Chinese segmentation (pip install 'loci-rag[zh]' or jieba)
+# Which tokenizer feeds the BM25 half of hybrid search.
+#   "default"    latin words whole + CJK single chars, hyphenates also joined
+#                ("Wi-Fi" is findable as "wifi"). No dependencies.
+#   "cjk_bigram" CJK as overlapping bigrams — "检索" matches inside "全文检索",
+#                nonsense like 检查+索引 does not. No dependencies, recommended
+#                for Chinese notes.
+#   "jieba"      word-level Chinese segmentation; needs the optional package
+#                (pip install 'loci-rag[zh]'). Sharper on dictionary words but
+#                loses sub-word matches, so try cjk_bigram first.
+tokenizer = "default"
 
 [watch]
 interval = 30     # seconds between scans in `watch` mode
