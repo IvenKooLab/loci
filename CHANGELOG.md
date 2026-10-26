@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### Added
+- Console evidence pane: clicking a search result opens the passage it came
+  from, with the `file > section` breadcrumb, its tags, the similarity score
+  and a copy-citation button (Esc closes it). `/search` now also returns
+  `hits` alongside the unchanged `result` string, so the pane needs no extra
+  retrieval; text-only clients and older console builds are unaffected.
 - `loci demo`: a zero-configuration tour over six bundled fictional notes. It
   copies the corpus to `./loci-demo-notes`, chunks it with the real splitter
   and answers three example queries with BM25 only — no `config.toml`, no API
