@@ -94,6 +94,7 @@ if HuggingFace is slow in your region). Measured on a 2080 Ti, bilingual query.
 
 | Command | What it does |
 |---|---|
+| `demo` | offline tour over a bundled sample corpus — keyword-only, no config or key (`--no-input` for scripts) |
 | `ingest` | scan sources, index new/changed files, prune deleted ones (`--force` re-embeds everything) |
 | `search "query"` | retrieval only — ranked excerpts with `path > section` breadcrumbs |
 | `ask "question"` | retrieval + LLM answer with `[source: path > section]` citations |

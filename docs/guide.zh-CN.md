@@ -65,6 +65,7 @@ vector-only: 9/10  →  hybrid: 10/10
 
 | 命令 | 作用 |
 |---|---|
+| `demo` | 内置示例语料的离线演示——只用关键词检索，不需要配置或 key（脚本里加 `--no-input`） |
 | `ingest` | 扫描来源目录，索引新增/变更文件，清理已删除文件（`--force` 全量重建） |
 | `search "query"` | 纯检索——带 `路径 > 章节` 面包屑的排序结果 |
 | `ask "question"` | 检索 + LLM 回答，带 `[source: path > section]` 引用 |

@@ -46,6 +46,26 @@ Markdown, text, HTML, org-mode and chat exports work out of the box. Optional ex
 
 ## Quick start
 
+### Try it first, with nothing configured
+
+```bash
+pip install loci-rag
+loci demo
+```
+
+`loci demo` copies six fictional notes into `./loci-demo-notes`, chunks them and
+answers three example questions — cited down to `file > section` — with no
+`config.toml`, no API key and no network. It is keyword-only (BM25, the same
+ranking hybrid search fuses with vector hits), which is exactly the point:
+something runs before you commit a key. Add `[embed]` later and the same index
+goes hybrid.
+
+![loci demo — real output, bundled fictional notes](docs/assets/demo-offline.png)
+
+*Actual `loci demo` output on the bundled sample notes; paths shortened, timings vary.*
+
+### Index your own notes
+
 Requires **Python 3.11+**. Start from source so the example configuration is available:
 
 ```bash

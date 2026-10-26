@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- `loci demo`: a zero-configuration tour over six bundled fictional notes. It
+  copies the corpus to `./loci-demo-notes`, chunks it with the real splitter
+  and answers three example queries with BM25 only — no `config.toml`, no API
+  key, no network. The point is a first run that works before a key is handed
+  over; configuring `[embed]` later turns the same corpus hybrid. Ships as
+  package data, so `pip install loci-rag && loci demo` is the whole setup.
+  `--dir`, `--reset`, `--no-input` and `-k` cover scripting and CI.
+
 ## v0.8.1 — 2026-10-19
 
 ### Fixed

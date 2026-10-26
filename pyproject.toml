@@ -49,4 +49,7 @@ Roadmap = "https://github.com/IvenKooLab/loci/blob/main/docs/roadmap.md"
 where = ["src"]
 
 [tool.setuptools.package-data]
-loci = ["web/*"]
+# demo_notes ships the sample corpus behind `loci demo`; the per-level globs
+# cover projects/<name>/meetings/*.md without shipping __pycache__ or tests
+loci = ["web/*", "demo_notes/*.md", "demo_notes/*/*.md",
+        "demo_notes/*/*/*.md", "demo_notes/*/*/*/*.md"]
