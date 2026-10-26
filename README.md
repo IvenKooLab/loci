@@ -93,7 +93,7 @@ Already have a configuration? Install the package with `python -m pip install lo
 loci serve-http
 ```
 
-Open **[127.0.0.1:8765/ui](http://127.0.0.1:8765/ui)** to browse harness memories, search, ask questions, edit shared notes and inspect indexing activity. The console includes Chinese/English and light/dark switches; no frontend build is required.
+Open **[127.0.0.1:8765/ui](http://127.0.0.1:8765/ui)** to browse harness memories, search, ask questions, edit shared notes and inspect indexing activity. Clicking a search result opens an evidence pane with the passage it was cut from — the `file > section` citation, checkable without leaving the console. The console includes Chinese/English and light/dark switches; no frontend build is required.
 
 By default, anonymous loopback clients have admin access. Behind a reverse proxy or SSH tunnel, set `[http] local_admin = false` and configure role-based tokens. See [access control](docs/guide.en.md#web-console).
 

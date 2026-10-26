@@ -326,10 +326,12 @@ def _make_handler(brain, cfg, entries, audit):
                 if not allowed(self.entry, "read"):
                     return self._json(401, {"error": "unauthorized"})
                 if route == "/search":
-                    return self._guard(lambda: self._json(200, {"result": brain.search(**{
+                    # `result` unchanged; `hits` is additive so the console can
+                    # render an evidence pane, and text-only clients ignore it
+                    return self._guard(lambda: self._json(200, brain.search_payload(**{
                         "query": body.get("query", ""), "k": body.get("k"),
                         "tag": body.get("tag"),
-                        "path_contains": body.get("in")})}))
+                        "path_contains": body.get("in")})))
                 return self._guard(lambda: self._json(200, {"result": brain.ask(
                     body.get("question", ""), verify=body.get("verify", False))}))
             if not allowed(self.entry, "write"):

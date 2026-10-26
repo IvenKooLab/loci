@@ -33,7 +33,25 @@
       <input id="ask" data-i18n-ph="phAsk" placeholder="Ask a question…">
       <button id="askbtn" data-i18n="btnAsk">Ask</button>
     </div>
-    <pre id="answer" class="answer hidden"></pre>
+    <div id="query-wrap" class="query-wrap">
+      <div class="query-main">
+        <pre id="answer" class="answer hidden"></pre>
+        <ul id="hits" class="hits hidden"></ul>
+      </div>
+      <aside id="evidence" class="evidence hidden" aria-live="polite">
+        <div class="ev-head">
+          <span class="ev-title" data-i18n="evTitle">Evidence</span>
+          <span id="ev-score" class="ev-score"></span>
+          <button id="ev-close" class="linklike" data-i18n-title="evClose" title="close">✕</button>
+        </div>
+        <div id="ev-crumb" class="ev-crumb"></div>
+        <div id="ev-tags" class="ev-tags"></div>
+        <pre id="ev-body" class="ev-body"></pre>
+        <div class="ev-actions">
+          <button id="ev-copy" data-i18n="evCopy">Copy citation</button>
+        </div>
+      </aside>
+    </div>
     <h2 data-i18n="hHarnesses">Harnesses</h2>
     <div id="cards" class="cards"></div>
     <div id="drilldown" class="hidden">
