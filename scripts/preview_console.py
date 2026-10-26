@@ -79,8 +79,46 @@ class Preview(BaseHTTPRequestHandler):
             return self.send(200, {"audit": []})
         self.send(404, {"error": "not found"})
 
+    # fixed search fixture: no retriever, no embeddings, no model call — just
+    # the shape the console renders, so the evidence pane can be reviewed
+    SEARCH_HITS = [
+        {"source": "atlas/decisions.md", "section": "ADR-001: SHT45 over BME280",
+         "text": "## ADR-001: SHT45 over BME280\n\n**Context.** Revision A used a "
+                 "BME280 because it was already in the parts bin and does "
+                 "temperature, humidity and pressure in one package.\n\n"
+                 "**Decision.** A sensor whose error grows exactly where it is "
+                 "installed is not worth the EUR 2.50 saved.",
+         "tags": "atlas,hardware,adr", "distance": 0.0},
+        {"source": "atlas/decisions.md", "section": "ADR-002: ESP32-C6",
+         "text": "## ADR-002: ESP32-C6 over nRF52840\n\nThe nRF52840 wins on "
+                 "sleep current, but the difference is 10 uA against a 1.2 mA "
+                 "average — it changes the battery estimate by less than a day.",
+         "tags": "atlas,hardware,adr", "distance": 0.37},
+        {"source": "atlas/release-checklist.md", "section": "Before tagging",
+         "text": "Before tagging: bump the version in pyproject.toml, add the "
+                 "CHANGELOG entry, run the offline suite, then rebuild the "
+                 "wheel and check the bundle contents.",
+         "tags": "atlas,release", "distance": 0.55},
+    ]
+
     def do_POST(self):
-        self.send(403, {"error": "Read-only demo: writes and model calls are disabled."})
+        route = urlsplit(self.path).path
+        body = self._body()
+        if route == "/search":
+            q = str(body.get("query", "") or "")
+            hits = self.SEARCH_HITS if q else []
+            text = "\n\n".join(
+                f"[{i}] {h['source']} > {h['section']}\n{h['text'][:500]}"
+                for i, h in enumerate(hits, 1)) or "(no results)"
+            return self.send(200, {"result": text, "hits": hits})
+        return self.send(403, {"error": "Read-only demo: writes and model calls are disabled."})
+
+    def _body(self):
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+            return json.loads(self.rfile.read(length) or b"{}")
+        except (ValueError, json.JSONDecodeError):
+            return {}
 
     do_DELETE = do_POST
 

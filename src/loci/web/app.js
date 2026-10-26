@@ -40,6 +40,9 @@ const I18N = {
     fresh: "fresh", stale: "stale", missing: "missing",
     indexing: "indexing…", summarizing: "summarizing…",
     confirmDelete: (n) => `Move ${n} to .trash?`,
+    evTitle: "Evidence", evClose: "close", evCopy: "Copy citation",
+    evCopied: "Copied", evTags: "tags", evScore: "similarity",
+    hitHint: "Click a result to see the passage it came from.",
     errorPrefix: "error: ",
   },
   zh: {
@@ -72,6 +75,9 @@ const I18N = {
     fresh: "最新", stale: "待更新", missing: "未生成",
     indexing: "索引中…", summarizing: "总结中…",
     confirmDelete: (n) => `把 ${n} 移入 .trash？`,
+    evTitle: "证据", evClose: "关闭", evCopy: "复制引用",
+    evCopied: "已复制", evTags: "标签", evScore: "相似度",
+    hitHint: "点开任意一条结果，查看它来自哪一段原文。",
     errorPrefix: "错误：",
   },
 };
@@ -203,16 +209,126 @@ async function loadDash() {
     }));
 }
 
+/* ---------- search results + evidence pane ----------
+   The text rendering above stays for Ask. Search results come back as
+   structured `hits` (the same chunks the text was built from), so a click can
+   show the passage the snippet was cut out of — the citation claim, checkable
+   without leaving the console. Older servers return only `result`, and then
+   the text view is used exactly as before. */
+let hitList = [];
+let evidenceAt = -1;
+
+function el(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text != null) node.textContent = text;      // user data — never innerHTML
+  return node;
+}
+
+function scoreLabel(h) {
+  return typeof h.distance === "number"
+    ? `${t("evScore")} ${(1 - h.distance).toFixed(3)}`
+    : "";
+}
+
+function renderHits(hits) {
+  const ul = $("#hits");
+  ul.replaceChildren();
+  hitList = Array.isArray(hits) ? hits : [];
+  if (!hitList.length) { ul.classList.add("hidden"); return; }
+  hitList.forEach((h, i) => {
+    const li = el("li", "hit");
+    li.tabIndex = 0;
+    li.setAttribute("role", "button");
+    const head = el("div", "hit-head");
+    head.append(el("span", "hit-path",
+      h.source + (h.section ? " › " + h.section : "")));
+    if (typeof h.distance === "number") {
+      head.append(el("span", "hit-score", (1 - h.distance).toFixed(2)));
+    }
+    const body = el("div", "hit-text",
+      String(h.text || "").replace(/\s+/g, " ").slice(0, 160));
+    li.append(head, body);
+    const open = () => showEvidence(i);
+    li.addEventListener("click", open);
+    li.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); open(); }
+    });
+    ul.append(li);
+  });
+  ul.classList.remove("hidden");
+}
+
+function showEvidence(i) {
+  const h = hitList[i];
+  if (!h) return;
+  evidenceAt = i;
+  document.querySelectorAll("#hits .hit").forEach((n, k) =>
+    n.classList.toggle("on", k === i));
+  $("#ev-crumb").textContent = h.source + (h.section ? " › " + h.section : "");
+  $("#ev-score").textContent = scoreLabel(h);
+  $("#ev-body").textContent = h.text || "";
+  const tags = String(h.tags || "").split(",").map((x) => x.trim()).filter(Boolean);
+  const tagBox = $("#ev-tags");
+  tagBox.replaceChildren(...tags.map((tg) => el("span", "tag", tg)));
+  tagBox.classList.toggle("hidden", !tags.length);
+  $("#evidence").classList.remove("hidden");
+  $("#query-wrap").classList.add("pane-open");
+  $("#evidence").scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+function closeEvidence() {
+  evidenceAt = -1;
+  $("#evidence").classList.add("hidden");
+  $("#query-wrap").classList.remove("pane-open");
+  document.querySelectorAll("#hits .hit.on").forEach((n) =>
+    n.classList.remove("on"));
+}
+
+$("#ev-close").addEventListener("click", closeEvidence);
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && evidenceAt >= 0) closeEvidence();
+});
+$("#ev-copy").addEventListener("click", async () => {
+  const h = hitList[evidenceAt];
+  if (!h) return;
+  const cite = h.source + (h.section ? " > " + h.section : "");
+  const btn = $("#ev-copy");
+  try {
+    await navigator.clipboard.writeText(cite);
+    btn.textContent = t("evCopied");
+  } catch { btn.textContent = cite; }
+  setTimeout(() => { btn.textContent = t("evCopy"); }, 1200);
+});
+
 async function runQuery() {
   const q = $("#q").value.trim(), ask = $("#ask").value.trim();
-  const out = $("#answer");
-  out.classList.remove("hidden");
-  out.textContent = "…";
+  const out = $("#answer"), ul = $("#hits");
   try {
-    out.textContent = ask
-      ? (await api("/ask", { method: "POST", body: JSON.stringify({ question: ask }) })).result
-      : (await api("/search", { method: "POST", body: JSON.stringify({ query: q || ask }) })).result;
-  } catch (e) { out.textContent = t("errorPrefix") + e.message; }
+    if (ask) {                                  // Ask keeps the text answer
+      closeEvidence();
+      ul.classList.add("hidden");
+      out.classList.remove("hidden");
+      out.textContent = "…";
+      out.textContent = (await api("/ask", { method: "POST",
+        body: JSON.stringify({ question: ask }) })).result;
+      return;
+    }
+    const data = await api("/search", { method: "POST",
+      body: JSON.stringify({ query: q || ask }) });
+    if (Array.isArray(data.hits)) {
+      out.classList.add("hidden");
+      renderHits(data.hits);
+      if (data.hits.length) showEvidence(0); else closeEvidence();
+      return;
+    }
+    out.classList.remove("hidden");            // older server: text view
+    ul.classList.add("hidden");
+    out.textContent = data.result;
+  } catch (e) {
+    out.classList.remove("hidden");
+    out.textContent = t("errorPrefix") + e.message;
+  }
 }
 
 

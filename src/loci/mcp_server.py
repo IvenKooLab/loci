@@ -295,18 +295,33 @@ class Brain:
                 return err
             return fn()
 
-    def search(self, query: str, k: int | None = None,
-               tag: str | None = None, path_contains: str | None = None) -> str:
+    @staticmethod
+    def _slim_hit(h: dict) -> dict:
+        """The fields a UI needs to render one hit — no index internals."""
+        return {"source": h.get("source", ""), "section": h.get("section", ""),
+                "text": h.get("text", ""), "tags": h.get("tags", ""),
+                "distance": h.get("distance")}
+
+    def search_payload(self, query: str, k: int | None = None,
+                       tag: str | None = None,
+                       path_contains: str | None = None) -> dict:
+        """`search()` plus the structured hits it was built from, one pass.
+
+        `result` is byte-identical to what `search()` has always returned, so
+        text-only consumers keep working; `hits` is additive and carries the
+        full chunk text the console needs for its evidence pane.
+        """
         if err := self._guard():
-            return err
+            return {"result": err, "hits": []}
         if not (query or "").strip():
-            return "(empty query — pass `query` in the request body)"
+            return {"result": "(empty query — pass `query` in the request body)",
+                    "hits": []}
         try:
             k = int(k) if k is not None else None
         except (TypeError, ValueError):
             k = None
 
-        def _do() -> str:
+        def _do() -> dict:
             # k rides as a per-call override — never mutates retriever state
             hits = self._retriever.search(query, tag=tag,
                                           path_contains=path_contains, k=k)
@@ -314,9 +329,18 @@ class Brain:
             for i, h in enumerate(hits, 1):
                 where = h["source"] + (f" > {h['section']}" if h["section"] else "")
                 blocks.append(f"[{i}] {where}\n{h['text'][:500]}")
-            return "\n\n".join(blocks) or "(no results)"
+            return {"result": "\n\n".join(blocks) or "(no results)",
+                    "hits": [self._slim_hit(h) for h in hits]}
 
-        return self._retryable(_do)
+        out = self._retryable(_do)
+        # _retryable can still hand back guidance text (pipeline gone after a
+        # transient failure), which has no hits to report
+        return {"result": out, "hits": []} if isinstance(out, str) else out
+
+    def search(self, query: str, k: int | None = None,
+               tag: str | None = None, path_contains: str | None = None) -> str:
+        return self.search_payload(query, k=k, tag=tag,
+                                   path_contains=path_contains)["result"]
 
     def ask(self, question: str, verify: bool = False) -> str:
         if err := self._guard():
