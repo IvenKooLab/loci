@@ -13,6 +13,9 @@ src/*.egg-info/
 /wiki/
 generated/
 
+# `loci demo` writes its sample corpus here
+loci-demo-notes/
+
 # python build artifacts
 dist/
 build/

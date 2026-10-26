@@ -539,6 +539,16 @@ def main() -> None:
     p_bench.add_argument("cases", help="JSONL file with {query, expect} per line")
     p_bench.add_argument("-k", type=int, default=5, help="hits per query (default 5)")
 
+    p_demo = sub.add_parser(
+        "demo", help="offline tour over a bundled sample corpus (no config, no key)")
+    p_demo.add_argument("--dir",
+                        help="where to put the sample notes (default: ./loci-demo-notes)")
+    p_demo.add_argument("--reset", action="store_true",
+                        help="restore the pristine sample notes, discarding edits")
+    p_demo.add_argument("--no-input", action="store_true",
+                        help="run the example queries and exit (for scripts and CI)")
+    p_demo.add_argument("-k", type=int, help="hits per query (default 3)")
+
     sub.add_parser("stats", help="show what is in the index")
     p_harness = sub.add_parser(
         "harness", help="per-AI-tool memory stats; optionally refresh summaries")
@@ -551,6 +561,13 @@ def main() -> None:
     sub.add_parser("doctor", help="check config, endpoints, and store health")
 
     args = parser.parse_args()
+    if args.cmd == "demo":
+        # dispatched before config.load(): the point of `loci demo` is that it
+        # runs with no config.toml, no credentials and no network
+        from loci.demo import run_demo
+        sys.exit(run_demo(directory=args.dir, reset=args.reset,
+                          interactive=False if args.no_input else None,
+                          k=args.k or 3))
     cfg = config.load()
     if getattr(args, "k", None):
         cfg.top_k["search"] = args.k

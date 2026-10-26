@@ -1,2 +1,3 @@
 include CHANGELOG.md
 include config.example.toml
+recursive-include src/loci/demo_notes *.md
