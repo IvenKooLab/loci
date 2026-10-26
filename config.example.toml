@@ -84,12 +84,15 @@ hybrid = true     # fuse vector search with BM25 (Reciprocal Rank Fusion)
 rrf_k = 60        # RRF smoothing constant; higher = flatter fusion weights
 
 [bm25]
-# Which tokenizer feeds the BM25 half of hybrid search.
-#   "default"    latin words whole + CJK single chars, hyphenates also joined
-#                ("Wi-Fi" is findable as "wifi"). No dependencies.
+# Which tokenizer feeds the BM25 half of hybrid search. Every option is a new
+# name, never a change to an old one: leaving this at "default" keeps the exact
+# ranking behaviour of earlier releases.
+#   "default"    latin words whole + CJK single chars. Frozen — do not change.
+#   "hyphen_join"  default, plus the joined form of hyphenated words, so "wifi"
+#                finds "Wi-Fi" (adds recall; rankings for hyphenated text move).
 #   "cjk_bigram" CJK as overlapping bigrams — "检索" matches inside "全文检索",
-#                nonsense like 检查+索引 does not. No dependencies, recommended
-#                for Chinese notes.
+#                nonsense like 检查+索引 does not; latin whole, hyphenates
+#                joined. No dependencies, best choice for Chinese notes.
 #   "jieba"      word-level Chinese segmentation; needs the optional package
 #                (pip install 'loci-rag[zh]'). Sharper on dictionary words but
 #                loses sub-word matches, so try cjk_bigram first.
