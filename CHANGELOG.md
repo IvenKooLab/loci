@@ -3,6 +3,13 @@
 ## Unreleased
 
 ### Added
+- The version is now readable where people look for it: `loci --version`,
+  a closing line in `loci doctor` (`loci 0.8.1 · python 3.12 · darwin`), the
+  `serve-http` startup line, and a `v0.8.1` badge in the console header.
+  `pyproject.toml` stays the only place the number is declared — the runtime
+  reads installed metadata and falls back to that declaration for a source
+  checkout, so the MCP handshake, the console and PyPI can no longer disagree
+  after a release bump.
 - Console evidence pane: clicking a search result opens the passage it came
   from, with the `file > section` breadcrumb, its tags, the similarity score
   and a copy-citation button (Esc closes it). `/search` now also returns

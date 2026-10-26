@@ -34,6 +34,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 
+from loci import __version__
 from loci.mcp_server import Brain
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
@@ -137,7 +138,7 @@ def run_server(cfg, host: str, port: int) -> None:
               + ", ".join(f"{e['label']}={e['role']}" for e in entries))
     handler = _make_handler(brain, cfg, entries, Audit())
     server = ThreadingHTTPServer((host, port), handler)
-    print(f"HTTP API: http://{host}:{port}  (console at /ui)")
+    print(f"loci {__version__} — HTTP API: http://{host}:{port}  (console at /ui)")
     server.serve_forever()
 
 
@@ -246,6 +247,7 @@ def _make_handler(brain, cfg, entries, audit):
                 return self._json(401, {"error": "unauthorized"})
             if route == "/health":
                 return self._json(200, {"status": "ok",
+                                        "version": __version__,
                                         "me": {"label": self.entry["label"],
                                                "role": self.entry["role"]}})
             if route == "/stats":

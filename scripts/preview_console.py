@@ -6,12 +6,29 @@ All mutations and model calls are disabled. Only the three checked-in UI
 assets are served from disk; every API response below is a fixed fixture.
 """
 import argparse
+import sys
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 WEB = Path(__file__).resolve().parents[1] / "src/loci/web"
+
+def _version() -> str:
+    """Version only — no config, database or model import."""
+    try:
+        from loci import __version__
+        return __version__
+    except ImportError:                    # running straight from the checkout
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+        try:
+            from loci import __version__
+            return __version__
+        except Exception:
+            return "0.0.0-preview"
+
+
+VERSION = _version()
 HARNESSES = [
     {"name": name, "display": display, "icon": icon,
      "files": files, "chunks": chunks, "last_updated": "2026-10-19 09:30",
@@ -57,7 +74,8 @@ class Preview(BaseHTTPRequestHandler):
             name, mime = assets[route]
             return self.send(200, (WEB / name).read_bytes(), mime)
         if route == "/health":
-            return self.send(200, {"status": "ok", "me": {"label": "Demo data", "role": "viewer"}})
+            return self.send(200, {"status": "ok", "version": VERSION,
+                                   "me": {"label": "Demo data", "role": "viewer"}})
         if route == "/harness":
             return self.send(200, {"harness": HARNESSES})
         if route == "/harness-files":

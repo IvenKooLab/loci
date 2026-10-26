@@ -577,6 +577,7 @@ async function boot() {
     const h = await api("/health");
     me = h.me || null;
     $("#who").textContent = me ? `${me.label} · ${me.role}` : "";
+    if (h.version) $("#ver").textContent = `v${h.version}`;
     await loadDash();
   } catch (e) { /* login overlay shown on 401; other errors surface inline */ }
 }
