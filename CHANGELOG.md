@@ -10,13 +10,15 @@
   over; configuring `[embed]` later turns the same corpus hybrid. Ships as
   package data, so `pip install loci-rag && loci demo` is the whole setup.
   `--dir`, `--reset`, `--no-input` and `-k` cover scripting and CI.
-- Pluggable BM25 tokenizers (`[bm25] tokenizer`): the lexical half of hybrid
-  search is no longer hard-wired to CJK single characters. `cjk_bigram` indexes
-  overlapping bigrams, so `检索` matches inside `全文检索` while `定期检查索引`
-  stops producing a false `检索` hit; `jieba` word segmentation is available as
-  an optional extra. The `default` tokenizer also indexes the joined form of
-  hyphenated compounds, so `wifi` now finds `Wi-Fi`. `loci bench --tokenizer`
-  runs an A/B on the same cases file. From @hulinming's #2.
+- Pluggable BM25 tokenizers (`[bm25] tokenizer`), as opt-in names only. The
+  lexical half of hybrid search is no longer hard-wired to CJK single
+  characters, but **`default` is unchanged**: with no `[bm25]` section your
+  rankings are identical to earlier releases. New names: `hyphen_join` (also
+  indexes `wifi` for `Wi-Fi`), `cjk_bigram` (overlapping bigrams, so `检索`
+  matches inside `全文检索` while `定期检查索引` stops producing a false hit;
+  no dependency), and `jieba` (word segmentation, optional extra). `loci bench
+  --tokenizer` runs an A/B on the same cases file. Registry from
+  @hulinming's #2.
 
 ## v0.8.1 — 2026-10-19
 
