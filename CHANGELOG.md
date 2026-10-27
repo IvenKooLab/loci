@@ -10,6 +10,17 @@
   the returned text. Newest 500 in memory; `[http] query_log` also appends
   them as JSONL. Logging can never fail a request.
 - `loci serve-http --port 0` binds a free port and prints the one it got.
+- Upload from the console: a **Sources** tab with a drop zone and file picker.
+  Dropped files land in the instance's `memories/uploads/` and are indexed
+  immediately — no `[[sources]]` edit, no full `ingest`, no rebuild. `.md`,
+  `.txt`, `.html`, `.org` work out of the box; `.pdf`/`.docx`/images need the
+  matching extra, which the tab lists from the server rather than guessing.
+  Re-uploading a file you barely changed re-embeds only the changed chunks.
+  Names are reduced to a bare filename (no traversal, no leading dot, no NUL),
+  types are checked against the installed extras, bodies are capped at 16 MiB,
+  and an existing name gets `-2` rather than being overwritten.
+- The same tab lists every `[[sources]]` directory with its chunk count, so
+  "which folder is this answer coming from" is answerable without the CLI.
 
 ### Fixed
 - `[[harness]]` roots are scanned independently. A harness with several roots
