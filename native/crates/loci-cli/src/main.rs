@@ -22,6 +22,10 @@ struct Cli {
     #[arg(long, global = true)]
     db: Option<PathBuf>,
 
+    /// run without any network: deterministic hash embedder, BM25-only ranking
+    #[arg(long, global = true)]
+    offline: bool,
+
     #[command(subcommand)]
     cmd: Cmd,
 }
@@ -73,7 +77,10 @@ fn open_store(cfg: &Config, override_path: Option<PathBuf>) -> Result<Store> {
     Store::open(path)
 }
 
-fn embedder_for(cfg: &Config) -> Result<Box<dyn Embedder>> {
+fn embedder_for(cfg: &Config, offline: bool) -> Result<Box<dyn Embedder>> {
+    if offline {
+        return Ok(Box::new(loci_core::embed::HashEmbedder::default()));
+    }
     if cfg.embed.api_key.is_empty() {
         anyhow::bail!(
             "embed.api_key is not set — config.toml or BRAIN_EMBED_API_KEY\n\
@@ -99,7 +106,7 @@ fn run(cli: Cli) -> Result<ExitCode> {
                 anyhow::bail!("missing configuration:\n  {}", problems.join("\n  "));
             }
             let mut store = open_store(&cfg, cli.db)?;
-            let embedder = embedder_for(&cfg)?;
+            let embedder = embedder_for(&cfg, cli.offline)?;
             let report = ingest(&cfg, &mut store, embedder.as_ref(), force)?;
             for gone in &report.pruned {
                 println!("  - pruned (file gone): {gone}");
@@ -120,10 +127,12 @@ fn run(cli: Cli) -> Result<ExitCode> {
 
         Cmd::Search { query, tag, path_contains, k } => {
             let store = open_store(&cfg, cli.db)?;
-            let embedder = embedder_for(&cfg)?;
+            let embedder = embedder_for(&cfg, cli.offline)?;
             let rcfg = RetrievalConfig {
                 top_k: cfg.retrieval.top_k,
-                hybrid: cfg.retrieval.hybrid,
+                hybrid: cfg.retrieval.hybrid && !cli.offline,
+                // --offline has no meaningful embeddings: rank by BM25 alone
+                lexical_only: cli.offline,
                 rrf_k: cfg.retrieval.rrf_k,
                 tokenizer: cfg.tokenizer(),
                 fetch_factor: 4,
@@ -143,7 +152,7 @@ fn run(cli: Cli) -> Result<ExitCode> {
                 };
                 let sim = match h.distance {
                     Some(d) => format!("similarity {:.3}", 1.0 - d),
-                    None => "hybrid hit".to_string(),
+                    None => "bm25 hit".to_string(),
                 };
                 println!("[{}] {}  ({})", i + 1, where_, sim);
                 let preview: String = h.text.chars().take(160).collect();
@@ -233,7 +242,7 @@ fn run(cli: Cli) -> Result<ExitCode> {
             );
 
             if !cfg.embed.api_key.is_empty() {
-                match embedder_for(&cfg).and_then(|e| e.embed(&["ping".to_string()])) {
+                match embedder_for(&cfg, cli.offline).and_then(|e| e.embed(&["ping".to_string()])) {
                     Ok(v) => say(
                         Some(true),
                         "embed endpoint",
@@ -285,10 +294,14 @@ fn demo(dir: Option<PathBuf>, k: Option<usize>) -> Result<ExitCode> {
     println!("loci demo — a tour of a small sample knowledge base\n");
     println!("  corpus    {}", root.display());
     println!("  index     {} files · {} chunks", report.added, report.chunks);
-    println!("  retrieval hybrid (vector + BM25) with the offline hash embedder");
-    println!("            — no config, no key, no network\n");
+    // Keyword-only, like the Python demo: the hash embedder is a stand-in that
+    // measures token overlap, not meaning, so calling it "hybrid" would be a
+    // claim the demo cannot back. BM25 alone is honest and still exercises
+    // chunking, tokenization and citations.
+    println!("  retrieval keyword only (BM25) — the same ranking hybrid search");
+    println!("            fuses with vector hits. No config, no key, no network.\n");
 
-    let rcfg = RetrievalConfig::default();
+    let rcfg = RetrievalConfig { lexical_only: true, ..RetrievalConfig::default() };
     let mut retriever = Retriever::new(&store, &embedder, rcfg);
     let queries = [
         "why did the humidity sensor replace the BME280?",
@@ -304,7 +317,8 @@ fn demo(dir: Option<PathBuf>, k: Option<usize>) -> Result<ExitCode> {
                 format!("{} > {}", h.source, h.section)
             };
             let preview: String = h.text.chars().take(120).collect();
-            println!("  [{}] {}  ({:.2})", n + 1, where_, h.score);
+            let rel = if n == 0 { 1.0 } else { h.score / hits[0].score };
+            println!("  [{}] {}  ({:.2})", n + 1, where_, rel);
             println!("      {}...", preview.replace('\n', " "));
         }
         println!();

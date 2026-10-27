@@ -18,6 +18,10 @@ use crate::tokenizer::Tokenizer;
 pub struct RetrievalConfig {
     pub top_k: usize,
     pub hybrid: bool,
+    /// Rank by BM25 alone. For the offline demo (the hash embedder measures
+    /// token overlap, not meaning — calling that "vector search" would be a
+    /// claim it cannot back) and for users who want pure keyword retrieval.
+    pub lexical_only: bool,
     pub rrf_k: f64,
     pub tokenizer: Tokenizer,
     /// Chunks retained per query across both halves before truncation.
@@ -29,6 +33,7 @@ impl Default for RetrievalConfig {
         Self {
             top_k: 5,
             hybrid: true,
+            lexical_only: false,
             rrf_k: 60.0,
             tokenizer: Tokenizer::Default,
             fetch_factor: 4,
@@ -150,45 +155,59 @@ impl<'a> Retriever<'a> {
         if query.trim().is_empty() || limit == 0 {
             return Ok(Vec::new());
         }
-        let fetch = if self.cfg.hybrid || !filters.is_empty() {
+        let fetch = if self.cfg.hybrid || self.cfg.lexical_only || !filters.is_empty() {
             (limit * self.cfg.fetch_factor).max(1)
         } else {
             limit.max(1)
         };
 
-        let query_vec = self.embedder.embed(&[query.to_string()])?;
-        let query_vec = query_vec
-            .into_iter()
-            .next()
-            .ok_or_else(|| anyhow::anyhow!("embedder returned no vector"))?;
-
-        let vector_hits = self.store.vector_search(&query_vec, fetch)?;
-        let mut by_id: HashMap<String, StoredChunk> = vector_hits
-            .iter()
-            .map(|h| (h.id.clone(), h.clone()))
-            .collect();
-
+        let mut by_id: HashMap<String, StoredChunk> = HashMap::new();
         let mut ranked_lists: Vec<Vec<(String, f64)>> = Vec::new();
-        ranked_lists.push(
-            vector_hits
-                .iter()
-                .enumerate()
-                .map(|(r, h)| (h.id.clone(), -(r as f64)))
-                .collect(),
-        );
 
-        if self.cfg.hybrid {
+        if self.cfg.lexical_only {
+            // keyword-only: BM25 ranks, and the chunks themselves are pulled by
+            // id — no embedding call, no vector half
             let lexical = self.lexical_score(query)?;
             let top: Vec<(String, f64)> = lexical.into_iter().take(fetch).collect();
-            let missing: Vec<String> = top
-                .iter()
-                .filter(|(id, _)| !by_id.contains_key(id))
-                .map(|(id, _)| id.clone())
-                .collect();
-            for chunk in self.store.get_many(&missing)? {
+            let ids: Vec<String> = top.iter().map(|(id, _)| id.clone()).collect();
+            for chunk in self.store.get_many(&ids)? {
                 by_id.insert(chunk.id.clone(), chunk);
             }
             ranked_lists.push(top);
+        } else {
+            let query_vec = self.embedder.embed(&[query.to_string()])?;
+            let query_vec = query_vec
+                .into_iter()
+                .next()
+                .ok_or_else(|| anyhow::anyhow!("embedder returned no vector"))?;
+
+            let vector_hits = self.store.vector_search(&query_vec, fetch)?;
+            by_id.extend(
+                vector_hits
+                    .iter()
+                    .map(|h| (h.id.clone(), h.clone())),
+            );
+            ranked_lists.push(
+                vector_hits
+                    .iter()
+                    .enumerate()
+                    .map(|(r, h)| (h.id.clone(), -(r as f64)))
+                    .collect(),
+            );
+
+            if self.cfg.hybrid {
+                let lexical = self.lexical_score(query)?;
+                let top: Vec<(String, f64)> = lexical.into_iter().take(fetch).collect();
+                let missing: Vec<String> = top
+                    .iter()
+                    .filter(|(id, _)| !by_id.contains_key(id))
+                    .map(|(id, _)| id.clone())
+                    .collect();
+                for chunk in self.store.get_many(&missing)? {
+                    by_id.insert(chunk.id.clone(), chunk);
+                }
+                ranked_lists.push(top);
+            }
         }
 
         let fused = self.fuse(&ranked_lists);
