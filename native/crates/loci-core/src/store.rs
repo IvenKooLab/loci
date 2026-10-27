@@ -57,8 +57,12 @@ fn f32_to_blob(v: &[f32]) -> Vec<u8> {
 }
 
 fn blob_to_f32(b: &[u8]) -> Vec<f32> {
-    b.chunks_exact(4)
-        .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+    // little-endian f32 per vector element; trailing bytes cannot occur because
+    // f32_to_blob wrote them, but ignoring a partial tail beats panicking
+    b.as_chunks::<4>()
+        .0
+        .iter()
+        .map(|c| f32::from_le_bytes(*c))
         .collect()
 }
 
@@ -342,11 +346,6 @@ mod tests {
     #[test]
     fn vector_search_orders_by_similarity() {
         let mut s = store();
-        let one = |src: &'static str, v: [f32; 2]| SourceWrite {
-            source: src, file_hash: "h", mtime: 0.0, tags: "",
-            chunks: &[], chashes: &[], vectors: &[],
-        };
-        let _ = (&one("/a.md", [1.0, 0.0]), one("/b.md", [0.0, 1.0]));
         let a_chunks = vec![("x".to_string(), String::new())];
         s.upsert_source(&SourceWrite {
             source: "/a.md", file_hash: "h", mtime: 0.0, tags: "",
