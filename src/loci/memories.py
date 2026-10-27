@@ -103,6 +103,44 @@ def forget_memory(mem_dir: str, query: str) -> list[str]:
     return moved
 
 
+def index_document_file(cfg, path: str) -> int:
+    """Index ONE arbitrary document (md/txt/pdf/docx/html/org) into the index.
+
+    This is the entry point behind the console's upload: a dropped file becomes
+    searchable without adding a [[sources]] directory or running a full ingest.
+    Reuses identical chunks on re-upload (the same content-hash path `ingest`
+    uses), so replacing a file does not re-embed what did not change.
+    """
+    from pathlib import Path as _P
+
+    from loci import loaders
+    from loci.cli import build
+
+    p = _P(path).expanduser().resolve()
+    doc = loaders.load_one(p, cfg.chunk["size"], cfg.chunk["overlap"])
+    if doc is None:
+        raise ValueError(f"unsupported or empty file: {p.name}")
+    from loci import chunker
+    chunks = chunker.split_markdown(doc["content"], doc["chunk_size"],
+                                    doc["chunk_overlap"])
+    if not chunks:
+        raise ValueError(f"no indexable text in {p.name}")
+    embedder, store = build(cfg)
+    texts = [c["text"] for c in chunks]
+    chashes, reuse = store.reuse_map(doc["path"], texts)
+    missing = [i for i, h in enumerate(chashes) if h not in reuse]
+    new_vecs = embedder.embed([texts[i] for i in missing]) if missing else []
+    vectors: list = [None] * len(chunks)
+    for i, h in enumerate(chashes):
+        if h in reuse:
+            vectors[i] = reuse[h]
+    for i, v in zip(missing, new_vecs):
+        vectors[i] = v
+    store.upsert_chunks(chunks, vectors, doc["path"], doc["hash"],
+                        doc["tags"], doc["links"], doc["mtime"], chashes=chashes)
+    return len(chunks)
+
+
 def index_memory_file(cfg, path: str) -> int:
     """Embed + upsert one memory file into the index immediately.
     Returns chunk count; raises on embedder/store errors (caller decides)."""

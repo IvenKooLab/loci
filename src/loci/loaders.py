@@ -342,6 +342,45 @@ def _docx_salvage(p: Path) -> str | None:
     return "\n\n".join(texts) or None
 
 
+# Suffixes a single-file ingest may accept. Mirrors scan_sources' gate so a
+# file uploaded through the console behaves exactly like one already on disk.
+def is_supported(path: Path) -> bool:
+    suffix = path.suffix.lower()
+    return (suffix in SUFFIXES or suffix in (".pdf", ".docx")
+            or suffix in HTML_SUFFIXES or suffix in ORG_SUFFIXES
+            or (HAS_OCR and suffix in IMAGE_SUFFIXES))
+
+
+def load_one(path: Path, chunk_size: int, chunk_overlap: int) -> dict | None:
+    """Load + parse a single file into the doc dict `scan_sources` produces.
+
+    Returns None when the format needs an extra that is not installed, or the
+    file yields no text — the caller turns that into a 400 rather than a
+    silently empty index entry.
+    """
+    p = Path(path).expanduser()
+    if not p.is_file() or not is_supported(p):
+        return None
+    text = _read_text(p)
+    if text is None or not text.strip():
+        return None
+    meta, body = parse_frontmatter(text)
+    if not body.strip():
+        return None
+    return {"path": str(p.resolve()), "content": body, "hash": file_hash(text),
+            "tags": tags_of(meta), "links": extract_wikilinks(body),
+            "mtime": p.stat().st_mtime,
+            "chunk_size": chunk_size, "chunk_overlap": chunk_overlap}
+
+
+def supported_suffixes() -> list[str]:
+    """Extensions accepted right now, given which extras are installed."""
+    out = sorted(SUFFIXES | HTML_SUFFIXES | ORG_SUFFIXES | {".pdf", ".docx"})
+    if HAS_OCR:
+        out += sorted(IMAGE_SUFFIXES)
+    return sorted(set(out))
+
+
 def scan_sources(sources: list[dict]) -> list[dict]:
     """Return [{path, content, hash, tags, links, mtime, chunk_size?, chunk_overlap?}].
     Each [[sources]] entry may override `chunk_size` / `chunk_overlap`; absent

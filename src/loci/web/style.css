@@ -244,6 +244,35 @@ h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; margin: 22px 0 1
 .list-pane li.on { background: var(--panel2); }
 .list-pane li small { color: var(--muted); display: block; margin-top: 2px; font-size: 11px; }
 
+/* ---- sources: drop zone + upload list ---- */
+.drop-zone {
+  border: 1.5px dashed var(--line);
+  border-radius: 16px;
+  padding: 26px 18px;
+  text-align: center;
+  background: var(--panel);
+  transition: border-color 0.15s ease, background 0.15s ease;
+  margin-bottom: 12px;
+}
+.drop-zone.over { border-color: var(--acc); background: var(--panel2); }
+.drop-main { font-size: 14px; color: var(--fg); margin-bottom: 10px; }
+.drop-hint { margin-top: 10px; font-size: 11.5px; color: var(--muted);
+  word-break: break-word; }
+.upload-pick { display: inline-block; }
+.upload-pick span {
+  display: inline-block; cursor: pointer;
+  background: var(--acc); color: #fff;
+  padding: 7px 16px; border-radius: 10px;
+  font-size: 13px; font-weight: 500;
+}
+.upload-pick span:hover { background: var(--acc-press); }
+.upload-list { list-style: none; margin: 0 0 14px; padding: 0;
+  display: flex; flex-direction: column; gap: 4px; }
+.upload-item { font-size: 12.5px; color: var(--muted);
+  font-variant-numeric: tabular-nums; }
+.upload-item.ok { color: var(--ok); }
+.upload-item.bad { color: var(--danger); }
+
 /* ---- stats / audit ---- */
 .block {
   background: var(--panel); border-radius: 14px;

@@ -110,6 +110,15 @@ class Preview(BaseHTTPRequestHandler):
             return self.send(200, {"audit": []})
         if route == "/queries":
             return self.send(200, {"queries": QUERIES})
+        if route == "/sources":
+            return self.send(200, {
+                "sources": [{"path": "/demo/atlas", "chunks": 42},
+                            {"path": "/demo/notes", "chunks": 18},
+                            {"path": "/demo/reading", "chunks": 0}],
+                "uploads_dir": "/demo/memories/uploads",
+                "accepted": [".md", ".txt", ".pdf", ".docx", ".html"],
+                "max_bytes": 16 << 20,
+                "indexed": {"chunks": 60, "files": 4}})
         self.send(404, {"error": "not found"})
 
     # fixed search fixture: no retriever, no embeddings, no model call — just

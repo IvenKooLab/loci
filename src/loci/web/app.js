@@ -14,7 +14,7 @@ const I18N = {
     title: "loci console",
     tagline: "Shared memory layer for your AI coding tools",
     navDash: "Overview", navMem: "Memories", navStats: "Index",
-    navQueries: "Queries", navAudit: "Audit",
+    navSources: "Sources", navQueries: "Queries", navAudit: "Audit",
     phSearch: "Search the knowledge base…", phAsk: "Ask a question…",
     btnSearch: "Search", btnAsk: "Ask",
     hHarnesses: "Harnesses",
@@ -34,6 +34,15 @@ const I18N = {
     adminRequired: "admin role required.",
     thTime: "time", thWho: "who", thRole: "role", thAction: "action", thDetail: "detail",
     thKind: "kind", thQuery: "query", thHits: "hits", thTop: "top result", thMs: "took",
+    srcIntro: "Directories and files that feed this index.",
+    srcP1: "<b>Directories</b> come from <code>[[sources]]</code> in config.toml and are re-scanned by <code>loci ingest</code> / <code>loci watch</code>.",
+    srcP2: "<b>Uploads</b> are dropped into the instance's memories tree and indexed immediately — no rebuild, no key in the way. Use it for a spec, a PDF, meeting notes you want every agent to find.",
+    dropMain: "Drop files here, or", dropPick: "choose files",
+    dropHint: "", thSource: "directory", thChunks: "chunks",
+    uploading: "uploading…", uploadOk: (n, c) => `${n} → ${c} chunks`,
+    uploadFail: (n, e) => `${n}: ${e}`,
+    srcTotal: (c, f) => `${f} files · ${c} chunks indexed`,
+    noSources: "No [[sources]] directories — uploads still work.",
     btnRefresh: "Refresh", noQueries: "No queries yet — search or ask something first.",
     queryTotal: (n) => `${n} recent`, ms: "ms",
     noEvents: "No events yet — create or edit a memory in the Memories tab, then come back and watch it appear here.",
@@ -58,7 +67,7 @@ const I18N = {
     title: "loci 管理台",
     tagline: "AI 编码工具的共享记忆层",
     navDash: "总览", navMem: "记忆", navStats: "索引",
-    navQueries: "查询", navAudit: "审计",
+    navSources: "来源", navQueries: "查询", navAudit: "审计",
     phSearch: "搜索知识库…", phAsk: "输入问题…",
     btnSearch: "搜索", btnAsk: "提问",
     hHarnesses: "工具（Harness）",
@@ -78,6 +87,15 @@ const I18N = {
     adminRequired: "需要 admin 角色。",
     thTime: "时间", thWho: "操作者", thRole: "角色", thAction: "动作", thDetail: "详情",
     thKind: "类型", thQuery: "查询", thHits: "命中", thTop: "首条结果", thMs: "耗时",
+    srcIntro: "喂给这份索引的目录与文件。",
+    srcP1: "<b>目录</b> 来自 config.toml 的 <code>[[sources]]</code>，由 <code>loci ingest</code> / <code>loci watch</code> 重新扫描。",
+    srcP2: "<b>上传</b> 的文件放进实例的记忆目录并立即建索引——不用重建、不用先配 key。适合丢一份规格、PDF、会议记录，让所有 agent 都能搜到。",
+    dropMain: "把文件拖到这里，或者", dropPick: "选择文件",
+    dropHint: "", thSource: "目录", thChunks: "块数",
+    uploading: "上传中…", uploadOk: (n, c) => `${n} → ${c} 块`,
+    uploadFail: (n, e) => `${n}: ${e}`,
+    srcTotal: (c, f) => `${f} 个文件 · 已索引 ${c} 块`,
+    noSources: "没有配置 [[sources]] 目录——上传照样可用。",
     btnRefresh: "刷新", noQueries: "还没有查询——先去搜一下或提个问题。",
     queryTotal: (n) => `最近 ${n} 条`, ms: "毫秒",
     noEvents: "暂无事件——去「记忆」页新建或编辑一条，然后回来看它出现在这里。",
@@ -174,6 +192,7 @@ function refreshActiveTab() {
   const tab = on ? on.dataset.tab : "dash";
   if (tab === "mem") loadMemories();
   if (tab === "stats") loadStats();
+  if (tab === "sources") loadSources();
   if (tab === "queries") loadQueries();
   if (tab === "audit") loadAudit();
   if (tab === "dash") loadDash();
@@ -577,6 +596,111 @@ async function runSummarize() {
     $("#stats-out").textContent += "\n\n" + result;
   } catch (e) { $("#busy").textContent = e.message; }
 }
+
+/* ---------- sources: directory list + upload ----------
+   The upload posts one file as base64 to /upload; the server stores it in the
+   instance's memories tree and indexes it before answering, so a dropped spec
+   is searchable the moment the row says "done". */
+async function loadSources() {
+  const data = await api("/sources").catch(() => null);
+  const tbody = $("#sources-table tbody");
+  const rows = (data?.sources || []);
+  if (!rows.length) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 2;
+    td.className = "muted";
+    td.textContent = t("noSources");
+    tr.append(td);
+    tbody.replaceChildren(tr);
+  } else {
+    tbody.replaceChildren(...rows.map((r) => {
+      const tr = document.createElement("tr");
+      const a = document.createElement("td");
+      a.textContent = r.path;
+      if (!r.chunks) a.className = "muted";
+      const b = document.createElement("td");
+      b.textContent = String(r.chunks);
+      tr.append(a, b);
+      return tr;
+    }));
+  }
+  if (data?.indexed) {
+    $("#src-summary").textContent =
+      t("srcTotal", data.indexed.chunks, data.indexed.files);
+  }
+  if (data?.accepted) {
+    $("#file-input").accept = data.accepted.join(",");
+    $("#drop-hint").textContent =
+      data.accepted.join(" ") + " · ≤ " + Math.round(data.max_bytes / (1 << 20)) + " MiB";
+  }
+}
+
+function uploadRow(name) {
+  const li = document.createElement("li");
+  li.className = "upload-item";
+  const label = document.createElement("span");
+  label.textContent = `${name} — ${t("uploading")}`;
+  li.append(label);
+  $("#upload-list").append(li);
+  return (text, ok) => {
+    label.textContent = text;
+    li.classList.toggle("ok", !!ok);
+    li.classList.toggle("bad", !ok);
+  };
+}
+
+function readAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onerror = () => reject(new Error("read failed"));
+    fr.onload = () => resolve(String(fr.result).split(",", 2)[1] || "");
+    fr.readAsDataURL(file);
+  });
+}
+
+async function uploadFiles(files) {
+  for (const file of files) {
+    const done = uploadRow(file.name);
+    try {
+      const data = await readAsBase64(file);
+      const res = await api("/upload", {
+        method: "POST",
+        body: JSON.stringify({ name: file.name, data }),
+      });
+      done(t("uploadOk", res.file, res.chunks), true);
+    } catch (e) {
+      done(t("uploadFail", file.name, e.message), false);
+    }
+  }
+  await loadSources();
+}
+
+$("#src-refresh").addEventListener("click", loadSources);
+$("#file-input").addEventListener("change", (ev) => {
+  const files = Array.from(ev.target.files || []);
+  ev.target.value = "";                    // so the same file can be re-picked
+  if (files.length) uploadFiles(files);
+});
+(() => {
+  const zone = $("#drop-zone");
+  if (!zone) return;
+  ["dragenter", "dragover"].forEach((evt) =>
+    zone.addEventListener(evt, (ev) => {
+      ev.preventDefault();
+      zone.classList.add("over");
+    }));
+  ["dragleave", "drop"].forEach((evt) =>
+    zone.addEventListener(evt, (ev) => {
+      ev.preventDefault();
+      if (evt === "dragleave" && zone.contains(ev.relatedTarget)) return;
+      zone.classList.remove("over");
+    }));
+  zone.addEventListener("drop", (ev) => {
+    const files = Array.from(ev.dataTransfer?.files || []);
+    if (files.length) uploadFiles(files);
+  });
+})();
 
 async function loadQueries() {
   const { queries } = await api("/queries?limit=200");

@@ -21,6 +21,8 @@ The legacy single [http] token keeps working and maps to admin.
 """
 from __future__ import annotations
 
+import base64
+import binascii
 import errno
 import json
 import re
@@ -103,6 +105,10 @@ def allowed(entry: dict | None, level: str) -> bool:
         return False
     return ROLES.get(entry["role"], 0) >= ROLES.get(
         {"read": "viewer", "write": "editor", "admin": "admin"}[level], 99)
+
+
+# a single uploaded document, base64-expanded; 16 MiB is ~12 MiB of file
+UPLOAD_MAX_BYTES = 16 << 20
 
 
 class Audit:
@@ -210,8 +216,24 @@ def run_server(cfg, host: str, port: int) -> None:
     server.serve_forever()
 
 
+def _safe_upload_name(name: str) -> str | None:
+    """A bare filename with no path parts, no traversal, no leading dot.
+
+    Uploads are user input landing on disk: take the basename only, refuse
+    anything that could escape the uploads directory, and keep the extension.
+    """
+    base = name.replace("\\", "/").rsplit("/", 1)[-1].strip()
+    if not base or base.startswith(".") or base in (".", ".."):
+        return None
+    if any(c in base for c in ("\x00", "\n", "\r")):
+        return None
+    return base[:120]
+
+
 def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None):
     mem_dir = Path(cfg.memories["path"]).expanduser().resolve()
+    upload_dir = mem_dir / "uploads"
+    from loci import loaders as loaders_mod
     icons_dir = Path(cfg.http.get("icons", "./icons")).expanduser().resolve()
     from loci import harness as harness_mod
     local_admin = bool(cfg.http.get("local_admin", True))
@@ -358,6 +380,17 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
                 return self._json(200, {"name": h.name,
                                         "display": h.display or h.name,
                                         "files": files})
+            if route == "/sources":
+                if not allowed(self.entry, "read"):
+                    return self._json(401, {"error": "unauthorized"})
+                return self._guard(lambda: self._json(200, {
+                    "sources": [{"path": str(s.get("path", "")),
+                                 "chunks": brain.chunks_for(s.get("path", ""))}
+                                for s in (cfg.sources or [])],
+                    "uploads_dir": str(upload_dir),
+                    "accepted": loaders_mod.supported_suffixes(),
+                    "max_bytes": UPLOAD_MAX_BYTES,
+                    "indexed": brain.index_summary()}))
             if route == "/memories":
                 return self._guard(lambda: self._json(200, {
                     "memories": self._list_memories()}))
@@ -403,8 +436,12 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
                 return self._json(400, {"error": "invalid Content-Length"})
             if length < 0:
                 return self._json(400, {"error": "invalid Content-Length"})
-            if length > 1 << 20:
-                return self._json(413, {"error": "JSON body exceeds 1 MiB"})
+            # body size: an upload carries base64 file bytes, everything else
+            # is small control JSON — keep the tight cap where it belongs
+            limit = UPLOAD_MAX_BYTES if route == "/upload" else 1 << 20
+            if length > limit:
+                return self._json(413, {
+                    "error": f"body exceeds {limit // (1 << 20)} MiB"})
             try:
                 body = json.loads(self.rfile.read(length) or b"{}")
             except (json.JSONDecodeError, UnicodeDecodeError):
@@ -437,6 +474,8 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
             if not allowed(self.entry, "write"):
                 return self._json(allowed(self.entry, "read")
                                   and 403 or 401, {"error": "forbidden"})
+            if route == "/upload":
+                return self._upload(body)
             if route == "/remember":
                 out = brain.remember(body.get("text", ""), title=body.get("title"),
                                      tags=body.get("tags"))
@@ -468,6 +507,52 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
             if urlsplit(self.path).path != "/memory":
                 return self._json(404, {"error": "not found"})
             return self._guard(lambda: self._memory_delete(self._query().get("name", "")))
+
+        def _upload(self, body):
+            """Store one uploaded document and index it immediately.
+
+            `{name, data}` where data is base64. The file lands in the instance's
+            uploads directory (inside the memories tree, so it is picked up by
+            `ingest`/`watch` afterwards like any other memory), then goes
+            straight into the index so it is searchable without a rebuild.
+            """
+            name = _safe_upload_name(str(body.get("name", "")))
+            if not name:
+                return self._json(400, {"error": "name is required"})
+            if Path(name).suffix.lower() not in set(loaders_mod.supported_suffixes()):
+                return self._json(400, {
+                    "error": f"unsupported type {Path(name).suffix or '(none)'}",
+                    "accepted": loaders_mod.supported_suffixes()})
+            raw = str(body.get("data", ""))
+            try:
+                blob = base64.b64decode(raw.split(",", 1)[-1], validate=True)
+            except (ValueError, binascii.Error):
+                return self._json(400, {"error": "data must be base64"})
+            if not blob:
+                return self._json(400, {"error": "empty file"})
+            if len(blob) > UPLOAD_MAX_BYTES:
+                return self._json(413, {"error": "file too large"})
+            upload_dir.mkdir(parents=True, exist_ok=True)
+            dest = upload_dir / name
+            if dest.exists():                    # never clobber silently
+                stem, suf = dest.stem, dest.suffix
+                n = 2
+                while dest.exists():
+                    dest = upload_dir / f"{stem}-{n}{suf}"
+                    n += 1
+            tmp = dest.with_suffix(dest.suffix + ".part")
+            tmp.write_bytes(blob)
+            tmp.replace(dest)
+            try:
+                from loci.memories import index_document_file
+                chunks = index_document_file(cfg, str(dest))
+            except Exception as e:
+                dest.unlink(missing_ok=True)
+                return self._json(400, {"error": f"{type(e).__name__}: {e}"})
+            audit.add(self.entry, "upload", f"{dest.name} ({chunks} chunks)")
+            return self._json(200, {"file": dest.name, "path": str(dest),
+                                    "chunks": chunks,
+                                    "bytes": len(blob)})
 
         def _memory_write(self, body):
             text = str(body.get("text", "")).strip()
