@@ -167,14 +167,23 @@ def _root_prefix(root: Path) -> str:
     return os.path.dirname(text[:cut]) or text[:cut]
 
 
+# Presets that fall back to a recursive scan when their own pattern matches
+# nothing. `zcode` is the reason this exists: memories normally live under
+# projects/*/memory/, but an installation that never created that layout still
+# has real notes somewhere under its root, and dropping them silently is worse
+# than being generous. `codex`/`generic` do not need it (`generic` is already
+# recursive; `codex` is *defined* as top-level only, so its flatness is a
+# contract, not an accident).
+_RECURSIVE_FALLBACK = {"zcode"}
+
+
 def _scan_root(root: Path, htype: str) -> set[Path]:
     """Markdown files under ONE root, per its preset.
 
-    The fallback is per root, not per harness: a harness with two roots (Claude
-    is `~/.claude/memories` plus a single `CLAUDE.md`) used to fall back to a
-    recursive scan of the first root whenever it found nothing — pulling deep
-    subdirectory content into a preset that is defined as top-level only. Each
-    root now decides for itself.
+    The fallback decision is per root, not per harness: a harness with several
+    roots (Claude is `~/.claude/memories` plus a single `CLAUDE.md`) used to
+    fall back as soon as the harness as a whole had produced no files, which
+    dragged deep subdirectory content into a preset that means top-level only.
     """
     if not root.exists():
         return set()
@@ -184,6 +193,8 @@ def _scan_root(root: Path, htype: str) -> set[Path]:
         found = {p for p in root.glob(pattern) if p.is_file()}
         if found:
             return found
+    if htype in _RECURSIVE_FALLBACK:         # e.g. zcode without projects/
+        return {p for p in root.rglob("*.md") if p.is_file()}
     return set()                            # preset matched nothing here
 
 
