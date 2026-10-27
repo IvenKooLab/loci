@@ -71,6 +71,11 @@ path = "D:/notes"                                    # change to your directory
 
 [http]
 # local_admin = true   # loopback anonymous connections get admin (see above)
+# port = 8765          # `loci serve-http --port 0` picks a free one and prints it
+# query_log = "./queries.jsonl"   # append read-side log (search/ask: who, what,
+#                     # how many hits, top source, ms) — off when unset. The
+#                     # console shows the same rows at /queries; the query text
+#                     # is stored, the returned content is not.
 
 [chunk]
 size = 800        # target chunk length (characters)

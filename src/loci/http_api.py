@@ -21,6 +21,9 @@ The legacy single [http] token keeps working and maps to admin.
 """
 from __future__ import annotations
 
+import base64
+import binascii
+import errno
 import json
 import re
 import secrets
@@ -104,6 +107,10 @@ def allowed(entry: dict | None, level: str) -> bool:
         {"read": "viewer", "write": "editor", "admin": "admin"}[level], 99)
 
 
+# a single uploaded document, base64-expanded; 16 MiB is ~12 MiB of file
+UPLOAD_MAX_BYTES = 16 << 20
+
+
 class Audit:
     """Ring buffer of write/admin events — shown in the console, kept for
     GET /audit (in-memory only: restarts start fresh; stderr has the history)."""
@@ -126,6 +133,52 @@ class Audit:
             return list(self._buf)[:limit]
 
 
+class QueryLog:
+    """Read-side log: who searched what, and what came back.
+
+    Deliberately separate from `Audit` — that one is a *write* trail and is
+    admin-only. This answers the question multiple agents sharing one instance
+    actually ask: "why did Codex get nothing when I get results?" A search that
+    hit the wrong LOCI_HOME, or ran before an ingest, shows up here as a query
+    with zero hits, which no amount of write-auditing reveals.
+
+    Stores the query text and the top hit's location, never the hit content.
+    In-memory ring buffer plus an optional JSONL append (`[http] query_log`),
+    so a restart keeps the recent past only if the file is enabled."""
+
+    def __init__(self, maxlen: int = 500, path: str | None = None):
+        self._buf = deque(maxlen=maxlen)
+        self._lock = threading.Lock()
+        self._path = Path(path).expanduser() if path else None
+        if self._path:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+
+    def add(self, entry: dict, kind: str, query: str, hits: list[dict],
+            ms: float, n: int | None = None) -> None:
+        top = hits[0] if hits else {}
+        item = {
+            "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "label": entry["label"], "role": entry["role"], "kind": kind,
+            "query": query[:300],
+            "hits": len(hits) if n is None else n,
+            "top": (top.get("source", "") +
+                    (f" > {top['section']}" if top.get("section") else "")),
+            "ms": round(ms, 1),
+        }
+        with self._lock:
+            self._buf.appendleft(item)
+            if self._path:
+                try:
+                    with self._path.open("a", encoding="utf-8") as f:
+                        f.write(json.dumps(item, ensure_ascii=False) + "\n")
+                except OSError:
+                    pass                    # logging must never break a search
+
+    def recent(self, limit: int = 100) -> list[dict]:
+        with self._lock:
+            return list(self._buf)[:limit]
+
+
 def run_server(cfg, host: str, port: int) -> None:
     brain = Brain()
     brain._ensure()
@@ -136,20 +189,69 @@ def run_server(cfg, host: str, port: int) -> None:
     else:
         print(f"auth: {len(entries)} token(s): "
               + ", ".join(f"{e['label']}={e['role']}" for e in entries))
-    handler = _make_handler(brain, cfg, entries, Audit())
-    server = ThreadingHTTPServer((host, port), handler)
-    print(f"loci {__version__} — HTTP API: http://{host}:{port}  (console at /ui)")
+    handler = _make_handler(brain, cfg, entries, Audit(),
+                            QueryLog(path=cfg.http.get("query_log")))
+    try:
+        server = ThreadingHTTPServer((host, port), handler)
+    except OSError as e:
+        # two loci instances (different LOCI_HOME) on one host is a normal
+        # thing to do, and the traceback Chrome/uvicorn users see says nothing
+        # useful — name the port, the likely cause and the two ways out
+        if e.errno not in (errno.EADDRINUSE, errno.EACCES):
+            raise
+        reason = ("already in use — another loci instance is probably running"
+                  if e.errno == errno.EADDRINUSE
+                  else "needs privileges the current user does not have")
+        raise SystemExit(
+            f"loci: cannot listen on {host}:{port} ({reason}).\n"
+            f"  find it:      lsof -i :{port}\n"
+            f"  another port: loci serve-http --port {port + 1}\n"
+            f"  or pick one:  loci serve-http --port 0   "
+            f"(prints the port it got)\n"
+            f"  make it permanent: [http] port = {port + 1} in config.toml")
+    bound = server.server_address[1]
+    print(f"loci {__version__} — HTTP API: http://{host}:{bound}  (console at /ui)")
+    if bound != port:
+        print(f"port {port} was taken, listening on {bound} instead")
     server.serve_forever()
 
 
-def _make_handler(brain, cfg, entries, audit):
+def _safe_upload_name(name: str) -> str | None:
+    """A bare filename with no path parts, no traversal, no leading dot.
+
+    Uploads are user input landing on disk: take the basename only, refuse
+    anything that could escape the uploads directory, and keep the extension.
+    """
+    base = name.replace("\\", "/").rsplit("/", 1)[-1].strip()
+    if not base or base.startswith(".") or base in (".", ".."):
+        return None
+    if any(c in base for c in ("\x00", "\n", "\r")):
+        return None
+    return base[:120]
+
+
+def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None):
     mem_dir = Path(cfg.memories["path"]).expanduser().resolve()
+    upload_dir = mem_dir / "uploads"
+    from loci import loaders as loaders_mod
     icons_dir = Path(cfg.http.get("icons", "./icons")).expanduser().resolve()
     from loci import harness as harness_mod
     local_admin = bool(cfg.http.get("local_admin", True))
 
     def _harnesses():
         return harness_mod.load_harnesses(cfg)
+
+    def _log_query(entry, kind: str, query: str, payload, ms: float) -> None:
+        """Record one read. Logging must never be able to break a search, so
+        every failure here is swallowed."""
+        if queries is None:
+            return
+        try:
+            hits = payload.get("hits") if isinstance(payload, dict) else None
+            queries.add(entry, kind, str(query or ""), hits or [], ms,
+                        n=None if hits is not None else 0)
+        except Exception:
+            pass
 
     class Handler(BaseHTTPRequestHandler):
         entry: dict | None = None
@@ -278,6 +380,17 @@ def _make_handler(brain, cfg, entries, audit):
                 return self._json(200, {"name": h.name,
                                         "display": h.display or h.name,
                                         "files": files})
+            if route == "/sources":
+                if not allowed(self.entry, "read"):
+                    return self._json(401, {"error": "unauthorized"})
+                return self._guard(lambda: self._json(200, {
+                    "sources": [{"path": str(s.get("path", "")),
+                                 "chunks": brain.chunks_for(s.get("path", ""))}
+                                for s in (cfg.sources or [])],
+                    "uploads_dir": str(upload_dir),
+                    "accepted": loaders_mod.supported_suffixes(),
+                    "max_bytes": UPLOAD_MAX_BYTES,
+                    "indexed": brain.index_summary()}))
             if route == "/memories":
                 return self._guard(lambda: self._json(200, {
                     "memories": self._list_memories()}))
@@ -295,6 +408,16 @@ def _make_handler(brain, cfg, entries, audit):
                 return self._guard(lambda: self._json(200, {
                     "path": str(p), "text": p.read_text(encoding="utf-8",
                                                         errors="replace")}))
+            if route == "/queries":
+                if not allowed(self.entry, "read"):
+                    return self._json(401, {"error": "unauthorized"})
+                limit = 100
+                try:
+                    limit = max(1, min(int(q.get("limit", 100)), 500))
+                except (TypeError, ValueError):
+                    pass
+                return self._json(200, {"queries":
+                                        queries.recent(limit) if queries else []})
             if route == "/audit":
                 if not allowed(self.entry, "admin"):
                     return self._json(403, {"error": "forbidden"})
@@ -313,8 +436,12 @@ def _make_handler(brain, cfg, entries, audit):
                 return self._json(400, {"error": "invalid Content-Length"})
             if length < 0:
                 return self._json(400, {"error": "invalid Content-Length"})
-            if length > 1 << 20:
-                return self._json(413, {"error": "JSON body exceeds 1 MiB"})
+            # body size: an upload carries base64 file bytes, everything else
+            # is small control JSON — keep the tight cap where it belongs
+            limit = UPLOAD_MAX_BYTES if route == "/upload" else 1 << 20
+            if length > limit:
+                return self._json(413, {
+                    "error": f"body exceeds {limit // (1 << 20)} MiB"})
             try:
                 body = json.loads(self.rfile.read(length) or b"{}")
             except (json.JSONDecodeError, UnicodeDecodeError):
@@ -330,15 +457,25 @@ def _make_handler(brain, cfg, entries, audit):
                 if route == "/search":
                     # `result` unchanged; `hits` is additive so the console can
                     # render an evidence pane, and text-only clients ignore it
-                    return self._guard(lambda: self._json(200, brain.search_payload(**{
+                    started = time.perf_counter()
+                    payload = brain.search_payload(**{
                         "query": body.get("query", ""), "k": body.get("k"),
                         "tag": body.get("tag"),
-                        "path_contains": body.get("in")})))
-                return self._guard(lambda: self._json(200, {"result": brain.ask(
-                    body.get("question", ""), verify=body.get("verify", False))}))
+                        "path_contains": body.get("in")})
+                    _log_query(self.entry, "search", body.get("query", ""),
+                               payload, (time.perf_counter() - started) * 1000)
+                    return self._json(200, payload)
+                started = time.perf_counter()
+                text = brain.ask(body.get("question", ""),
+                                 verify=body.get("verify", False))
+                _log_query(self.entry, "ask", body.get("question", ""),
+                           None, (time.perf_counter() - started) * 1000)
+                return self._json(200, {"result": text})
             if not allowed(self.entry, "write"):
                 return self._json(allowed(self.entry, "read")
                                   and 403 or 401, {"error": "forbidden"})
+            if route == "/upload":
+                return self._upload(body)
             if route == "/remember":
                 out = brain.remember(body.get("text", ""), title=body.get("title"),
                                      tags=body.get("tags"))
@@ -370,6 +507,52 @@ def _make_handler(brain, cfg, entries, audit):
             if urlsplit(self.path).path != "/memory":
                 return self._json(404, {"error": "not found"})
             return self._guard(lambda: self._memory_delete(self._query().get("name", "")))
+
+        def _upload(self, body):
+            """Store one uploaded document and index it immediately.
+
+            `{name, data}` where data is base64. The file lands in the instance's
+            uploads directory (inside the memories tree, so it is picked up by
+            `ingest`/`watch` afterwards like any other memory), then goes
+            straight into the index so it is searchable without a rebuild.
+            """
+            name = _safe_upload_name(str(body.get("name", "")))
+            if not name:
+                return self._json(400, {"error": "name is required"})
+            if Path(name).suffix.lower() not in set(loaders_mod.supported_suffixes()):
+                return self._json(400, {
+                    "error": f"unsupported type {Path(name).suffix or '(none)'}",
+                    "accepted": loaders_mod.supported_suffixes()})
+            raw = str(body.get("data", ""))
+            try:
+                blob = base64.b64decode(raw.split(",", 1)[-1], validate=True)
+            except (ValueError, binascii.Error):
+                return self._json(400, {"error": "data must be base64"})
+            if not blob:
+                return self._json(400, {"error": "empty file"})
+            if len(blob) > UPLOAD_MAX_BYTES:
+                return self._json(413, {"error": "file too large"})
+            upload_dir.mkdir(parents=True, exist_ok=True)
+            dest = upload_dir / name
+            if dest.exists():                    # never clobber silently
+                stem, suf = dest.stem, dest.suffix
+                n = 2
+                while dest.exists():
+                    dest = upload_dir / f"{stem}-{n}{suf}"
+                    n += 1
+            tmp = dest.with_suffix(dest.suffix + ".part")
+            tmp.write_bytes(blob)
+            tmp.replace(dest)
+            try:
+                from loci.memories import index_document_file
+                chunks = index_document_file(cfg, str(dest))
+            except Exception as e:
+                dest.unlink(missing_ok=True)
+                return self._json(400, {"error": f"{type(e).__name__}: {e}"})
+            audit.add(self.entry, "upload", f"{dest.name} ({chunks} chunks)")
+            return self._json(200, {"file": dest.name, "path": str(dest),
+                                    "chunks": chunks,
+                                    "bytes": len(blob)})
 
         def _memory_write(self, body):
             text = str(body.get("text", "")).strip()

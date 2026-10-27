@@ -381,6 +381,28 @@ class Brain:
             cmd_links(self._cfg, note)
         return buf.getvalue().strip() or f"(no note matching '{note}')"
 
+    def chunks_for(self, path: str) -> int:
+        """How many indexed chunks came from this source directory. 0 when the
+        pipeline is unavailable — the Sources view still renders, just empty."""
+        if self._guard():
+            return 0
+        try:
+            prefix = str(path)
+            return sum(n for src, n in self._store.per_source().items()
+                       if src.startswith(prefix))
+        except Exception:
+            return 0
+
+    def index_summary(self) -> dict:
+        """Counts for the Sources view: total chunks and distinct files."""
+        if self._guard():
+            return {"chunks": 0, "files": 0}
+        try:
+            per = self._store.per_source()
+            return {"chunks": sum(per.values()), "files": len(per)}
+        except Exception:
+            return {"chunks": 0, "files": 0}
+
     def stats(self) -> str:
         if err := self._guard():
             return err

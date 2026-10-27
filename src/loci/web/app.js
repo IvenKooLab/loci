@@ -13,7 +13,8 @@ const I18N = {
   en: {
     title: "loci console",
     tagline: "Shared memory layer for your AI coding tools",
-    navDash: "Overview", navMem: "Memories", navStats: "Index", navAudit: "Audit",
+    navDash: "Overview", navMem: "Memories", navStats: "Index",
+    navSources: "Sources", navQueries: "Queries", navAudit: "Audit",
     phSearch: "Search the knowledge base…", phAsk: "Ask a question…",
     btnSearch: "Search", btnAsk: "Ask",
     hHarnesses: "Harnesses",
@@ -22,12 +23,28 @@ const I18N = {
     btnSave: "Save", btnDelete: "Delete",
     phEditor: "pick a note on the left, or create a new one",
     btnIngest: "Re-index (ingest)", btnSummarize: "Re-summarize harnesses",
+    qIntro: "Every search and question this instance answered, newest first.",
+    qP1: "<b>Why it exists:</b> when several agents share one instance, «Codex got nothing» is usually a query that hit an empty or different index. Write auditing cannot see that; this can.",
+    qP2: "<b>What is stored:</b> time, who, kind, the query text, hit count, the top result's location, and how long it took. The returned text is never stored.",
+    qP3: "<b>Retention:</b> newest 500 in memory. Set <code>[http] query_log</code> to also append them to a JSONL file.",
     auditIntro: "Audit trail of every write and admin action on this loci instance.",
     auditP1: "<b>What gets logged:</b> memory create / edit / delete, remember, ingest triggers, harness re-summarize.",
     auditP2: "<b>Who it's for:</b> when several people or agents share this instance via [[auth.tokens]], trace exactly who changed what, and when.",
     auditP3: "<b>Retention:</b> newest 500 events in memory (cleared on service restart); the full history goes to the service log.",
     adminRequired: "admin role required.",
     thTime: "time", thWho: "who", thRole: "role", thAction: "action", thDetail: "detail",
+    thKind: "kind", thQuery: "query", thHits: "hits", thTop: "top result", thMs: "took",
+    srcIntro: "Directories and files that feed this index.",
+    srcP1: "<b>Directories</b> come from <code>[[sources]]</code> in config.toml and are re-scanned by <code>loci ingest</code> / <code>loci watch</code>.",
+    srcP2: "<b>Uploads</b> are dropped into the instance's memories tree and indexed immediately — no rebuild, no key in the way. Use it for a spec, a PDF, meeting notes you want every agent to find.",
+    dropMain: "Drop files here, or", dropPick: "choose files",
+    dropHint: "", thSource: "directory", thChunks: "chunks",
+    uploading: "uploading…", uploadOk: (n, c) => `${n} → ${c} chunks`,
+    uploadFail: (n, e) => `${n}: ${e}`,
+    srcTotal: (c, f) => `${f} files · ${c} chunks indexed`,
+    noSources: "No [[sources]] directories — uploads still work.",
+    btnRefresh: "Refresh", noQueries: "No queries yet — search or ask something first.",
+    queryTotal: (n) => `${n} recent`, ms: "ms",
     noEvents: "No events yet — create or edit a memory in the Memories tab, then come back and watch it appear here.",
     loginTitle: "loci console",
     loginHint: "This instance requires a token. Paste one from [[auth.tokens]] in config.toml.",
@@ -38,6 +55,7 @@ const I18N = {
     pickFile: "Pick a memory file on the left.",
     files: "files", chunks: "chunks", updated: "updated",
     fresh: "fresh", stale: "stale", missing: "missing",
+    badgeTip: "digest out of date — click to regenerate",
     indexing: "indexing…", summarizing: "summarizing…",
     confirmDelete: (n) => `Move ${n} to .trash?`,
     evTitle: "Evidence", evClose: "close", evCopy: "Copy citation",
@@ -48,7 +66,8 @@ const I18N = {
   zh: {
     title: "loci 管理台",
     tagline: "AI 编码工具的共享记忆层",
-    navDash: "总览", navMem: "记忆", navStats: "索引", navAudit: "审计",
+    navDash: "总览", navMem: "记忆", navStats: "索引",
+    navSources: "来源", navQueries: "查询", navAudit: "审计",
     phSearch: "搜索知识库…", phAsk: "输入问题…",
     btnSearch: "搜索", btnAsk: "提问",
     hHarnesses: "工具（Harness）",
@@ -57,12 +76,28 @@ const I18N = {
     btnSave: "保存", btnDelete: "删除",
     phEditor: "在左侧选择一条记忆，或新建一条",
     btnIngest: "重建索引（ingest）", btnSummarize: "重新生成 harness 摘要",
+    qIntro: "本实例回答过的每一次检索与提问，最新在前。",
+    qP1: "<b>为什么要有：</b>多个 agent 共用一个实例时，「Codex 搜不到」往往是因为它查的是空索引或另一个索引。写入审计看不到这件事，这里能看到。",
+    qP2: "<b>记录什么：</b>时间、操作者、类型、查询原文、命中数、首条结果位置、耗时。不记录返回的正文。",
+    qP3: "<b>保留多久：</b>内存中最近 500 条。设置 <code>[http] query_log</code> 可另外追加写入 JSONL 文件。",
     auditIntro: "本 loci 实例所有写入与管理操作的审计记录。",
     auditP1: "<b>记录什么：</b>记忆的新建 / 编辑 / 删除、remember、触发 ingest、重新生成 harness 摘要。",
     auditP2: "<b>给谁看：</b>多人或多 agent 通过 [[auth.tokens]] 共用本实例时，精确追溯「谁在什么时候改了什么」。",
     auditP3: "<b>保留多久：</b>内存中最近 500 条（服务重启后清零）；完整历史在服务日志。",
     adminRequired: "需要 admin 角色。",
     thTime: "时间", thWho: "操作者", thRole: "角色", thAction: "动作", thDetail: "详情",
+    thKind: "类型", thQuery: "查询", thHits: "命中", thTop: "首条结果", thMs: "耗时",
+    srcIntro: "喂给这份索引的目录与文件。",
+    srcP1: "<b>目录</b> 来自 config.toml 的 <code>[[sources]]</code>，由 <code>loci ingest</code> / <code>loci watch</code> 重新扫描。",
+    srcP2: "<b>上传</b> 的文件放进实例的记忆目录并立即建索引——不用重建、不用先配 key。适合丢一份规格、PDF、会议记录，让所有 agent 都能搜到。",
+    dropMain: "把文件拖到这里，或者", dropPick: "选择文件",
+    dropHint: "", thSource: "目录", thChunks: "块数",
+    uploading: "上传中…", uploadOk: (n, c) => `${n} → ${c} 块`,
+    uploadFail: (n, e) => `${n}: ${e}`,
+    srcTotal: (c, f) => `${f} 个文件 · 已索引 ${c} 块`,
+    noSources: "没有配置 [[sources]] 目录——上传照样可用。",
+    btnRefresh: "刷新", noQueries: "还没有查询——先去搜一下或提个问题。",
+    queryTotal: (n) => `最近 ${n} 条`, ms: "毫秒",
     noEvents: "暂无事件——去「记忆」页新建或编辑一条，然后回来看它出现在这里。",
     loginTitle: "loci 管理台",
     loginHint: "本实例要求鉴权。请粘贴 config.toml 中 [[auth.tokens]] 里的 token。",
@@ -73,6 +108,7 @@ const I18N = {
     pickFile: "在左侧选择一个记忆文件。",
     files: "个文件", chunks: "块", updated: "更新于",
     fresh: "最新", stale: "待更新", missing: "未生成",
+    badgeTip: "摘要已过期——点击重新生成",
     indexing: "索引中…", summarizing: "总结中…",
     confirmDelete: (n) => `把 ${n} 移入 .trash？`,
     evTitle: "证据", evClose: "关闭", evCopy: "复制引用",
@@ -156,6 +192,8 @@ function refreshActiveTab() {
   const tab = on ? on.dataset.tab : "dash";
   if (tab === "mem") loadMemories();
   if (tab === "stats") loadStats();
+  if (tab === "sources") loadSources();
+  if (tab === "queries") loadQueries();
   if (tab === "audit") loadAudit();
   if (tab === "dash") loadDash();
 }
@@ -558,6 +596,146 @@ async function runSummarize() {
     $("#stats-out").textContent += "\n\n" + result;
   } catch (e) { $("#busy").textContent = e.message; }
 }
+
+/* ---------- sources: directory list + upload ----------
+   The upload posts one file as base64 to /upload; the server stores it in the
+   instance's memories tree and indexes it before answering, so a dropped spec
+   is searchable the moment the row says "done". */
+async function loadSources() {
+  const data = await api("/sources").catch(() => null);
+  const tbody = $("#sources-table tbody");
+  const rows = (data?.sources || []);
+  if (!rows.length) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 2;
+    td.className = "muted";
+    td.textContent = t("noSources");
+    tr.append(td);
+    tbody.replaceChildren(tr);
+  } else {
+    tbody.replaceChildren(...rows.map((r) => {
+      const tr = document.createElement("tr");
+      const a = document.createElement("td");
+      a.textContent = r.path;
+      if (!r.chunks) a.className = "muted";
+      const b = document.createElement("td");
+      b.textContent = String(r.chunks);
+      tr.append(a, b);
+      return tr;
+    }));
+  }
+  if (data?.indexed) {
+    $("#src-summary").textContent =
+      t("srcTotal", data.indexed.chunks, data.indexed.files);
+  }
+  if (data?.accepted) {
+    $("#file-input").accept = data.accepted.join(",");
+    $("#drop-hint").textContent =
+      data.accepted.join(" ") + " · ≤ " + Math.round(data.max_bytes / (1 << 20)) + " MiB";
+  }
+}
+
+function uploadRow(name) {
+  const li = document.createElement("li");
+  li.className = "upload-item";
+  const label = document.createElement("span");
+  label.textContent = `${name} — ${t("uploading")}`;
+  li.append(label);
+  $("#upload-list").append(li);
+  return (text, ok) => {
+    label.textContent = text;
+    li.classList.toggle("ok", !!ok);
+    li.classList.toggle("bad", !ok);
+  };
+}
+
+function readAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onerror = () => reject(new Error("read failed"));
+    fr.onload = () => resolve(String(fr.result).split(",", 2)[1] || "");
+    fr.readAsDataURL(file);
+  });
+}
+
+async function uploadFiles(files) {
+  for (const file of files) {
+    const done = uploadRow(file.name);
+    try {
+      const data = await readAsBase64(file);
+      const res = await api("/upload", {
+        method: "POST",
+        body: JSON.stringify({ name: file.name, data }),
+      });
+      done(t("uploadOk", res.file, res.chunks), true);
+    } catch (e) {
+      done(t("uploadFail", file.name, e.message), false);
+    }
+  }
+  await loadSources();
+}
+
+$("#src-refresh").addEventListener("click", loadSources);
+$("#file-input").addEventListener("change", (ev) => {
+  const files = Array.from(ev.target.files || []);
+  ev.target.value = "";                    // so the same file can be re-picked
+  if (files.length) uploadFiles(files);
+});
+(() => {
+  const zone = $("#drop-zone");
+  if (!zone) return;
+  ["dragenter", "dragover"].forEach((evt) =>
+    zone.addEventListener(evt, (ev) => {
+      ev.preventDefault();
+      zone.classList.add("over");
+    }));
+  ["dragleave", "drop"].forEach((evt) =>
+    zone.addEventListener(evt, (ev) => {
+      ev.preventDefault();
+      if (evt === "dragleave" && zone.contains(ev.relatedTarget)) return;
+      zone.classList.remove("over");
+    }));
+  zone.addEventListener("drop", (ev) => {
+    const files = Array.from(ev.dataTransfer?.files || []);
+    if (files.length) uploadFiles(files);
+  });
+})();
+
+async function loadQueries() {
+  const { queries } = await api("/queries?limit=200");
+  const rows = queries || [];
+  $("#queries-count").textContent = rows.length ? t("queryTotal", rows.length) : "";
+  $("#queries-hint").classList.toggle("hidden", rows.length > 0);
+  $("#queries-hint").textContent = t("noQueries");
+  const cell = (v) => {
+    const td = document.createElement("td");
+    td.textContent = v;                       // query text is user input
+    return td;
+  };
+  const tbody = $("#queries-table tbody");
+  tbody.replaceChildren(...rows.map((r) => {
+    const tr = document.createElement("tr");
+    tr.append(cell(r.ts), cell(r.label), cell(r.kind), cell(r.query));
+    const hits = document.createElement("td");
+    hits.textContent = String(r.hits);
+    hits.className = r.hits ? "" : "danger";
+    tr.append(hits, cell(r.top || "—"),
+              cell(`${r.ms} ${t("ms")}`));
+    return tr;
+  }));
+  if (!rows.length) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 7;
+    td.className = "muted";
+    td.textContent = t("noQueries");
+    tr.append(td);
+    tbody.replaceChildren(tr);
+  }
+}
+
+$("#queries-refresh").addEventListener("click", loadQueries);
 
 /* ---------- boot ---------- */
 $("#login-btn").addEventListener("click", trySignIn);
