@@ -107,6 +107,7 @@ impl McpServer {
         let rcfg = RetrievalConfig {
             top_k: self.cfg.retrieval.top_k,
             hybrid: self.cfg.retrieval.hybrid,
+            lexical_only: false,
             rrf_k: self.cfg.retrieval.rrf_k,
             tokenizer: self.cfg.tokenizer(),
             fetch_factor: 4,

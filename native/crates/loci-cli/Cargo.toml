@@ -1,5 +1,6 @@
 [package]
 name = "loci-cli"
+default-run = "loci"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
