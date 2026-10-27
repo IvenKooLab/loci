@@ -32,7 +32,8 @@ DEFAULTS = {
     "wiki": {"path": "./wiki"},
     "chat": {"auto_extract": True},
     "sync": {"remote": ""},
-    "http": {"host": "127.0.0.1", "port": 8765, "token": "", "icons": "./icons"},
+    "http": {"host": "127.0.0.1", "port": 8765, "token": "", "icons": "./icons",
+             "query_log": ""},
     "store": {"path": "./chroma_db"},
 }
 

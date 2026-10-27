@@ -232,6 +232,17 @@ actions are audited to the service log and to `GET /audit`. The console binds
 to 127.0.0.1 like the API — reach it from other devices through an SSH tunnel
 or a TLS reverse proxy. The UI toggles 中文/EN in the header.
 
+Reads are logged separately from writes, because "the agent got nothing" is a
+read-side mystery: the console's **Queries** tab (and `GET /queries`) shows the
+newest 500 searches and questions with who ran them, the hit count, the top
+result's location and the time taken — never the returned text. That is what
+turns "Codex can't find anything" into "Codex is searching an empty index". Set
+`[http] query_log = "./queries.jsonl"` to append the same rows to a file.
+
+Two instances on one machine are normal (different `LOCI_HOME`). If the port is
+taken, `serve-http` says so and prints the ways out instead of raising; pass
+`--port 0` to let the OS pick one — the chosen port is printed.
+
 
 ## Mount it in any MCP host
 

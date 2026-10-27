@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+### Added
+- Read-side log: `GET /queries` and a **Queries** tab in the console. Writes
+  were audited; reads were invisible, so "the agent gets nothing" had no
+  explanation. Each row carries time, who, kind (`search`/`ask`), the query
+  text, hit count, the top result's location and elapsed milliseconds — never
+  the returned text. Newest 500 in memory; `[http] query_log` also appends
+  them as JSONL. Logging can never fail a request.
+- `loci serve-http --port 0` binds a free port and prints the one it got.
+
+### Fixed
+- `[[harness]]` roots are scanned independently. A harness with several roots
+  (Claude: `~/.claude/memories` plus a single `CLAUDE.md`) used to fall back to
+  a *recursive* scan of its first root as soon as the harness as a whole found
+  nothing, dragging deep subdirectory content into a preset defined as
+  top-level only (`type = "codex"` means `*.md`).
+- `paths` now accepts glob patterns (`paths = ["~/vault/**/*.md"]`), so a new
+  tool needs config, not code. Glob roots keep their wildcard when resolved and
+  contribute their non-wildcard prefix to chunk attribution.
+- A port that is already in use names itself instead of surfacing a bare
+  `OSError`: the message gives `lsof`, a free port to try, and the config key.
+- The stale-digest badge tooltip read `badgeTip` literally — the i18n key was
+  missing in both languages.
+
 ### Changed
 - BM25 is built once per unchanged index instead of on every query. `_fuse`
   pulled every chunk out of the store and re-tokenized the whole corpus for

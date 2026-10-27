@@ -40,6 +40,19 @@ HARNESSES = [
         ("zcode", "ZCode", "Z", 7, 26),
     ]
 ]
+# read-side log fixture: same shape the server returns, fictional queries only
+QUERIES = [
+    {"ts": "2026-10-26 09:41:07", "label": "Demo data", "role": "viewer",
+     "kind": "search", "query": "why did the humidity sensor replace the BME280",
+     "hits": 4, "top": "atlas/decisions.md > ADR-001: SHT45 over BME280", "ms": 4.2},
+    {"ts": "2026-10-26 09:40:51", "label": "Demo data", "role": "viewer",
+     "kind": "ask", "query": "what broke in the first fortnight",
+     "hits": 0, "top": "", "ms": 1.9},
+    {"ts": "2026-10-26 09:38:12", "label": "Demo data", "role": "viewer",
+     "kind": "search", "query": "release checklist before tagging",
+     "hits": 2, "top": "atlas/release-checklist.md > Before tagging", "ms": 3.1},
+]
+
 NOTE = """# Project Atlas — demo memory
 
 This is fictional documentation data, not a connected knowledge base.
@@ -95,6 +108,8 @@ class Preview(BaseHTTPRequestHandler):
             return self.send(200, {"stats": "Demo fixture · 100 chunks · no database connected", "harness": HARNESSES})
         if route == "/audit":
             return self.send(200, {"audit": []})
+        if route == "/queries":
+            return self.send(200, {"queries": QUERIES})
         self.send(404, {"error": "not found"})
 
     # fixed search fixture: no retriever, no embeddings, no model call — just

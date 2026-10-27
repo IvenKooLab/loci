@@ -22,6 +22,7 @@ Each harness is a [[harness]] entry in config.toml:
 """
 from __future__ import annotations
 
+import glob
 import hashlib
 import os
 import re
@@ -124,8 +125,7 @@ def load_harnesses(cfg) -> list[Harness]:
         htype = str(h.get("type", "generic")).strip().lower() or "generic"
         icon = str(h.get("icon", "") or "").strip()
         raw = h.get("paths") or ([h["path"]] if h.get("path") else [])
-        roots = [Path(str(p)).expanduser().resolve()
-                 for p in raw if str(p).strip()]
+        roots = [_root(str(p)) for p in raw if str(p).strip()]
         prev = out.get(name)
         out[name] = Harness(name, htype, icon or (prev.icon if prev else "🗂️"),
                             roots,
@@ -134,23 +134,72 @@ def load_harnesses(cfg) -> list[Harness]:
     return list(out.values())
 
 
+# Markdown files each type preset looks for, relative to a root directory.
+_TYPE_GLOBS = {
+    "zcode": ["projects/*/memory/*.md"],
+    "codex": ["*.md"],
+    "generic": ["**/*.md"],
+}
+
+
+_GLOB_CHARS = set("*?[")
+
+
+def _is_glob(text: str) -> bool:
+    return any(ch in _GLOB_CHARS for ch in text)
+
+
+def _root(spec: str) -> Path:
+    """A configured root: resolved when it is a real path, left unexpanded when
+    it is a glob (`resolve()` would normalise a wildcard into a literal)."""
+    text = os.path.expandvars(spec.strip())
+    p = Path(text).expanduser()
+    return p if _is_glob(text) else p.resolve()
+
+
+def _root_prefix(root: Path) -> str:
+    """The non-wildcard part of a root, for "is this chunk under that harness?".
+    For `~/.claude/**/*.md` that is `~/.claude`."""
+    text = str(root)
+    if not _is_glob(text):
+        return text
+    cut = min((text.index(ch) for ch in _GLOB_CHARS if ch in text), default=len(text))
+    return os.path.dirname(text[:cut]) or text[:cut]
+
+
+def _scan_root(root: Path, htype: str) -> set[Path]:
+    """Markdown files under ONE root, per its preset.
+
+    The fallback is per root, not per harness: a harness with two roots (Claude
+    is `~/.claude/memories` plus a single `CLAUDE.md`) used to fall back to a
+    recursive scan of the first root whenever it found nothing — pulling deep
+    subdirectory content into a preset that is defined as top-level only. Each
+    root now decides for itself.
+    """
+    if not root.exists():
+        return set()
+    if root.is_file():
+        return {root} if root.suffix.lower() == ".md" else set()
+    for pattern in _TYPE_GLOBS.get(htype, _TYPE_GLOBS["generic"]):
+        found = {p for p in root.glob(pattern) if p.is_file()}
+        if found:
+            return found
+    return set()                            # preset matched nothing here
+
+
 def memory_files(h: Harness) -> list[Path]:
-    """All markdown files this harness owns, per its type preset. Roots may be
-    directories (scanned per preset) or individual files (e.g. CLAUDE.md)."""
+    """All markdown files this harness owns.
+
+    A root may be a directory (scanned per its type preset), a single `.md`
+    file (e.g. `CLAUDE.md`), or a **glob pattern** — `paths = ["~/.claude/**/*.md"]`
+    — so a new tool needs no code change, only config."""
     files: set[Path] = set()
     for root in h.roots:
-        if not root.exists():
+        if _is_glob(str(root)):
+            files.update(Path(m) for m in glob.glob(str(root), recursive=True)
+                         if os.path.isfile(m) and m.lower().endswith(".md"))
             continue
-        if root.is_file():
-            if root.suffix == ".md":
-                files.add(root)
-            continue
-        if h.type == "zcode":
-            files.update(root.glob("projects/*/memory/*.md"))
-        elif h.type == "codex":
-            files.update(root.glob("*.md"))
-        if not files:                       # preset found nothing: fall back
-            files.update(root.rglob("*.md"))
+        files.update(_scan_root(root, h.type))
     return sorted(files)
 
 
@@ -184,7 +233,7 @@ def stats(cfg, store, harnesses: list[Harness]) -> list[dict]:
     """Per-harness stats: file count, total chars, last update, indexed chunks,
     summary freshness. Zero LLM cost."""
     per_source = store.per_source()
-    roots_by_h = [(h, [str(r) for r in h.roots]) for h in harnesses]
+    roots_by_h = [(h, [_root_prefix(r) for r in h.roots]) for h in harnesses]
     out = []
     for h, roots in roots_by_h:
         files = memory_files(h)

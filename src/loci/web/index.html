@@ -16,6 +16,7 @@
     <button data-tab="dash" class="on" data-i18n="navDash">Overview</button>
     <button data-tab="mem" data-i18n="navMem">Memories</button>
     <button data-tab="stats" data-i18n="navStats">Index</button>
+    <button data-tab="queries" data-i18n="navQueries">Queries</button>
     <button data-tab="audit" data-i18n="navAudit">Audit</button>
     <button id="lang-btn" title="switch language">中文</button>
     <button id="theme-btn" class="ghost" title="toggle dark mode">🌙</button>
@@ -101,6 +102,34 @@
       <span id="busy" class="muted"></span>
     </div>
     <pre id="stats-out" class="block"></pre>
+  </section>
+
+  <!-- Queries: the read-side log (search/ask), separate from the write audit -->
+  <section id="tab-queries" class="hidden">
+    <div class="info-card">
+      <p class="info-title" data-i18n="qIntro">Every search and question this instance answered, newest first.</p>
+      <p data-i18n="qP1"><b>Why it exists:</b> when several agents share one instance, "Codex got nothing" is usually a query that hit an empty or different index. Write auditing cannot see that; this can.</p>
+      <p data-i18n="qP2"><b>What is stored:</b> time, who, kind, the query text, hit count, the top result's location, and how long it took. The returned text is never stored.</p>
+      <p data-i18n="qP3"><b>Retention:</b> newest 500 in memory. Set <code>[http] query_log</code> to also append them to a JSONL file.</p>
+    </div>
+    <div class="row">
+      <button id="queries-refresh" data-i18n="btnRefresh">Refresh</button>
+      <span id="queries-count" class="muted"></span>
+    </div>
+    <div class="tablewrap">
+      <table id="queries-table"><thead>
+      <tr>
+        <th data-i18n="thTime">time</th>
+        <th data-i18n="thWho">who</th>
+        <th data-i18n="thKind">kind</th>
+        <th data-i18n="thQuery">query</th>
+        <th data-i18n="thHits">hits</th>
+        <th data-i18n="thTop">top result</th>
+        <th data-i18n="thMs">took</th>
+      </tr>
+    </thead><tbody></tbody></table>
+    </div>
+    <p id="queries-hint" class="muted hidden"></p>
   </section>
 
   <!-- Audit -->

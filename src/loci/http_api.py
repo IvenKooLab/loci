@@ -21,6 +21,7 @@ The legacy single [http] token keeps working and maps to admin.
 """
 from __future__ import annotations
 
+import errno
 import json
 import re
 import secrets
@@ -126,6 +127,52 @@ class Audit:
             return list(self._buf)[:limit]
 
 
+class QueryLog:
+    """Read-side log: who searched what, and what came back.
+
+    Deliberately separate from `Audit` — that one is a *write* trail and is
+    admin-only. This answers the question multiple agents sharing one instance
+    actually ask: "why did Codex get nothing when I get results?" A search that
+    hit the wrong LOCI_HOME, or ran before an ingest, shows up here as a query
+    with zero hits, which no amount of write-auditing reveals.
+
+    Stores the query text and the top hit's location, never the hit content.
+    In-memory ring buffer plus an optional JSONL append (`[http] query_log`),
+    so a restart keeps the recent past only if the file is enabled."""
+
+    def __init__(self, maxlen: int = 500, path: str | None = None):
+        self._buf = deque(maxlen=maxlen)
+        self._lock = threading.Lock()
+        self._path = Path(path).expanduser() if path else None
+        if self._path:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+
+    def add(self, entry: dict, kind: str, query: str, hits: list[dict],
+            ms: float, n: int | None = None) -> None:
+        top = hits[0] if hits else {}
+        item = {
+            "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "label": entry["label"], "role": entry["role"], "kind": kind,
+            "query": query[:300],
+            "hits": len(hits) if n is None else n,
+            "top": (top.get("source", "") +
+                    (f" > {top['section']}" if top.get("section") else "")),
+            "ms": round(ms, 1),
+        }
+        with self._lock:
+            self._buf.appendleft(item)
+            if self._path:
+                try:
+                    with self._path.open("a", encoding="utf-8") as f:
+                        f.write(json.dumps(item, ensure_ascii=False) + "\n")
+                except OSError:
+                    pass                    # logging must never break a search
+
+    def recent(self, limit: int = 100) -> list[dict]:
+        with self._lock:
+            return list(self._buf)[:limit]
+
+
 def run_server(cfg, host: str, port: int) -> None:
     brain = Brain()
     brain._ensure()
@@ -136,13 +183,34 @@ def run_server(cfg, host: str, port: int) -> None:
     else:
         print(f"auth: {len(entries)} token(s): "
               + ", ".join(f"{e['label']}={e['role']}" for e in entries))
-    handler = _make_handler(brain, cfg, entries, Audit())
-    server = ThreadingHTTPServer((host, port), handler)
-    print(f"loci {__version__} — HTTP API: http://{host}:{port}  (console at /ui)")
+    handler = _make_handler(brain, cfg, entries, Audit(),
+                            QueryLog(path=cfg.http.get("query_log")))
+    try:
+        server = ThreadingHTTPServer((host, port), handler)
+    except OSError as e:
+        # two loci instances (different LOCI_HOME) on one host is a normal
+        # thing to do, and the traceback Chrome/uvicorn users see says nothing
+        # useful — name the port, the likely cause and the two ways out
+        if e.errno not in (errno.EADDRINUSE, errno.EACCES):
+            raise
+        reason = ("already in use — another loci instance is probably running"
+                  if e.errno == errno.EADDRINUSE
+                  else "needs privileges the current user does not have")
+        raise SystemExit(
+            f"loci: cannot listen on {host}:{port} ({reason}).\n"
+            f"  find it:      lsof -i :{port}\n"
+            f"  another port: loci serve-http --port {port + 1}\n"
+            f"  or pick one:  loci serve-http --port 0   "
+            f"(prints the port it got)\n"
+            f"  make it permanent: [http] port = {port + 1} in config.toml")
+    bound = server.server_address[1]
+    print(f"loci {__version__} — HTTP API: http://{host}:{bound}  (console at /ui)")
+    if bound != port:
+        print(f"port {port} was taken, listening on {bound} instead")
     server.serve_forever()
 
 
-def _make_handler(brain, cfg, entries, audit):
+def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None):
     mem_dir = Path(cfg.memories["path"]).expanduser().resolve()
     icons_dir = Path(cfg.http.get("icons", "./icons")).expanduser().resolve()
     from loci import harness as harness_mod
@@ -150,6 +218,18 @@ def _make_handler(brain, cfg, entries, audit):
 
     def _harnesses():
         return harness_mod.load_harnesses(cfg)
+
+    def _log_query(entry, kind: str, query: str, payload, ms: float) -> None:
+        """Record one read. Logging must never be able to break a search, so
+        every failure here is swallowed."""
+        if queries is None:
+            return
+        try:
+            hits = payload.get("hits") if isinstance(payload, dict) else None
+            queries.add(entry, kind, str(query or ""), hits or [], ms,
+                        n=None if hits is not None else 0)
+        except Exception:
+            pass
 
     class Handler(BaseHTTPRequestHandler):
         entry: dict | None = None
@@ -295,6 +375,16 @@ def _make_handler(brain, cfg, entries, audit):
                 return self._guard(lambda: self._json(200, {
                     "path": str(p), "text": p.read_text(encoding="utf-8",
                                                         errors="replace")}))
+            if route == "/queries":
+                if not allowed(self.entry, "read"):
+                    return self._json(401, {"error": "unauthorized"})
+                limit = 100
+                try:
+                    limit = max(1, min(int(q.get("limit", 100)), 500))
+                except (TypeError, ValueError):
+                    pass
+                return self._json(200, {"queries":
+                                        queries.recent(limit) if queries else []})
             if route == "/audit":
                 if not allowed(self.entry, "admin"):
                     return self._json(403, {"error": "forbidden"})
@@ -330,12 +420,20 @@ def _make_handler(brain, cfg, entries, audit):
                 if route == "/search":
                     # `result` unchanged; `hits` is additive so the console can
                     # render an evidence pane, and text-only clients ignore it
-                    return self._guard(lambda: self._json(200, brain.search_payload(**{
+                    started = time.perf_counter()
+                    payload = brain.search_payload(**{
                         "query": body.get("query", ""), "k": body.get("k"),
                         "tag": body.get("tag"),
-                        "path_contains": body.get("in")})))
-                return self._guard(lambda: self._json(200, {"result": brain.ask(
-                    body.get("question", ""), verify=body.get("verify", False))}))
+                        "path_contains": body.get("in")})
+                    _log_query(self.entry, "search", body.get("query", ""),
+                               payload, (time.perf_counter() - started) * 1000)
+                    return self._json(200, payload)
+                started = time.perf_counter()
+                text = brain.ask(body.get("question", ""),
+                                 verify=body.get("verify", False))
+                _log_query(self.entry, "ask", body.get("question", ""),
+                           None, (time.perf_counter() - started) * 1000)
+                return self._json(200, {"result": text})
             if not allowed(self.entry, "write"):
                 return self._json(allowed(self.entry, "read")
                                   and 403 or 401, {"error": "forbidden"})
