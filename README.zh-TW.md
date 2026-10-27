@@ -113,6 +113,23 @@ loci serve-http
 | `brain_wiki` · `brain_harness` | 整理專題知識與 Agent 記憶 |
 | `brain_stats` · `brain_ingest` | 查看及更新索引 |
 
+![loci-mcp — real JSON-RPC session](docs/assets/mcp-tools.png)
+
+*真實 `loci-mcp` 的輸出：`initialize`、`tools/list`、`prompts/list`。*
+
+### 原生版本（Rust）
+
+同一套檢索管線與同一套 MCP 介面，但不需要安裝 Python 執行環境——單一二進位檔，
+索引是一個 SQLite 檔案而不是一個資料庫目錄：
+
+```bash
+cargo build --release -p loci-cli     # 在 native/ 下
+./target/release/loci-mcp --config ~/.loci/config.toml
+```
+
+狀態：核心與 MCP 已完成，封裝與桌面外殼進行中。移植了哪些、以及釘住行為的測試見 [`native/`](native/)。
+**兩個版本的索引不互通**——原生版不讀 ChromaDB 的索引。
+
 ## 日常工作流程
 
 ```bash

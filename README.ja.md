@@ -113,6 +113,23 @@ MCP クライアントで**同じ `LOCI_HOME`** を指定すると、設定・�
 | `brain_wiki` · `brain_harness` | 知識の整理と Agent の記憶管理 |
 | `brain_stats` · `brain_ingest` | インデックスの確認と更新 |
 
+![loci-mcp — real JSON-RPC session](docs/assets/mcp-tools.png)
+
+*実際の `loci-mcp` の出力：`initialize`、`tools/list`、`prompts/list`。*
+
+### ネイティブ版（Rust）
+
+同じ検索パイプラインと同じ MCP サーフェスを、Python ランタイムなしで——単一バイナリ、
+インデックスはデータベースディレクトリではなく 1 つの SQLite ファイル：
+
+```bash
+cargo build --release -p loci-cli     # native/ 内で
+./target/release/loci-mcp --config ~/.loci/config.toml
+```
+
+状態：コアと MCP は完成、パッケージングとデスクトップシェルは進行中。移植範囲と挙動を固定するテストは [`native/`](native/) を参照。
+**2 つのビルドのインデックスは共有されません**——ネイティブ版は ChromaDB のインデックスを読みません。
+
 ## 日々の使い方
 
 ```bash

@@ -9,17 +9,21 @@
 <p align="center">
   <a href="https://github.com/IvenKooLab/loci/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/IvenKooLab/loci/ci.yml?branch=main&amp;label=CI" alt="CI"></a>
   <a href="https://pypi.org/project/loci-rag/"><img src="https://img.shields.io/pypi/v/loci-rag?color=367d65" alt="PyPI"></a>
+  <img src="https://img.shields.io/badge/MCP-server-367d65" alt="MCP server">
   <img src="https://img.shields.io/badge/Python-3.11%2B-367d65" alt="Python 3.11+">
+  <a href="native/"><img src="https://img.shields.io/badge/Rust-native%20build-367d65" alt="Rust native build"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-367d65" alt="MIT license"></a>
 </p>
 
 <!-- mcp-name: io.github.IvenKooLab/loci -->
 
-**Turn scattered notes, project docs and agent memories into a knowledge base you can search and ask questions about — from your terminal, browser or MCP client.**
+**Turn scattered notes, project docs and agent memories into a knowledge base you can search and ask questions about — as an MCP server, from your terminal, or in the browser.**
 
 loci combines vector search with BM25 and returns answers with `file > section` citations. Your files and index stay on your machine. Embedding and chat requests go to the providers you configure; local endpoints can keep the entire workflow offline.
 
-[Quick start](#quick-start) · [Web console](#web-console) · [MCP setup](#connect-your-ai-tools) · [Usage guide](docs/guide.en.md) · [中文说明](README.zh-CN.md)
+**MCP is the point.** Mount `loci-mcp` in Claude Desktop, Cursor, Cline or any other MCP host and your assistant gets the whole knowledge base as tools. The console and a desktop shell are alternate front-ends to the same index — you never need them.
+
+[Quick start](#quick-start) · [MCP setup](#connect-your-ai-tools) · [Web console](#web-console) · [Usage guide](docs/guide.en.md) · [中文说明](README.zh-CN.md)
 
 ![loci console — synthetic-data demo](docs/assets/console-demo-light.png)
 
@@ -125,6 +129,27 @@ Use an absolute executable path if your client cannot find `loci-mcp`. The insta
 | `brain_stats` · `brain_ingest` | Inspect and refresh the index |
 
 The server also exposes note resources and briefing, study-plan and contradiction-check prompts. See the [MCP guide](docs/guide.en.md#mount-it-in-any-mcp-host) for details.
+
+![loci-mcp — real JSON-RPC session](docs/assets/mcp-tools.png)
+
+*Actual `loci-mcp` output: `initialize`, `tools/list` and `prompts/list` on the real binary.*
+
+### Native build (Rust)
+
+The same retrieval pipeline and MCP surface, with no Python runtime to install —
+one binary, and the index is a single SQLite file instead of a database
+directory:
+
+```bash
+cargo build --release -p loci-cli     # in native/
+./target/release/loci-mcp --config ~/.loci/config.toml
+```
+
+Status: core + MCP complete; packaging and the desktop shell are in progress.
+See [`native/`](native/) for what is ported and the fidelity tests that pin it
+(chunking, the frozen `default` tokenizer, the CJK bigram decoy case, RRF, and
+incremental ingest). **The two builds keep separate indexes** — a ChromaDB
+instance is not read by the native one; a migration command is on the list.
 
 ## A small daily workflow
 

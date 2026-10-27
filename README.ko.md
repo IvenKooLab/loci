@@ -113,6 +113,23 @@ MCP 클라이언트들이 **같은 `LOCI_HOME`**을 가리키면 설정, 인덱�
 | `brain_wiki` · `brain_harness` | 지식 정리와 Agent 기억 관리 |
 | `brain_stats` · `brain_ingest` | 인덱스 확인과 갱신 |
 
+![loci-mcp — real JSON-RPC session](docs/assets/mcp-tools.png)
+
+*실제 `loci-mcp` 출력: `initialize`, `tools/list`, `prompts/list`.*
+
+### 네이티브 빌드(Rust)
+
+같은 검색 파이프라인과 같은 MCP 표면을 Python 런타임 없이 — 단일 바이너리,
+인덱스는 데이터베이스 디렉터리가 아니라 SQLite 파일 하나:
+
+```bash
+cargo build --release -p loci-cli     # native/ 안에서
+./target/release/loci-mcp --config ~/.loci/config.toml
+```
+
+상태: 코어와 MCP 완료, 패키징과 데스크톱 셸 진행 중. 이식 범위와 동작을 고정하는 테스트는 [`native/`](native/) 참고.
+**두 빌드의 인덱스는 공유되지 않습니다** — 네이티브 빌드는 ChromaDB 인덱스를 읽지 않습니다.
+
 ## 일상적인 사용 흐름
 
 ```bash

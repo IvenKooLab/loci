@@ -1,0 +1,19 @@
+[package]
+name = "loci-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "loci"
+path = "src/main.rs"
+
+[[bin]]
+name = "loci-mcp"
+path = "src/mcp_main.rs"
+
+[dependencies]
+loci-core = { path = "../loci-core" }
+anyhow.workspace = true
+clap.workspace = true
+serde_json.workspace = true
