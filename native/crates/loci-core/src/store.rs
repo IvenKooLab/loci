@@ -144,7 +144,7 @@ impl Store {
         Ok(out)
     }
 
-    pub fn delete_source(&mut self, source: &str) -> Result<()> {
+    pub fn delete_source(&self, source: &str) -> Result<()> {
         self.conn.execute("DELETE FROM chunks WHERE source = ?1", params![source])?;
         self.conn.execute("DELETE FROM files WHERE path = ?1", params![source])?;
         Ok(())
@@ -152,9 +152,11 @@ impl Store {
 
     /// Replace every chunk of `source`. Idempotent: re-indexing a file never
     /// leaves duplicates behind.
-    pub fn upsert_source(&mut self, doc: &SourceWrite<'_>) -> Result<usize> {
+    pub fn upsert_source(&self, doc: &SourceWrite<'_>) -> Result<usize> {
         let SourceWrite { source, file_hash, mtime, tags, chunks, chashes, vectors } = doc;
-        let tx = self.conn.transaction()?;
+        // &self on purpose: rusqlite's unchecked_transaction only needs a
+        // shared connection, and this keeps the store shareable behind Arc
+        let tx = self.conn.unchecked_transaction()?;
         tx.execute("DELETE FROM chunks WHERE source = ?1", params![source])?;
         {
             let mut stmt = tx.prepare(
@@ -330,7 +332,7 @@ mod tests {
 
     #[test]
     fn upsert_replaces_instead_of_duplicating() {
-        let mut s = store();
+        let s = store();
         let chunks = vec![("a".to_string(), "S".to_string())];
         for h in ["h1", "h2"] {
             s.upsert_source(&SourceWrite {
@@ -345,7 +347,7 @@ mod tests {
 
     #[test]
     fn vector_search_orders_by_similarity() {
-        let mut s = store();
+        let s = store();
         let a_chunks = vec![("x".to_string(), String::new())];
         s.upsert_source(&SourceWrite {
             source: "/a.md", file_hash: "h", mtime: 0.0, tags: "",
@@ -363,7 +365,7 @@ mod tests {
 
     #[test]
     fn reuse_map_survives_reindex() {
-        let mut s = store();
+        let s = store();
         let chunks = vec![("x".to_string(), String::new())];
         s.upsert_source(&SourceWrite {
             source: "/a.md", file_hash: "h", mtime: 0.0, tags: "",
@@ -376,7 +378,7 @@ mod tests {
 
     #[test]
     fn per_source_counts_and_delete() {
-        let mut s = store();
+        let s = store();
         let chunks = vec![("x".to_string(), String::new()), ("y".to_string(), String::new())];
         s.upsert_source(&SourceWrite {
             source: "/a.md", file_hash: "h", mtime: 0.0, tags: "",
@@ -391,7 +393,7 @@ mod tests {
 
     #[test]
     fn mismatched_dimensions_are_skipped_not_fatal() {
-        let mut s = store();
+        let s = store();
         let chunks = vec![("x".to_string(), String::new())];
         s.upsert_source(&SourceWrite {
             source: "/a.md", file_hash: "h", mtime: 0.0, tags: "",
