@@ -27,3 +27,28 @@ jobs:
         run: |
           loci --help
           echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}' | loci-mcp | grep serverInfo
+
+  native:
+    name: native (Rust)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+      - name: Test the native core and MCP server
+        working-directory: native
+        run: cargo test --offline --locked || cargo test --locked
+      - name: Clippy (warnings are not fatal, but they are visible)
+        working-directory: native
+        run: cargo clippy --all-targets -- -D warnings
+      - name: MCP smoke (initialize + tools/list over stdio)
+        working-directory: native
+        run: |
+          cargo build --release -p loci-cli
+          printf '%s\n%s\n' \
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}' \
+            '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+            | ./target/release/loci-mcp --config /dev/null \
+            | tee /dev/stderr | grep -q brain_search

@@ -13,11 +13,13 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-367d65" alt="MIT 许可证"></a>
 </p>
 
-**把散落的笔记、项目文档和 Agent 记忆，变成可以搜索、提问、追溯来源的知识库。终端、浏览器和 MCP 客户端都能用。**
+**把散落的笔记、项目文档和 Agent 记忆，变成可以搜索、提问、追溯来源的知识库——以 MCP 服务器的形态，终端和浏览器同样可用。**
+
+**MCP 才是主线。** 把 `loci-mcp` 挂进 Claude Desktop、Cursor、Cline 或任意 MCP 宿主，你的助手就拿整个知识库当工具用。管理台和桌面客户端只是同一份索引的另一种外壳，不是必需品。
 
 loci 将向量检索与 BM25 结合，回答附带「文件 > 章节」引用。文件和索引保留在本机；向量化与对话请求发往你配置的服务，也可以通过本地模型实现全离线运行。
 
-[快速开始](#快速开始) · [Web 管理台](#web-管理台) · [接入-ai-工具](#接入-ai-工具) · [完整使用指南](docs/guide.zh-CN.md) · [English](README.md)
+[快速开始](#快速开始) · [接入 AI 工具](#接入-ai-工具) · [Web 管理台](#web-管理台) · [完整使用指南](docs/guide.zh-CN.md) · [English](README.md)
 
 ![loci console — synthetic-data demo](docs/assets/console-demo-light.png)
 
@@ -114,6 +116,21 @@ loci serve-http
 | `brain_stats` · `brain_ingest` | 查看和刷新索引 |
 
 服务还提供笔记资源，以及简报、学习计划和矛盾检查提示词。详细配置见 [MCP 接入指南](docs/guide.zh-CN.md#接入任意-mcp-宿主)。
+
+![loci-mcp — 真实 JSON-RPC 会话](docs/assets/mcp-tools.png)
+
+*真实 `loci-mcp` 的输出：`initialize`、`tools/list`、`prompts/list`。*
+
+### 原生版本（Rust）
+
+同一套检索管线和同一套 MCP 接口，但不需要安装 Python 运行时——单个二进制，索引是一个 SQLite 文件而不是一个数据库目录：
+
+```bash
+cargo build --release -p loci-cli     # 在 native/ 下
+./target/release/loci-mcp --config ~/.loci/config.toml
+```
+
+状态：核心与 MCP 已完成，打包和桌面外壳进行中。移植了哪些、以及钉住行为的测试见 [`native/`](native/)（分块、冻结的 `default` 分词器、CJK 双字分词器对 decoy 的修复、RRF、增量索引）。**两个版本的索引不互通**——原生版不读 ChromaDB 的索引，迁移命令在计划里。
 
 ## 日常怎么用
 
