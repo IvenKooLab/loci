@@ -248,7 +248,7 @@ mod tests {
             SEQ.fetch_add(1, Ordering::Relaxed)
         ));
         let _ = std::fs::remove_dir_all(&dir);
-        let mut store = Store::open(dir.join("index.db")).unwrap();
+        let store = Store::open(dir.join("index.db")).unwrap();
         let emb = HashEmbedder::default();
 
         for (src, text, tags) in [
@@ -330,7 +330,7 @@ mod tests {
 
     #[test]
     fn cache_invalidates_when_corpus_changes() {
-        let (mut store, emb) = seeded();
+        let (store, emb) = seeded();
         // scope the retriever so the store can be written afterwards
         let first = {
             let mut r = Retriever::new(&store, &emb, RetrievalConfig::default());

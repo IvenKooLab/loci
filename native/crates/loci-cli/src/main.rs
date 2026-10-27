@@ -1,5 +1,7 @@
 //! `loci` — Q&A over a personal knowledge base, native build.
 
+mod console;
+
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -52,12 +54,14 @@ enum Cmd {
     Stats,
     /// check config, index and embedding endpoint
     Doctor,
-    /// offline tour over a bundled sample corpus (no key, no network)
-    Demo {
+    /// the web console, served by this binary
+    Gui {
+        /// corpus / index directory (default: the bundled demo corpus)
         #[arg(long)]
         dir: Option<PathBuf>,
-        #[arg(short = 'k', long)]
-        k: Option<usize>,
+        /// port to listen on
+        #[arg(long, default_value_t = 8790)]
+        port: u16,
     },
 }
 
@@ -190,7 +194,11 @@ fn run(cli: Cli) -> Result<ExitCode> {
             Ok(ExitCode::SUCCESS)
         }
 
-        Cmd::Demo { dir, k } => demo(dir, k),
+        Cmd::Gui { dir, port } => {
+            let root = dir.unwrap_or_else(|| std::env::current_dir().unwrap_or_default().join("loci-demo-notes"));
+            console::serve(root, port, cfg, cli.offline).map(|_| ExitCode::SUCCESS)
+        }
+
 
         Cmd::Doctor => {
             let mut failed = 0usize;
@@ -262,76 +270,3 @@ fn run(cli: Cli) -> Result<ExitCode> {
     }
 }
 
-/// A tour that works before anyone has an API key: six fictional notes,
-/// chunked and ranked with the real pipeline, using the offline hash embedder.
-fn demo(dir: Option<PathBuf>, k: Option<usize>) -> Result<ExitCode> {
-    use loci_core::embed::HashEmbedder;
-
-    let root = dir.unwrap_or_else(|| std::env::current_dir().unwrap_or_default().join("loci-demo-notes"));
-    std::fs::create_dir_all(&root)?;
-    for (name, body) in DEMO_NOTES {
-        let path = root.join(name);
-        if !path.exists() {
-            if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            std::fs::write(&path, body)?;
-        }
-    }
-
-    let mut cfg = Config::default();
-    cfg.sources.push(loci_core::config::SourceConfig {
-        path: root.to_string_lossy().to_string(),
-        chunk_size: None,
-        chunk_overlap: None,
-    });
-    let db = root.join(".index.db");
-    let _ = std::fs::remove_file(&db);
-    let mut store = Store::open(&db)?;
-    let embedder = HashEmbedder::default();
-    let report = ingest(&cfg, &mut store, &embedder, false)?;
-
-    println!("loci demo — a tour of a small sample knowledge base\n");
-    println!("  corpus    {}", root.display());
-    println!("  index     {} files · {} chunks", report.added, report.chunks);
-    // Keyword-only, like the Python demo: the hash embedder is a stand-in that
-    // measures token overlap, not meaning, so calling it "hybrid" would be a
-    // claim the demo cannot back. BM25 alone is honest and still exercises
-    // chunking, tokenization and citations.
-    println!("  retrieval keyword only (BM25) — the same ranking hybrid search");
-    println!("            fuses with vector hits. No config, no key, no network.\n");
-
-    let rcfg = RetrievalConfig { lexical_only: true, ..RetrievalConfig::default() };
-    let mut retriever = Retriever::new(&store, &embedder, rcfg);
-    let queries = [
-        "why did the humidity sensor replace the BME280?",
-        "how long can the station run on one charge?",
-    ];
-    for (i, q) in queries.iter().enumerate() {
-        println!("-- example {}/{} {}", i + 1, queries.len(), "-".repeat(40));
-        let hits = retriever.search(q, &Filters::default(), k)?;
-        for (n, h) in hits.iter().enumerate() {
-            let where_ = if h.section.is_empty() {
-                h.source.clone()
-            } else {
-                format!("{} > {}", h.source, h.section)
-            };
-            let preview: String = h.text.chars().take(120).collect();
-            let rel = if n == 0 { 1.0 } else { h.score / hits[0].score };
-            println!("  [{}] {}  ({:.2})", n + 1, where_, rel);
-            println!("      {}...", preview.replace('\n', " "));
-        }
-        println!();
-    }
-    println!("Next steps");
-    println!("  loci ingest && loci search \"your question\"   index your own notes");
-    println!("  loci doctor                                 check config and endpoint");
-    Ok(ExitCode::SUCCESS)
-}
-
-const DEMO_NOTES: &[(&str, &str)] = &[
-    ("projects/aurora/decisions.md", "# Aurora — decisions\n\n## ADR-001: SHT45 over BME280\n\nRevision A used a BME280. The balcony sits between 80% and 100% relative humidity for most of the winter, and the BME280 drifted upward by roughly 6% RH after two months. Decision: SHT45.\n"),
-    ("projects/aurora/battery-budget.md", "# Aurora — power budget\n\nTarget: six months on one charge, sampling every five minutes. The MCU wake window dominates at 7.68 mAh/day; total draw is 9.52 mAh/day.\n"),
-    ("projects/aurora/retro.md", "# Retro 2026-09-18\n\n## What did not\n\nWi-Fi reconnect storms cost 120 mAh over two days. The antenna drops to -78 dBm when the balcony door is closed.\n"),
-    ("notes/reading-list.md", "# Reading list\n\n## Electronics\n\nThe Art of Electronics, chapter 9 on voltage references.\n"),
-];
