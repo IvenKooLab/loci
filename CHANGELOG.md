@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Changed
+- BM25 is built once per unchanged index instead of on every query. `_fuse`
+  pulled every chunk out of the store and re-tokenized the whole corpus for
+  each search: measured at 144 ms for 5k chunks and 291 ms for 10k, paid again
+  on every keystroke in the console. The index is now cached and keyed on the
+  store path, an in-process write counter (`Store` bumps it in `upsert_chunks`
+  / `delete_file` / `reset`) and a digest of the chunk ids, so a CLI ingest, a
+  `remember` or the console's own writes invalidate it immediately, and a
+  second process writing the same directory is caught by the digest.
+  Repeats drop to 7 ms at 5k chunks and 14 ms at 10k; ranking is unchanged,
+  which is what the new tests assert.
+
 ### Added
 - The version is now readable where people look for it: `loci --version`,
   a closing line in `loci doctor` (`loci 0.8.1 · python 3.12 · darwin`), the

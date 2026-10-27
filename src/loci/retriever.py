@@ -7,9 +7,8 @@ from pathlib import Path
 
 from openai import OpenAI
 
-from loci.bm25 import BM25
+from loci.bm25_cache import BM25Cache
 from loci.reranker import local_rerank
-from loci.tokenizers import get_tokenizer
 
 SYSTEM_PROMPT = (
     "You are a Q&A assistant over the user's personal knowledge base. "
@@ -33,6 +32,7 @@ class Retriever:
         self.rerank_provider = rerank_provider
         self.local_rerank_model = local_rerank_model
         self.bm25_tokenizer = bm25_tokenizer
+        self._bm25_cache = BM25Cache()
         self._penalties: dict[str, float] = {}
         if feedback_path and Path(feedback_path).exists():
             import json as _json
@@ -117,9 +117,10 @@ class Retriever:
         ids, docs = self.store.all_chunks()
         if not ids:
             return vhits
-        ranked = BM25(dict(zip(ids, docs)),
-                      tokenizer=get_tokenizer(self.bm25_tokenizer)
-                      ).score(query)[:fetch]
+        # building BM25 is O(corpus) — 290 ms at 10k chunks — so hold it while
+        # the store is unchanged instead of paying that on every query
+        ranked = self._bm25_cache.get(self.store.path, ids, docs,
+                                      self.bm25_tokenizer).score(query)[:fetch]
         scores: dict[str, float] = {}
         for r, h in enumerate(vhits):
             scores[h["id"]] = scores.get(h["id"], 0.0) + 1.0 / (self.rrf_k + r + 1)

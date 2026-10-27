@@ -10,6 +10,8 @@ os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
 
 import chromadb
 
+from loci import bm25_cache
+
 
 class Store:
     def __init__(self, path: str):
@@ -71,6 +73,7 @@ class Store:
         """Drop and recreate the collection."""
         self.client.delete_collection("brain")
         self.collection = self._open_collection()
+        bm25_cache.bump(self.path)
 
     # ---- bookkeeping: per-file incrementality ----
 
@@ -85,6 +88,7 @@ class Store:
 
     def delete_file(self, path: str) -> None:
         self.collection.delete(where={"source": path})
+        bm25_cache.bump(self.path)
 
     def prune(self, keep: set[str]) -> list[str]:
         """Drop chunks of files no longer present in the sources. Returns removed paths."""
@@ -112,6 +116,7 @@ class Store:
                         "section": c.get("section", ""), "tags": tags,
                         "links": links, "mtime": mtime, "chash": chashes[i]}
                        for i, c in enumerate(chunks)])
+        bm25_cache.bump(self.path)
 
     def count(self) -> int:
         return self.collection.count()
