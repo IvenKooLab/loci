@@ -1,0 +1,11 @@
+# rust build output
+/target/
+**/*.rs.bk
+
+# per-instance data: an index, a config with keys, a demo corpus
+# (anchored, so .cargo/config.toml — the SDK pin — is still tracked)
+/index.db
+/index.db-wal
+/index.db-shm
+/config.toml
+/loci-demo-notes/

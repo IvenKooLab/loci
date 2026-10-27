@@ -32,3 +32,16 @@ To reproduce:
 ```bash
 python scripts/render_demo_card.py
 ```
+
+## `loci-mcp` session
+
+`mcp-tools.png` is captured from the real `loci-mcp` binary answering a
+three-message session (`initialize`, `tools/list`, `prompts/list`), then
+rendered — the tool names, descriptions and protocol version are the binary's
+own output, not a mock. Reproduce with:
+
+```bash
+cargo build -p loci-cli --manifest-path native/Cargo.toml
+printf '%s\n' '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+  | ./native/target/debug/loci-mcp --config your/config.toml
+```

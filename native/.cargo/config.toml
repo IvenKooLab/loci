@@ -1,0 +1,5 @@
+# This machine's default SDK (MacOSX27.0) ships .tbd stubs whose target list
+# omits arm64, so the linker reports "unknown architecture" for every binary.
+# Pin the newest SDK whose stubs still declare arm64-macos.
+[env]
+SDKROOT = "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk"
