@@ -159,7 +159,13 @@ function applyI18n() {
   document.title = t("title");
   applyTheme();
   // dictionary strings are static code (no user input), so rich text is safe
-  document.querySelectorAll("[data-i18n]").forEach((el) => el.innerHTML = t(el.dataset.i18n));
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    // nav buttons carry an inline SVG icon; translating must replace only the
+    // label span, not wipe the icon out of the button
+    const label = el.querySelector(".nav-label");
+    if (label) { label.textContent = t(el.dataset.i18n); return; }
+    el.innerHTML = t(el.dataset.i18n);
+  });
   document.querySelectorAll("[data-i18n-ph]").forEach((el) => el.placeholder = t(el.dataset.i18nPh));
   $("#lang-btn").textContent = lang === "zh" ? "EN" : "中文";
 }
