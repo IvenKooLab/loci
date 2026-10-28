@@ -9,3 +9,7 @@
 /index.db-shm
 /config.toml
 /loci-demo-notes/
+
+# tauri codegen output
+src-tauri/gen/
+.DS_Store

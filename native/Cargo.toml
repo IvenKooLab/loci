@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/loci-core", "crates/loci-cli"]
+members = ["crates/loci-core", "crates/loci-cli", "desktop/src-tauri"]
 
 [workspace.package]
 version = "0.1.0"
