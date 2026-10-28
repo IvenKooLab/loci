@@ -215,9 +215,14 @@ def memory_files(h: Harness) -> list[Path]:
 
 
 def fingerprint(files: list[Path]) -> str:
-    """Content fingerprint over (relative name, content hash), order-stable."""
+    """Content fingerprint over (relative name, content hash), order-stable.
+
+    Sorts first: callers pass whatever order they collected in, and an
+    order-dependent digest would look "stale" after a directory read order
+    changed for reasons the user cannot see. The native build does the same.
+    """
     lines = []
-    for p in files:
+    for p in sorted(files):
         try:
             digest = hashlib.sha1(p.read_bytes()).hexdigest()
         except OSError:

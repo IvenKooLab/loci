@@ -3,6 +3,24 @@
 ## Unreleased
 
 ### Added
+- **Harness discovery in the native build** — the last feature the Python build
+  had and it did not. `loci harness` lists which AI coding tools are installed
+  on this machine, how many memory files each holds, how many are indexed, when
+  they last changed, and whether its digest is stale. `brain_harness` exposes
+  the same over MCP, and the console's Overview renders it as cards.
+  - detection is by probe (install home, app bundle, env var), so a tool that
+    is not installed is absent rather than shown empty
+  - a configured tool whose directory vanished reports `(N root(s) missing)`
+    instead of silently reading as "0 files"
+  - `[[harness]]` in config still overrides or adds to the built-in registry
+- The fingerprint is now order-stable in **both** builds. The native port sorts;
+  the Python one did not, so a directory read order change made a digest look
+  stale for reasons a user could not see.
+
+### Fixed
+- The native glob matcher mishandled `*.md` (it treated the empty prefix and
+  suffix as "match nothing"), which made every flat preset — Codex, Claude —
+  return no files.
 - **Index migration between the two builds.** `loci export` (Python) writes the
   whole index to JSONL; `loci import <file>` (native) loads it into SQLite. The
   export is the contract — ChromaDB is only readable from Python, so the builds

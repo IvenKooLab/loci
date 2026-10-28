@@ -153,6 +153,7 @@ impl McpServer {
                 }
             }
             "brain_stats" => self.stats_text(),
+            "brain_harness" => self.harness_text(),
             "brain_ingest" => {
                 let embedder = self.embedder.as_ref();
                 let report = crate::indexer::ingest(&self.cfg, &mut self.store, embedder, false)
@@ -168,6 +169,35 @@ impl McpServer {
             other => return Err((-32602, format!("unknown tool: {other}"))),
         };
         Ok(json!({"content": [{"type": "text", "text": text}]}))
+    }
+
+    /// Which AI tools are installed here and what their memory dirs hold.
+    fn harness_text(&self) -> String {
+        let list = crate::harness::load(&self.cfg);
+        if list.is_empty() {
+            return "(no harness found — none of the known tools are installed, and no\
+                     [[harness]] entries are configured)"
+                .to_string();
+        }
+        let rows = crate::harness::stats(&self.cfg, &self.store, &list);
+        let mut lines = vec![format!(
+            "{:<22} {:<9} {:>5} {:>6}  {:<16} summary",
+            "harness", "type", "files", "chunks", "last update"
+        )];
+        for r in &rows {
+            let missing = if r.missing_roots > 0 {
+                format!(" ({} root(s) missing)", r.missing_roots)
+            } else {
+                String::new()
+            };
+            lines.push(format!(
+                "{:<22} {:<9} {:>5} {:>6}  {:<16} {}{}",
+                r.display, r.kind, r.files, r.chunks,
+                if r.last_updated.is_empty() { "—" } else { &r.last_updated },
+                r.summary.status, missing
+            ));
+        }
+        lines.join("\n")
     }
 
     fn stats_text(&self) -> String {
@@ -327,6 +357,16 @@ pub fn tool_definitions() -> Vec<Value> {
                 count, chunks per source, embedding model and retrieval settings. Reads \
                 local metadata only — no LLM or embedding calls. Call it before searching \
                 to see what is indexed, or when answers seem to be missing a file.",
+            "inputSchema": {"type": "object", "properties": {}}
+        }),
+        json!({
+            "name": "brain_harness",
+            "description": "Report the memory directories of the AI coding tools installed \
+                on this machine: how many files each holds, how many are indexed, when \
+                they last changed, and whether its digest is stale. Detects the tools \
+                itself (install home / app bundle / env var) instead of trusting config. \
+                Use it when you want to know what another agent already knows, or why a \
+                tool's notes are not showing up in search.",
             "inputSchema": {"type": "object", "properties": {}}
         }),
         json!({
