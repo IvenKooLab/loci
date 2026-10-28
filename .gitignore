@@ -22,6 +22,8 @@ build/
 *.egg-info/
 
 # native build pins a working SDK on this machine; it is config, not a secret
-!/native/.cargo/config.toml
 
 .DS_Store
+
+# machine-local SDK pin (native/README.md); never commit
+/native/.cargo/config.toml
