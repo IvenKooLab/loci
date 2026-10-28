@@ -234,8 +234,8 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
     mem_dir = Path(cfg.memories["path"]).expanduser().resolve()
     upload_dir = mem_dir / "uploads"
     from loci import loaders as loaders_mod
-    icons_dir = harness_mod.icons_dir_for(cfg).resolve()
     from loci import harness as harness_mod
+    icons_dir = harness_mod.icons_dir_for(cfg).resolve()
     local_admin = bool(cfg.http.get("local_admin", True))
 
     def _harnesses():
