@@ -96,5 +96,7 @@ Requires Rust 1.80+. See `crates/loci-core/src/*.rs` for per-module tests
 
 > On macOS 15+ with only Command Line Tools, the default SDK may ship `.tbd`
 > stubs whose target list omits `arm64`, which makes every link fail with
-> `unknown architecture`. `.cargo/config.toml` pins a working `SDKROOT`; adjust
-> or delete it on your machine.
+> `unknown architecture`. If you hit it: `export SDKROOT=$(xcrun --show-sdk-path)`
+> against a working SDK (e.g. `MacOSX15.4.sdk`), or delete the stale SDK from
+> `/Library/Developer/CommandLineTools/SDKs/`. The pin is machine-local and
+> deliberately untracked — do not commit it.

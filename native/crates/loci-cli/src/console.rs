@@ -29,9 +29,11 @@ use loci_core::loader::{self, load_one};
 use loci_core::retriever::{Filters, RetrievalConfig, Retriever};
 use loci_core::store::Store;
 
-const INDEX_HTML: &str = include_str!("../web/index.html");
-const APP_JS: &str = include_str!("../web/app.js");
-const STYLE_CSS: &str = include_str!("../web/style.css");
+// one source of truth: the frontend lives in the Python build's web dir, and
+// both servers serve the same bytes — the two UIs cannot drift apart
+const INDEX_HTML: &str = include_str!("../../../../src/loci/web/index.html");
+const APP_JS: &str = include_str!("../../../../src/loci/web/app.js");
+const STYLE_CSS: &str = include_str!("../../../../src/loci/web/style.css");
 
 const SYSTEM_PROMPT: &str = "You are a Q&A assistant over the user's personal knowledge base. \
 Answer only from the provided excerpts; if they don't contain the answer, say so plainly — \

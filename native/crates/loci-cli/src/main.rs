@@ -1,7 +1,5 @@
 //! `loci` — Q&A over a personal knowledge base, native build.
 
-mod console;
-
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -196,7 +194,7 @@ fn run(cli: Cli) -> Result<ExitCode> {
 
         Cmd::Gui { dir, port } => {
             let root = dir.unwrap_or_else(|| std::env::current_dir().unwrap_or_default().join("loci-demo-notes"));
-            console::serve(root, port, cfg, cli.offline).map(|_| ExitCode::SUCCESS)
+            loci_cli::console::serve(root, port, cfg, cli.offline).map(|_| ExitCode::SUCCESS)
         }
 
 

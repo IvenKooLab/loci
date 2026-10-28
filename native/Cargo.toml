@@ -1,6 +1,11 @@
 [workspace]
 resolver = "2"
-members = ["crates/loci-core", "crates/loci-cli"]
+members = ["crates/loci-core", "crates/loci-cli", "desktop/src-tauri"]
+# `cargo test` / `cargo clippy` in native/ build core + cli only: the desktop
+# crate pulls Tauri, which on Linux needs GTK/webkit system packages that a
+# bare CI runner does not have. The desktop build runs on macOS (its native
+# target needs no system packages) — see the desktop job in ci.yml.
+default-members = ["crates/loci-core", "crates/loci-cli"]
 
 [workspace.package]
 version = "0.1.0"

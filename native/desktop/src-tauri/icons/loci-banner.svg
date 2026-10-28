@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-label="loci — shared memory for your AI tools">
+<rect width="1200" height="300" rx="24" fill="#111c22"/>
+<g fill="none" stroke="#76b8a2" stroke-width="2" opacity=".65">
+<rect x="890" y="65" width="158" height="158" rx="18"/>
+<path d="M925 223V100h158v123H925zm35 0V135h158v88H960z"/>
+<path d="M890 65l35 35m123-35 35 35m-158 0 35 35m123-35 35 35"/>
+</g>
+<text x="66" y="149" font-family="Inter,Arial,sans-serif" font-size="108" font-weight="700" letter-spacing="-5" fill="#f2f4ed">loci</text>
+<text x="70" y="204" font-family="Inter,Arial,sans-serif" font-size="27" fill="#c1d6ce">Shared memory for your AI tools.</text>
+<text x="72" y="246" font-family="Inter,Arial,sans-serif" font-size="15" letter-spacing="3" fill="#82bda9">LOCAL FILES / HYBRID SEARCH / CITED ANSWERS</text>
+</svg>

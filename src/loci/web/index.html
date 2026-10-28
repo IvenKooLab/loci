@@ -7,27 +7,58 @@
 <link rel="stylesheet" href="/ui/style.css">
 </head>
 <body>
-<header>
-  <div class="brand">
-    <span class="logo">loci <em>console</em></span>
-    <span class="tagline" data-i18n="tagline">Shared memory layer for your AI coding tools</span>
-  </div>
+<aside class="sidebar">
+  <div class="brand"><span class="logo">loci <em>console</em></span></div>
   <nav>
-    <button data-tab="dash" class="on" data-i18n="navDash">Overview</button>
-    <button data-tab="mem" data-i18n="navMem">Memories</button>
-    <button data-tab="stats" data-i18n="navStats">Index</button>
-    <button data-tab="sources" data-i18n="navSources">Sources</button>
-    <button data-tab="queries" data-i18n="navQueries">Queries</button>
-    <button data-tab="audit" data-i18n="navAudit">Audit</button>
-    <button id="lang-btn" title="switch language">中文</button>
-    <button id="theme-btn" class="ghost" title="toggle dark mode">🌙</button>
-    <a id="gh-btn" href="https://github.com/IvenKooLab/loci" target="_blank" rel="noopener">GitHub ↗</a>
+    <button data-tab="board" data-icon="board" class="on" data-i18n="navBoard">Dashboard</button>
+    <button data-tab="dash" data-i18n="navDash">Search</button>
+    <button data-tab="mem" data-icon="mem" data-i18n="navMem">Memories</button>
+    <button data-tab="sources" data-icon="sources" data-i18n="navSources">Sources</button>
+    <button data-tab="queries" data-icon="queries" data-i18n="navQueries">Queries</button>
+    <button data-tab="stats" data-icon="stats" data-i18n="navStats">Index</button>
+    <button data-tab="audit" data-icon="audit" data-i18n="navAudit">Audit</button>
   </nav>
-  <span id="ver" class="ver"></span>
-  <span id="who" class="who"></span>
-</header>
+  <div class="side-foot">
+    <div class="side-actions">
+      <button id="lang-btn" title="switch language">中文</button>
+      <button id="theme-btn" class="ghost" title="toggle dark mode">🌙</button>
+      <a id="gh-btn" href="https://github.com/IvenKooLab/loci" target="_blank" rel="noopener">GitHub ↗</a>
+    </div>
+    <span id="ver" class="ver"></span>
+    <span id="who" class="who"></span>
+  </div>
+</aside>
 
-<main>
+<div class="content">
+  <div class="topbar"><h1 id="page-title" data-i18n="navBoard">Dashboard</h1></div>
+  <main>
+  <!-- Dashboard: aggregates over the query log and the index -->
+  <section id="tab-board">
+    <div class="range-row">
+      <div class="seg" id="board-range">
+        <button data-range="today" data-i18n="rgToday">today</button>
+        <button data-range="7d" class="on" data-i18n="rg7d">7 days</button>
+        <button data-range="30d" data-i18n="rg30d">30 days</button>
+        <button data-range="all" data-i18n="rgAll">all</button>
+      </div>
+    </div>
+    <div id="board-cards" class="stat-grid"></div>
+    <div class="board-cols">
+      <div class="board-col">
+        <h2 data-i18n="boardTop">Top queries</h2>
+        <ol id="board-topq" class="board-list"></ol>
+      </div>
+      <div class="board-col">
+        <h2 data-i18n="boardMiss">Zero-hit queries</h2>
+        <ul id="board-miss" class="board-list"></ul>
+      </div>
+    </div>
+    <h2 data-i18n="boardSrc">Chunks per source</h2>
+    <div id="board-src" class="src-bars"></div>
+    <h2 data-i18n="boardAct">Recent activity</h2>
+    <div id="board-act" class="act-strip"></div>
+  </section>
+
   <!-- Overview -->
   <section id="tab-dash">
     <div class="row">
@@ -187,7 +218,8 @@
     </div>
     <p id="audit-hint" class="muted hidden"></p>
   </section>
-</main>
+  </main>
+</div>
 
 <!-- login: only appears when the server rejects anonymous/local access -->
 <div id="login" class="overlay hidden">
