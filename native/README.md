@@ -104,6 +104,12 @@ the console renders it as cards. Adding a tool needs config, not code:
 `[[harness]]` overrides or extends the built-in registry, and `paths` accepts
 globs.
 
+Logos come from the instance's `icons/` directory (`[http] icons` overrides
+it); a bare relative path means "in the instance", not "wherever the process
+started". Drop `zcode-logo.png`, `codex-openai.png`, `claude-code.svg`,
+`deepseek.svg` in there and the console renders them; without the files it
+falls back to the emoji rather than showing a broken image.
+
 Digest generation (one LLM call per stale harness) is still Python-only — the
 console and the MCP tool say so rather than pretending.
 

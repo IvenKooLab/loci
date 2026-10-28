@@ -88,3 +88,31 @@ def test_fingerprint_is_order_stable(tmp_path):
     _write(a, "a")
     _write(b, "b")
     assert hm.fingerprint([a, b]) == hm.fingerprint([b, a])
+
+
+# ---- icons: a logo file wins over the emoji fallback ----
+
+def test_logo_file_wins_over_emoji(tmp_path):
+    icons = tmp_path / "icons"
+    icons.mkdir()
+    (icons / "codex-openai.png").write_bytes(b"\x89PNG")
+    cfg = config.Config()
+    cfg.store = {"path": str(tmp_path / "chroma_db")}
+    found = {h.name: h for h in hm.load_harnesses(cfg)}
+    # only assert when the tool is actually installed on this machine
+    if "codex" in found:
+        assert found["codex"].icon == "codex-openai.png"
+
+
+def test_icons_dir_defaults_to_the_instance_not_the_cwd(tmp_path, monkeypatch):
+    cfg = config.Config()
+    cfg.store = {"path": str(tmp_path / "chroma_db")}
+    monkeypatch.chdir("/")
+    assert hm.icons_dir_for(cfg) == tmp_path / "icons"
+
+
+def test_icons_dir_honours_an_absolute_override(tmp_path):
+    cfg = config.Config()
+    cfg.store = {"path": str(tmp_path / "chroma_db")}
+    cfg.http = {"icons": str(tmp_path / "brand-assets")}
+    assert hm.icons_dir_for(cfg) == tmp_path / "brand-assets"
