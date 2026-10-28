@@ -13,7 +13,7 @@ const I18N = {
   en: {
     title: "loci console",
     tagline: "Shared memory layer for your AI coding tools",
-    navDash: "Overview", navMem: "Memories", navStats: "Index",
+    navBoard: "Dashboard", navDash: "Search", navMem: "Memories", navStats: "Index",
     navSources: "Sources", navQueries: "Queries", navAudit: "Audit",
     phSearch: "Search the knowledge base…", phAsk: "Ask a question…",
     btnSearch: "Search", btnAsk: "Ask",
@@ -56,6 +56,15 @@ const I18N = {
     files: "files", chunks: "chunks", updated: "updated",
     fresh: "fresh", stale: "stale", missing: "missing",
     badgeTip: "digest out of date — click to regenerate",
+    navBoard: "Dashboard",
+    rgToday: "today", rg7d: "7 days", rg30d: "30 days", rgAll: "all",
+    cardTotal: "total queries", cardSearch: "searches", cardAsk: "questions",
+    cardAvg: "avg hits", cardZero: "zero-hit", cardChunks: "indexed chunks",
+    cardMem: "memory notes", cardSrc: "source dirs",
+    boardTop: "Top queries", boardMiss: "Zero-hit queries",
+    boardSrc: "Chunks per source", boardAct: "Recent activity",
+    boardEmpty: "No queries in this range yet.",
+    boardRangeNote: (n) => `based on ${n} logged queries`,
     indexing: "indexing…", summarizing: "summarizing…",
     confirmDelete: (n) => `Move ${n} to .trash?`,
     evTitle: "Evidence", evClose: "close", evCopy: "Copy citation",
@@ -66,7 +75,7 @@ const I18N = {
   zh: {
     title: "loci 管理台",
     tagline: "AI 编码工具的共享记忆层",
-    navDash: "总览", navMem: "记忆", navStats: "索引",
+    navBoard: "看板", navDash: "检索", navMem: "记忆", navStats: "索引",
     navSources: "来源", navQueries: "查询", navAudit: "审计",
     phSearch: "搜索知识库…", phAsk: "输入问题…",
     btnSearch: "搜索", btnAsk: "提问",
@@ -109,6 +118,15 @@ const I18N = {
     files: "个文件", chunks: "块", updated: "更新于",
     fresh: "最新", stale: "待更新", missing: "未生成",
     badgeTip: "摘要已过期——点击重新生成",
+    navBoard: "看板",
+    rgToday: "今天", rg7d: "7 天", rg30d: "30 天", rgAll: "全部",
+    cardTotal: "总查询", cardSearch: "搜索", cardAsk: "提问",
+    cardAvg: "平均命中", cardZero: "零命中", cardChunks: "已索引块",
+    cardMem: "记忆条数", cardSrc: "来源目录",
+    boardTop: "高频查询", boardMiss: "零命中查询",
+    boardSrc: "来源分布", boardAct: "近期活动",
+    boardEmpty: "该区间还没有查询记录。",
+    boardRangeNote: (n) => `基于最近 ${n} 条查询日志`,
     indexing: "索引中…", summarizing: "总结中…",
     confirmDelete: (n) => `把 ${n} 移入 .trash？`,
     evTitle: "证据", evClose: "关闭", evCopy: "复制引用",
@@ -189,7 +207,14 @@ const isEditor = () => !!me && ["editor", "admin"].includes(me.role);
 /* ---------- tabs ---------- */
 function refreshActiveTab() {
   const on = document.querySelector("nav button.on");
-  const tab = on ? on.dataset.tab : "dash";
+  const tab = on ? on.dataset.tab : "board";
+  const btn = document.querySelector(`nav button[data-tab="${tab}"]`);
+  const pt = $("#page-title");
+  if (pt && btn) {
+    const lbl = btn.querySelector(".nav-label");
+    pt.textContent = lbl ? lbl.textContent : btn.textContent;
+  }
+  if (tab === "board") loadBoard();
   if (tab === "mem") loadMemories();
   if (tab === "stats") loadStats();
   if (tab === "sources") loadSources();
@@ -701,6 +726,156 @@ $("#file-input").addEventListener("change", (ev) => {
     if (files.length) uploadFiles(files);
   });
 })();
+
+/* ---------- dashboard (数据看板): aggregates over the query log ---------- */
+let boardRange = "7d";
+
+function withinRange(ts, range) {
+  if (range === "all") return true;
+  const day = ts.slice(0, 10);
+  const today = new Date();
+  const d = (n) => new Date(today - n * 86400000).toISOString().slice(0, 10);
+  if (range === "today") return day === d(0);
+  if (range === "7d") return day >= d(6);
+  return day >= d(29);
+}
+
+async function loadBoard() {
+  let rows = [];
+  let sources = [];
+  let memories = 0;
+  try {
+    const [q, s, m] = await Promise.all([
+      api("/queries?limit=500"),
+      api("/sources").catch(() => ({ sources: [], indexed: { chunks: 0, files: 0 } })),
+      api("/memories").catch(() => ({ memories: [] })),
+    ]);
+    rows = q.queries || [];
+    sources = s.sources || [];
+    memories = (m.memories || []).length;
+  } catch (e) { /* render with zeros below */ }
+
+  const scoped = rows.filter((r) => withinRange(r.ts || "", boardRange));
+  const searches = scoped.filter((r) => r.kind === "search").length;
+  const asks = scoped.length - searches;
+  const withHits = scoped.filter((r) => (r.hits || 0) > 0);
+  const avgHits = scoped.length
+    ? (scoped.reduce((a, r) => a + (r.hits || 0), 0) / scoped.length) : 0;
+  const zeroPct = scoped.length ? Math.round((scoped.length - withHits.length) * 100 / scoped.length) : 0;
+  const indexed = window.__board_indexed || { chunks: 0, files: 0 };
+
+  const cards = [
+    [t("cardTotal"), scoped.length, ""],
+    [t("cardSearch"), searches, ""],
+    [t("cardAsk"), asks, ""],
+    [t("cardAvg"), avgHits.toFixed(1), ""],
+    [t("cardZero"), zeroPct + "%", zeroPct >= 30 ? "high zero-hit rate" : ""],
+    [t("cardChunks"), indexed.chunks, ""],
+    [t("cardMem"), memories, ""],
+    [t("cardSrc"), sources.length, ""],
+  ];
+  const grid = $("#board-cards");
+  grid.replaceChildren(...cards.map(([k, v, note]) => {
+    const card = document.createElement("div");
+    card.className = "stat-card" + (note ? " warn" : "");
+    const kk = document.createElement("div"); kk.className = "k"; kk.textContent = k;
+    const vv = document.createElement("div"); vv.className = "v"; vv.textContent = String(v);
+    card.append(kk, vv);
+    if (note) { const ss = document.createElement("div"); ss.className = "s"; ss.textContent = note; card.append(ss); }
+    return card;
+  }));
+
+  // top queries by frequency (case/whitespace-normalized)
+  const freq = new Map();
+  for (const r of scoped) {
+    const key = (r.query || "").trim().toLowerCase();
+    if (!key) continue;
+    const e = freq.get(key) || { n: 0, hits: 0 };
+    e.n += 1; e.hits += (r.hits || 0);
+    freq.set(key, e);
+  }
+  const top = [...freq.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 8);
+  const topOl = $("#board-topq");
+  topOl.replaceChildren(...top.map(([text, e]) => {
+    const li = document.createElement("li");
+    li.append(document.createTextNode(text));
+    li.append(Object.assign(document.createElement("span"),
+      { className: "n", textContent: `×${e.n} · ${e.hits} hits` }));
+    return li;
+  }));
+  if (!top.length) {
+    const li = document.createElement("li");
+    li.className = "muted"; li.textContent = t("boardEmpty");
+    topOl.replaceChildren(li);
+  }
+
+  // zero-hit queries: the diagnostic this board exists for
+  const miss = [...new Set(scoped.filter((r) => !(r.hits > 0))
+    .map((r) => (r.query || "").trim()).filter(Boolean))].slice(0, 8);
+  const missUl = $("#board-miss");
+  missUl.replaceChildren(...miss.map((text) => {
+    const li = document.createElement("li");
+    li.className = "miss";
+    li.textContent = text;
+    return li;
+  }));
+  if (!miss.length) {
+    const li = document.createElement("li");
+    li.className = "muted";
+    li.textContent = "✓ " + t("none");
+    missUl.replaceChildren(li);
+  }
+
+  // chunks per source, bars scaled to the largest
+  const per = sources.map((s) => [s.path, s.chunks || 0]);
+  const max = Math.max(1, ...per.map(([, n]) => n));
+  const bars = $("#board-src");
+  bars.replaceChildren(...per.map(([path, n]) => {
+    const row = document.createElement("div"); row.className = "src-bar-row";
+    const p = document.createElement("div"); p.className = "path"; p.textContent = path;
+    const bar = document.createElement("div"); bar.className = "bar";
+    bar.style.width = Math.max(4, Math.round(n * 100 / max)) + "%";
+    const num = document.createElement("div"); num.className = "n"; num.textContent = String(n);
+    row.append(p, bar, num);
+    return row;
+  }));
+  if (!per.length) {
+    const row = document.createElement("div"); row.className = "src-bar-row";
+    row.textContent = t("noSources");
+    bars.replaceChildren(row);
+  }
+
+  // last-14-day activity strip
+  const byDay = new Map();
+  for (const r of scoped) {
+    const day = (r.ts || "").slice(0, 10);
+    if (day) byDay.set(day, (byDay.get(day) || 0) + 1);
+  }
+  const days = [];
+  const today = new Date();
+  for (let i = 13; i >= 0; i--) {
+    days.push(new Date(today - i * 86400000).toISOString().slice(0, 10));
+  }
+  const maxDay = Math.max(1, ...days.map((d) => byDay.get(d) || 0));
+  const strip = $("#board-act");
+  strip.replaceChildren(...days.map((day) => {
+    const n = byDay.get(day) || 0;
+    const bar = document.createElement("div");
+    bar.className = n ? "day" : "empty";
+    bar.style.height = n ? Math.max(3, Math.round(n * 100 / maxDay)) + "px" : "";
+    bar.title = `${day}: ${n}`;
+    return bar;
+  }));
+}
+
+$("#board-range").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-range]");
+  if (!b) return;
+  boardRange = b.dataset.range;
+  document.querySelectorAll("#board-range button").forEach((x) =>
+    x.classList.toggle("on", x === b));
+  loadBoard();
+});
 
 async function loadQueries() {
   const { queries } = await api("/queries?limit=200");
