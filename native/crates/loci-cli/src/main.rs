@@ -50,6 +50,18 @@ enum Cmd {
     },
     /// what is in the index
     Stats,
+    /// import an index exported by the Python build (`loci export`)
+    Import {
+        file: PathBuf,
+        /// import even when the embedding model differs (quality will be wrong)
+        #[arg(long)]
+        force: bool,
+    },
+    /// export this index to JSONL (the Python build's `loci export` format)
+    Export {
+        #[arg(default_value = "./loci-index.jsonl")]
+        out: PathBuf,
+    },
     /// check config, index and embedding endpoint
     Doctor,
     /// the web console, served by this binary
@@ -198,6 +210,23 @@ fn run(cli: Cli) -> Result<ExitCode> {
         }
 
 
+        Cmd::Import { file, force } => {
+            let store = open_store(&cfg, cli.db)?;
+            let r = loci_core::migrate::import(
+                &store, &file, Some(cfg.embed.model.as_str()), force)?;
+            println!(
+                "imported {} chunks from {} files -> {} ({} skipped)",
+                r.chunks, r.files, store.path().display(), r.skipped
+            );
+            println!("next: `loci stats` to confirm, then `loci ingest` to pick up changes");
+            Ok(ExitCode::SUCCESS)
+        }
+        Cmd::Export { out } => {
+            let store = open_store(&cfg, cli.db)?;
+            let n = loci_core::migrate::export(&store, &out)?;
+            println!("exported {n} chunks -> {}", out.display());
+            Ok(ExitCode::SUCCESS)
+        }
         Cmd::Doctor => {
             let mut failed = 0usize;
             let mut say = |ok: Option<bool>, name: &str, detail: &str| {

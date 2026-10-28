@@ -6,7 +6,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use sha2::{Digest, Sha256};
+use sha1::{Digest, Sha1};
 use walkdir::WalkDir;
 
 #[derive(Debug, Clone)]
@@ -19,14 +19,20 @@ pub struct Document {
     pub mtime: f64,
 }
 
+/// SHA-1 of the raw text, 40 hex chars — identical to the Python build.
+///
+/// It must be identical: `ingest` skips a file whose stored hash matches, so a
+/// different algorithm would re-embed every file after a migration from
+/// ChromaDB, and the two builds could never share a content-addressed index.
 pub fn file_hash(text: &str) -> String {
-    let mut h = Sha256::new();
+    let mut h = Sha1::new();
     h.update(text.as_bytes());
-    format!("{:x}", h.finalize())[..32].to_string()
+    format!("{:x}", h.finalize())
 }
 
+/// Per-chunk fingerprint used to reuse vectors across re-indexes.
 pub fn chunk_hash(text: &str) -> String {
-    let mut h = Sha256::new();
+    let mut h = Sha1::new();
     h.update(text.as_bytes());
     format!("{:x}", h.finalize())[..16].to_string()
 }

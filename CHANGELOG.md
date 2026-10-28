@@ -3,6 +3,22 @@
 ## Unreleased
 
 ### Added
+- **Index migration between the two builds.** `loci export` (Python) writes the
+  whole index to JSONL; `loci import <file>` (native) loads it into SQLite. The
+  export is the contract — ChromaDB is only readable from Python, so the builds
+  cannot share a store, but they now share data.
+  - one JSON object per chunk, plus a `__meta__` trailer with the chunk count
+    and the embedding fingerprint
+  - the import **refuses** when the export's embedding model differs from the
+    configured one: two models very often produce the same dimension, so a
+    silent import would poison retrieval with distances that mean nothing.
+    `--force` overrides for people who know what they are doing.
+  - file hashes travel with the data, so the first `ingest` after a migration
+    skips unchanged files instead of re-embedding everything
+  - `loci export` also exists in the native build, so migrating back is possible
+- The native build now uses **SHA-1 for file and chunk hashes**, matching the
+  Python build exactly. A different algorithm would have made every file look
+  changed after a migration.
 - Read-side log: `GET /queries` and a **Queries** tab in the console. Writes
   were audited; reads were invisible, so "the agent gets nothing" had no
   explanation. Each row carries time, who, kind (`search`/`ask`), the query

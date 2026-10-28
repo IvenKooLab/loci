@@ -2,6 +2,7 @@
 (by file content hash) with real pruning of files that disappear."""
 from __future__ import annotations
 
+import json
 import os
 
 # chromadb's first init posts telemetry and can hang for minutes behind
@@ -117,6 +118,43 @@ class Store:
                         "links": links, "mtime": mtime, "chash": chashes[i]}
                        for i, c in enumerate(chunks)])
         bm25_cache.bump(self.path)
+
+    def dump(self, path: str) -> dict:
+        """Write every chunk to a JSONL file for `loci import` (the native build).
+
+        Chroma is not readable outside Python, so a migration is export-then-
+        import rather than a shared file format. One JSON object per line keeps
+        it streamable: a 100k-chunk index should not need 100k chunks resident
+        in memory on either side.
+        """
+        from pathlib import Path as _P
+
+        out = _P(path).expanduser()
+        out.parent.mkdir(parents=True, exist_ok=True)
+        got = self.collection.get(include=["documents", "metadatas", "embeddings"])
+        ids = got.get("ids") or []
+        docs = got.get("documents") or []
+        metas = got.get("metadatas") or []
+        embs = got.get("embeddings")
+        tmp = out.with_suffix(out.suffix + ".part")
+        n = 0
+        with tmp.open("w", encoding="utf-8") as f:
+            for i, cid in enumerate(ids):
+                meta = dict(metas[i] or {})
+                meta["id"] = cid
+                meta["text"] = docs[i] if i < len(docs) else ""
+                if embs is not None and i < len(embs):
+                    meta["vec"] = [round(float(x), 6) for x in embs[i]]
+                f.write(json.dumps(meta, ensure_ascii=False) + "\n")
+                n += 1
+            # the embedding space travels with the data: importing vectors built
+            # by a different model would poison retrieval silently
+            head = {"__meta__": {"chunks": n,
+                                 "embed_model": (self.collection.metadata or {}).get("embed_model"),
+                                 "embed_dim": (self.collection.metadata or {}).get("embed_dim")}}
+            f.write(json.dumps(head) + "\n")
+        tmp.replace(out)
+        return {"path": str(out), "chunks": n}
 
     def count(self) -> int:
         return self.collection.count()

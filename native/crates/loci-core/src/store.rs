@@ -259,6 +259,33 @@ impl Store {
         Ok(scored.into_iter().take(limit).map(|(_, c)| c).collect())
     }
 
+    /// Every chunk as an export row (JSON value), for `loci export`.
+    pub fn dump_rows(&self) -> Result<Vec<serde_json::Value>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, source, chunk, section, text, tags, mtime, hash, chash, vec
+             FROM chunks ORDER BY source, chunk",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok((
+                r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?,
+                r.get::<_, String>(3)?, r.get::<_, String>(4)?, r.get::<_, String>(5)?,
+                r.get::<_, f64>(6)?, r.get::<_, String>(7)?, r.get::<_, String>(8)?,
+                r.get::<_, Vec<u8>>(9)?,
+            ))
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            let (id, source, chunk, section, text, tags, mtime, hash, chash, blob) = row?;
+            let vec: Vec<f32> = blob_to_f32(&blob);
+            out.push(serde_json::json!({
+                "id": id, "source": source, "chunk": chunk, "section": section,
+                "text": text, "tags": tags, "mtime": mtime, "hash": hash,
+                "chash": chash, "vec": vec,
+            }));
+        }
+        Ok(out)
+    }
+
     pub fn get_many(&self, ids: &[String]) -> Result<Vec<StoredChunk>> {
         let mut out = Vec::new();
         let mut stmt = self.conn.prepare(

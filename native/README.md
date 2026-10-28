@@ -82,12 +82,27 @@ cargo run -p loci-cli -- search "why did we drop the BME280"
 cargo run -p loci-cli -- doctor
 ```
 
-## Data is not shared with the Python build
+## Migrating from the Python build
 
-This build stores chunks in SQLite (`index.db`); the Python build uses
-ChromaDB. They do not read each other's index. A migration command is on the
-list; until then, `loci ingest` re-indexes from the source directories, which is
-cheap because the files are the source of truth.
+ChromaDB is only readable from Python, so the two builds cannot share a store —
+but they can share data. Export from Python, import here:
+
+```bash
+# once, in the Python build
+loci export ./loci-index.jsonl
+
+# then, in the native build
+loci import ./loci-index.jsonl
+loci stats            # confirm the chunk count
+```
+
+The import carries file hashes and chunk fingerprints, so the next `ingest`
+skips unchanged files instead of re-embedding your whole library. It refuses to
+run when the export's embedding model differs from your `[embed]` config —
+same dimension does not mean same vector space — and `--force` overrides that
+if you know the vectors are compatible.
+
+`loci export` exists here too, so the migration works in either direction.
 
 ## Building
 
