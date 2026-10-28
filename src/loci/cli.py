@@ -354,6 +354,16 @@ def cmd_links(cfg, name: str) -> None:
             print("  (no links either way)")
 
 
+def cmd_export(cfg, out: str) -> None:
+    """Export the whole index to JSONL for the native build (`loci import`)."""
+    _, store = build(cfg)
+    r = store.dump(out)
+    print(f"exported {r['chunks']} chunks -> {r['path']}")
+    if not r["chunks"]:
+        print("  (the index is empty — nothing to migrate)")
+    print("next: in the native build, `loci import " + r["path"] + "`")
+
+
 def cmd_stats(cfg) -> None:
     _, store = build(cfg)
     hybrid = "on" if cfg.retrieval["hybrid"] else "off"
@@ -560,6 +570,11 @@ def main() -> None:
                         help="run the example queries and exit (for scripts and CI)")
     p_demo.add_argument("-k", type=int, help="hits per query (default 3)")
 
+    p_export = sub.add_parser(
+        "export", help="write the index to JSONL for the native build's `loci import`")
+    p_export.add_argument("out", nargs="?", default="./loci-index.jsonl",
+                          help="output file (default: ./loci-index.jsonl)")
+
     sub.add_parser("stats", help="show what is in the index")
     p_harness = sub.add_parser(
         "harness", help="per-AI-tool memory stats; optionally refresh summaries")
@@ -630,6 +645,8 @@ def main() -> None:
     elif args.cmd == "serve":
         from loci.mcp_server import serve
         serve()
+    elif args.cmd == "export":
+        cmd_export(cfg, args.out)
     elif args.cmd == "stats":
         cmd_stats(cfg)
     elif args.cmd == "harness":
