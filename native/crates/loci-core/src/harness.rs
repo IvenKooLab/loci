@@ -163,8 +163,41 @@ fn icon_for(spec: &Spec, icons_dir: &Path) -> String {
 }
 
 /// Registry probe plus per-machine detection, then `[[harness]]` overrides.
+/// Resolve the icon directory the way every front-end should: relative paths
+/// are relative to the instance (the directory holding the store), because that
+/// is where `loci` puts `icons/` and where a user expects to find them.
+pub fn icons_dir(config: &crate::config::Config) -> std::path::PathBuf {
+    let configured = config.http.icons.trim();
+    if configured.is_empty() {
+        return std::path::Path::new(&config.store.path)
+            .parent()
+            .unwrap_or(Path::new("."))
+            .join("icons");
+    }
+    let p = std::path::PathBuf::from(configured);
+    if p.is_absolute() {
+        p
+    } else {
+        std::path::Path::new(&config.store.path)
+            .parent()
+            .unwrap_or(Path::new("."))
+            .join(p)
+    }
+}
+
 pub fn load(config: &crate::config::Config) -> Vec<Harness> {
-    let icons_dir = PathBuf::from("./icons");
+    load_with_icons(config, &icons_dir(config))
+}
+
+/// Same, with an explicit icons directory. The console resolves `[http] icons`
+/// against its corpus root, so `./icons` means "beside the notes", not "beside
+/// whatever directory the process was started from".
+pub fn load_with_icons(config: &crate::config::Config, icons_dir: &Path) -> Vec<Harness> {
+    let icons_dir = if icons_dir.as_os_str().is_empty() {
+        PathBuf::from("./icons")
+    } else {
+        icons_dir.to_path_buf()
+    };
     let mut out: Vec<Harness> = Vec::new();
 
     for spec in KNOWN {
@@ -658,5 +691,52 @@ mod tests {
         let added = list.iter().find(|h| h.name == "my-tool").unwrap();
         assert_eq!(added.display, "my-tool");
         assert_eq!(added.icon, "🗂️");
+    }
+}
+
+#[cfg(test)]
+mod icon_tests {
+    use super::*;
+
+    fn cfg_with_store(dir: &Path) -> crate::config::Config {
+        let mut cfg = crate::config::Config::default();
+        cfg.store.path = dir.join("index.db").to_string_lossy().to_string();
+        cfg
+    }
+
+    #[test]
+    fn icons_dir_defaults_to_the_instance() {
+        let dir = std::env::temp_dir().join("loci-icons-default");
+        let cfg = cfg_with_store(&dir);
+        assert_eq!(icons_dir(&cfg), dir.join("icons"));
+    }
+
+    #[test]
+    fn icons_dir_honours_a_relative_override() {
+        let dir = std::env::temp_dir().join("loci-icons-rel");
+        let mut cfg = cfg_with_store(&dir);
+        cfg.http.icons = "brand".into();
+        assert_eq!(icons_dir(&cfg), dir.join("brand"));
+    }
+
+    #[test]
+    fn icons_dir_honours_an_absolute_override() {
+        let mut cfg = crate::config::Config::default();
+        cfg.http.icons = "/tmp/brand-assets".into();
+        assert_eq!(icons_dir(&cfg), Path::new("/tmp/brand-assets"));
+    }
+
+    #[test]
+    fn a_logo_on_disk_beats_the_emoji() {
+        let dir = std::env::temp_dir().join("loci-icons-logo");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("icons")).unwrap();
+        std::fs::write(dir.join("icons/codex-openai.png"), b"\x89PNG").unwrap();
+        let cfg = cfg_with_store(&dir);
+        let list = load(&cfg);
+        // only meaningful when codex is actually installed on this machine
+        if let Some(codex) = list.iter().find(|h| h.name == "codex") {
+            assert_eq!(codex.icon, "codex-openai.png");
+        }
     }
 }

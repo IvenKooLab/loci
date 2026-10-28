@@ -94,6 +94,14 @@ impl Default for StoreConfig {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct HttpConfig {
+    /// Where harness logos live. A bare relative path means "in the instance"
+    /// (beside the store), not "beside whatever directory we were started in".
+    #[serde(default)]
+    pub icons: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Config {
     #[serde(default)]
     pub llm: LlmConfig,
@@ -111,6 +119,8 @@ pub struct Config {
     pub sources: Vec<SourceConfig>,
     #[serde(default)]
     pub harness: Vec<HarnessEntry>,
+    #[serde(default)]
+    pub http: HttpConfig,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
