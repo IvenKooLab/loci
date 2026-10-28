@@ -80,6 +80,17 @@ impl ConsoleState {
         }
     }
 
+    /// Where harness logos live. Resolved against the corpus root so a fresh
+    /// instance finds its own icons without a config entry.
+    fn icons_dir(&self) -> PathBuf {
+        let configured = self.cfg.http.icons.trim();
+        if !configured.is_empty() {
+            let p = PathBuf::from(configured);
+            return if p.is_absolute() { p } else { self.root.join(p) };
+        }
+        self.root.join("icons")
+    }
+
     fn retrieval_config(&self) -> RetrievalConfig {
         RetrievalConfig {
             top_k: self.cfg.retrieval.top_k,
@@ -239,8 +250,31 @@ fn handle(state: &ConsoleState, stream: &mut TcpStream) -> std::io::Result<()> {
 
     let started = Instant::now();
     let (status, ctype, body) = route(state, &method, &path, &query, body, started);
-    let _ = respond(stream, status, &ctype, &body);
+    let _ = respond_bytes(stream, status, &ctype, &body);
     Ok(())
+}
+
+fn respond_bytes(stream: &mut TcpStream, status: u16, ctype: &str,
+                 body: &[u8]) -> std::io::Result<()> {
+    let reason = if status == 200 { "OK" } else { "Not Found" };
+    let head = format!(
+        "HTTP/1.1 {status} {reason}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nCache-Control: max-age=300\r\nConnection: close\r\n\r\n",
+        body.len()
+    );
+    stream.write_all(head.as_bytes())?;
+    stream.write_all(body)?;
+    stream.flush()
+}
+
+fn mime_for(name: &str) -> &'static str {
+    match name.rsplit('.').next().unwrap_or("").to_ascii_lowercase().as_str() {
+        "png" => "image/png",
+        "svg" => "image/svg+xml",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        _ => "application/octet-stream",
+    }
 }
 
 fn respond(stream: &mut TcpStream, status: u16, ctype: &str, body: &str) -> std::io::Result<()> {
@@ -298,9 +332,29 @@ fn qget<'a>(q: &'a [(String, String)], key: &str) -> Option<&'a str> {
 }
 
 fn route(state: &ConsoleState, method: &str, path: &str, query: &str,
-         body: Value, started: Instant) -> (u16, String, String) {
+         body: Value, started: Instant) -> (u16, String, Vec<u8>) {
     let q = qmap(query);
     match (method, path) {
+        // harness logos: public and non-sensitive, but only a bare filename
+        // from the configured icons dir — no path components, no traversal
+        (_, p) if p.starts_with("/icons/") => {
+            let name = p["/icons/".len()..]
+                .rsplit('/')
+                .next()
+                .unwrap_or("")
+                .to_string();
+            let dir = state.icons_dir();
+            let file = dir.join(&name);
+            match (name.is_empty(), file.is_file()) {
+                (false, true) => (
+                    200,
+                    mime_for(&name).to_string(),
+                    std::fs::read(&file).unwrap_or_default(),
+                ),
+                _ => (404, "application/json".into(),
+                      json!({"error": "not found"}).to_string().into_bytes()),
+            }
+        }
         (_, "/ui") => (200, "text/html; charset=utf-8".into(), INDEX_HTML.into()),
         (_, "/ui/app.js") => (200, "application/javascript".into(), APP_JS.into()),
         (_, "/ui/style.css") => (200, "text/css".into(), STYLE_CSS.into()),
@@ -309,14 +363,14 @@ fn route(state: &ConsoleState, method: &str, path: &str, query: &str,
             "status": "ok",
             "version": env!("CARGO_PKG_VERSION"),
             "me": {"label": "local", "role": "admin"}
-        }).to_string()),
+        }).to_string().into_bytes()),
 
         ("POST", "/search") => {
             let query = body.get("query").and_then(|v| v.as_str()).unwrap_or("").to_string();
             let k = body.get("k").and_then(|v| v.as_u64()).map(|v| v as usize);
             let store = match Store::open(&state.db) {
                 Ok(s) => s,
-                Err(e) => return (500, "application/json".into(), json!({"error": format!("{e:#}")}).to_string()),
+                Err(e) => return (500, "application/json".into(), json!({"error": format!("{e:#}")}).to_string().into_bytes()),
             };
             let embedder = state.embedder();
             let rcfg = state.retrieval_config();
@@ -346,14 +400,14 @@ fn route(state: &ConsoleState, method: &str, path: &str, query: &str,
                 "source": h.source, "section": h.section, "text": h.text,
                 "tags": h.tags, "distance": h.distance
             })).collect();
-            (200, "application/json".into(), json!({"result": result, "hits": hits_json}).to_string())
+            (200, "application/json".into(), json!({"result": result, "hits": hits_json}).to_string().into_bytes())
         }
 
         ("POST", "/ask") => {
             let question = body.get("question").and_then(|v| v.as_str()).unwrap_or("").to_string();
             let store = match Store::open(&state.db) {
                 Ok(s) => s,
-                Err(e) => return (500, "application/json".into(), json!({"error": format!("{e:#}")}).to_string()),
+                Err(e) => return (500, "application/json".into(), json!({"error": format!("{e:#}")}).to_string().into_bytes()),
             };
             let embedder = state.embedder();
             let rcfg = state.retrieval_config();
@@ -366,37 +420,39 @@ fn route(state: &ConsoleState, method: &str, path: &str, query: &str,
                 "hits": hits.len(), "top": hits.first().map(citation).unwrap_or_default(),
                 "ms": (started.elapsed().as_secs_f64() * 1000.0)
             }));
-            (200, "application/json".into(), json!({"result": text}).to_string())
+            (200, "application/json".into(), json!({"result": text}).to_string().into_bytes())
         }
 
         (_, "/stats") => {
             let store = match Store::open(&state.db) {
                 Ok(s) => s,
                 Err(_) => return (200, "application/json".into(),
-                                  json!({"stats": "(store unavailable)", "harness": []}).to_string()),
+                                  json!({"stats": "(store unavailable)", "harness": []}).to_string().into_bytes()),
             };
-            let list = loci_core::harness::load(&state.cfg);
+            let icons = state.icons_dir();
+            let list = loci_core::harness::load_with_icons(&state.cfg, &icons);
             let rows = loci_core::harness::stats(&state.cfg, &store, &list);
             (200, "application/json".into(),
-             json!({"stats": stats_text(state), "harness": rows}).to_string())
+             json!({"stats": stats_text(state), "harness": rows}).to_string().into_bytes())
         }
 
         ("POST", "/harness") => (200, "application/json".into(), json!({
             "result": "(harness digests need an LLM call that this build does not make yet — \
                        run the Python build for summaries; detection and stats are live here)"
-        }).to_string()),
+        }).to_string().into_bytes()),
         (_, "/harness") => {
             let store = match Store::open(&state.db) {
                 Ok(s) => s,
                 Err(_) => return (200, "application/json".into(),
-                                  json!({"harness": []}).to_string()),
+                                  json!({"harness": []}).to_string().into_bytes()),
             };
-            let list = loci_core::harness::load(&state.cfg);
+            let icons = state.icons_dir();
+            let list = loci_core::harness::load_with_icons(&state.cfg, &icons);
             let rows = loci_core::harness::stats(&state.cfg, &store, &list);
             (200, "application/json".into(),
-             json!({"harness": rows}).to_string())
+             json!({"harness": rows}).to_string().into_bytes())
         }
-        (_, "/harness-files") => (404, "application/json".into(), json!({"error": "harness files are not available in the native build"}).to_string()),
+        (_, "/harness-files") => (404, "application/json".into(), json!({"error": "harness files are not available in the native build"}).to_string().into_bytes()),
 
         (_, "/sources") => {
             let per = store_per_source(state);
@@ -418,14 +474,14 @@ fn route(state: &ConsoleState, method: &str, path: &str, query: &str,
                 "max_bytes": UPLOAD_MAX_BYTES,
                 "indexed": {"chunks": per.iter().map(|(_, n)| n).sum::<usize>(),
                             "files": per.len()}
-            }).to_string())
+            }).to_string().into_bytes())
         }
 
         ("POST", "/upload") => upload(state, body),
         ("POST", "/ingest") => {
             let mut store = match Store::open(&state.db) {
                 Ok(s) => s,
-                Err(e) => return (500, "application/json".into(), json!({"error": format!("{e:#}")}).to_string()),
+                Err(e) => return (500, "application/json".into(), json!({"error": format!("{e:#}")}).to_string().into_bytes()),
             };
             let embedder = state.embedder();
             let r = ingest(&state.cfg, &mut store, embedder.as_ref(), body.get("force").and_then(|v| v.as_bool()).unwrap_or(false));
@@ -436,9 +492,9 @@ fn route(state: &ConsoleState, method: &str, path: &str, query: &str,
                         "result": format!("Done: {} added / {} updated / {} skipped — {} chunks in store",
                                           rep.added, rep.updated, rep.skipped,
                                           Store::open(&state.db).map(|s| s.count().unwrap_or(0)).unwrap_or(0))
-                    }).to_string())
+                    }).to_string().into_bytes())
                 }
-                Err(e) => (500, "application/json".into(), json!({"error": format!("{e:#}")}).to_string()),
+                Err(e) => (500, "application/json".into(), json!({"error": format!("{e:#}")}).to_string().into_bytes()),
             }
         }
 
@@ -446,34 +502,34 @@ fn route(state: &ConsoleState, method: &str, path: &str, query: &str,
             let limit: usize = qget(&q, "limit").and_then(|v| v.parse().ok()).unwrap_or(100).clamp(1, RING);
             let q = state.queries.lock().expect("queries");
             let rows: Vec<Value> = q.iter().take(limit).cloned().collect();
-            (200, "application/json".into(), json!({"queries": rows}).to_string())
+            (200, "application/json".into(), json!({"queries": rows}).to_string().into_bytes())
         }
         (_, "/audit") => {
             let a = state.audit.lock().expect("audit");
             let rows: Vec<Value> = a.iter().take(100).cloned().collect();
-            (200, "application/json".into(), json!({"audit": rows}).to_string())
+            (200, "application/json".into(), json!({"audit": rows}).to_string().into_bytes())
         }
 
         (_, "/memories") => (200, "application/json".into(),
-                             json!({"memories": list_memories(state)}).to_string()),
+                             json!({"memories": list_memories(state)}).to_string().into_bytes()),
         (_, "/memory") if method == "GET" => {
             let name = qget(&q, "name").unwrap_or("");
             match safe_memory(state, name) {
                 Some(p) => match std::fs::read_to_string(&p) {
                     Ok(text) => (200, "application/json".into(),
-                                 json!({"name": name, "text": text}).to_string()),
-                    Err(e) => (500, "application/json".into(), json!({"error": e.to_string()}).to_string()),
+                                 json!({"name": name, "text": text}).to_string().into_bytes()),
+                    Err(e) => (500, "application/json".into(), json!({"error": e.to_string()}).to_string().into_bytes()),
                 },
-                None => (404, "application/json".into(), json!({"error": "not found"}).to_string()),
+                None => (404, "application/json".into(), json!({"error": "not found"}).to_string().into_bytes()),
             }
         }
         ("POST", "/memory") => memory_write(state, body),
         ("DELETE", "/memory") => memory_delete(state, qget(&q, "name").unwrap_or("")),
 
         (_, "/source-file") => (404, "application/json".into(),
-                                json!({"error": "not available in the native build"}).to_string()),
+                                json!({"error": "not available in the native build"}).to_string().into_bytes()),
 
-        _ => (404, "application/json".into(), json!({"error": "not found"}).to_string()),
+        _ => (404, "application/json".into(), json!({"error": "not found"}).to_string().into_bytes()),
     }
 }
 
@@ -634,17 +690,17 @@ fn index_one(state: &ConsoleState, path: &Path) -> Result<usize> {
     })
 }
 
-fn memory_write(state: &ConsoleState, body: Value) -> (u16, String, String) {
+fn memory_write(state: &ConsoleState, body: Value) -> (u16, String, Vec<u8>) {
     let text = body.get("text").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
     if text.is_empty() {
-        return (400, "application/json".into(), json!({"error": "text is required"}).to_string());
+        return (400, "application/json".into(), json!({"error": "text is required"}).to_string().into_bytes());
     }
     std::fs::create_dir_all(&state.memories).ok();
 
     let path = match body.get("name").and_then(|v| v.as_str()) {
         Some(name) => match safe_memory(state, name) {
             Some(p) => p,                                   // update: keep frontmatter
-            None => return (404, "application/json".into(), json!({"error": "not found"}).to_string()),
+            None => return (404, "application/json".into(), json!({"error": "not found"}).to_string().into_bytes()),
         },
         None => {
             let title = body.get("title").and_then(|v| v.as_str())
@@ -670,15 +726,15 @@ fn memory_write(state: &ConsoleState, body: Value) -> (u16, String, String) {
             state.log_audit("memory.write", &path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default());
             (200, "application/json".into(), json!({
                 "path": path.display().to_string(), "chunks": chunks
-            }).to_string())
+            }).to_string().into_bytes())
         }
-        Err(e) => (500, "application/json".into(), json!({"error": format!("{e:#}")}).to_string()),
+        Err(e) => (500, "application/json".into(), json!({"error": format!("{e:#}")}).to_string().into_bytes()),
     }
 }
 
-fn memory_delete(state: &ConsoleState, name: &str) -> (u16, String, String) {
+fn memory_delete(state: &ConsoleState, name: &str) -> (u16, String, Vec<u8>) {
     let Some(p) = safe_memory(state, name) else {
-        return (404, "application/json".into(), json!({"error": "not found"}).to_string());
+        return (404, "application/json".into(), json!({"error": "not found"}).to_string().into_bytes());
     };
     let trash = state.memories.join(".trash");
     std::fs::create_dir_all(&trash).ok();
@@ -693,16 +749,16 @@ fn memory_delete(state: &ConsoleState, name: &str) -> (u16, String, String) {
         let _ = store.delete_source(&p.to_string_lossy());
     }
     state.log_audit("memory.delete", name);
-    (200, "application/json".into(), json!({"trashed": dest.display().to_string()}).to_string())
+    (200, "application/json".into(), json!({"trashed": dest.display().to_string()}).to_string().into_bytes())
 }
 
 // ---- upload ----------------------------------------------------------------
 
-fn upload(state: &ConsoleState, body: Value) -> (u16, String, String) {
+fn upload(state: &ConsoleState, body: Value) -> (u16, String, Vec<u8>) {
     let raw_name = body.get("name").and_then(|v| v.as_str()).unwrap_or("");
     let base = raw_name.replace('\\', "/").rsplit('/').next().unwrap_or("").trim().to_string();
     if base.is_empty() || base.starts_with('.') {
-        return (400, "application/json".into(), json!({"error": "name is required"}).to_string());
+        return (400, "application/json".into(), json!({"error": "name is required"}).to_string().into_bytes());
     }
     let name: String = base.chars().take(120).collect();
     let suffix = Path::new(&name)
@@ -714,16 +770,16 @@ fn upload(state: &ConsoleState, body: Value) -> (u16, String, String) {
     if !accepted.contains(&suffix.as_str()) {
         return (400, "application/json".into(), json!({
             "error": format!("unsupported type {suffix}"), "accepted": accepted
-        }).to_string());
+        }).to_string().into_bytes());
     }
 
     let raw = body.get("data").and_then(|v| v.as_str()).unwrap_or("");
     let blob = match base64::engine::general_purpose::STANDARD.decode(raw.split(',').nth(1).unwrap_or(raw)) {
         Ok(b) => b,
-        Err(_) => return (400, "application/json".into(), json!({"error": "data must be base64"}).to_string()),
+        Err(_) => return (400, "application/json".into(), json!({"error": "data must be base64"}).to_string().into_bytes()),
     };
     if blob.is_empty() {
-        return (400, "application/json".into(), json!({"error": "empty file"}).to_string());
+        return (400, "application/json".into(), json!({"error": "empty file"}).to_string().into_bytes());
     }
 
     std::fs::create_dir_all(&state.uploads).ok();
@@ -736,20 +792,20 @@ fn upload(state: &ConsoleState, body: Value) -> (u16, String, String) {
         n += 1;
     }
     if std::fs::write(&dest, &blob).is_err() {
-        return (500, "application/json".into(), json!({"error": "cannot write file"}).to_string());
+        return (500, "application/json".into(), json!({"error": "cannot write file"}).to_string().into_bytes());
     }
 
     match index_one(state, &dest) {
         Ok(chunks) => {
             state.log_audit("upload", &format!("{name} ({chunks} chunks)"));
             (200, "application/json".into(), json!({
-                "file": dest.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default(),
+                "file": dest.file_name().map(|s| s.to_string_lossy().to_string().into_bytes()).unwrap_or_default(),
                 "path": dest.display().to_string(), "chunks": chunks, "bytes": blob.len()
-            }).to_string())
+            }).to_string().into_bytes())
         }
         Err(e) => {
             std::fs::remove_file(&dest).ok();   // no orphan pretending to be indexed
-            (400, "application/json".into(), json!({"error": format!("{e:#}")}).to_string())
+            (400, "application/json".into(), json!({"error": format!("{e:#}")}).to_string().into_bytes())
         }
     }
 }

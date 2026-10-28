@@ -106,8 +106,24 @@ def _icon_for(spec: dict, icons_dir: Path) -> str:
     return spec.get("emoji", "🗂️")
 
 
+def icons_dir_for(cfg) -> Path:
+    """Where harness logos live.
+
+    A bare relative path means "in the instance", not "in whatever directory
+    the process was started from" — the native build resolves it the same way,
+    so both front-ends find the same files.
+    """
+    configured = str((getattr(cfg, "http", None) or {}).get("icons", "") or "").strip()
+    store_path = str(((getattr(cfg, "store", None) or {}).get("path") or "./chroma_db"))
+    instance = Path(store_path).expanduser().parent
+    if not configured:
+        return instance / "icons"
+    p = Path(configured).expanduser()
+    return p if p.is_absolute() else instance / p
+
+
 def load_harnesses(cfg) -> list[Harness]:
-    icons_dir = Path(cfg.http.get("icons", "./icons")).expanduser()
+    icons_dir = icons_dir_for(cfg)
     out: dict[str, Harness] = {}
     for name, spec in KNOWN_HARNESSES.items():          # registry + detection
         probes = [_expand(p) for p in spec.get("probe", [])]

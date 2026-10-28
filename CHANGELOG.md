@@ -3,6 +3,20 @@
 ## Unreleased
 
 ### Added
+- Harness logos: the console shows each AI tool's real logo instead of an
+  emoji. The icons live in the instance's `icons/` directory, and
+  `[http] icons` overrides the location. Both builds resolve a bare relative
+  path against the instance (beside the store) rather than the process's
+  working directory — the old behaviour meant `loci serve-http` started from
+  anywhere else silently fell back to emoji.
+
+### Fixed
+- The native console had no `/icons/` route at all, so every `<img>` the
+  Overview tab rendered was a broken image. It now serves them with the right
+  MIME type, a five-minute cache header, and the same basename-only,
+  no-traversal rule the Python build uses.
+- A logo file present on disk now wins over the emoji fallback in both builds,
+  and a missing one still falls back rather than showing a broken image.
 - **Harness discovery in the native build** — the last feature the Python build
   had and it did not. `loci harness` lists which AI coding tools are installed
   on this machine, how many memory files each holds, how many are indexed, when
