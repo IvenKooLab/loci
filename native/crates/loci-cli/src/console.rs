@@ -369,15 +369,33 @@ fn route(state: &ConsoleState, method: &str, path: &str, query: &str,
             (200, "application/json".into(), json!({"result": text}).to_string())
         }
 
-        (_, "/stats") => (200, "application/json".into(), json!({
-            "stats": stats_text(state),
-            "harness": []
-        }).to_string()),
+        (_, "/stats") => {
+            let store = match Store::open(&state.db) {
+                Ok(s) => s,
+                Err(_) => return (200, "application/json".into(),
+                                  json!({"stats": "(store unavailable)", "harness": []}).to_string()),
+            };
+            let list = loci_core::harness::load(&state.cfg);
+            let rows = loci_core::harness::stats(&state.cfg, &store, &list);
+            (200, "application/json".into(),
+             json!({"stats": stats_text(state), "harness": rows}).to_string())
+        }
 
         ("POST", "/harness") => (200, "application/json".into(), json!({
-            "result": "(harness summarization is not available in the native build yet — run the Python build for digests)"
+            "result": "(harness digests need an LLM call that this build does not make yet — \
+                       run the Python build for summaries; detection and stats are live here)"
         }).to_string()),
-        (_, "/harness") => (200, "application/json".into(), json!({"harness": []}).to_string()),
+        (_, "/harness") => {
+            let store = match Store::open(&state.db) {
+                Ok(s) => s,
+                Err(_) => return (200, "application/json".into(),
+                                  json!({"harness": []}).to_string()),
+            };
+            let list = loci_core::harness::load(&state.cfg);
+            let rows = loci_core::harness::stats(&state.cfg, &store, &list);
+            (200, "application/json".into(),
+             json!({"harness": rows}).to_string())
+        }
         (_, "/harness-files") => (404, "application/json".into(), json!({"error": "harness files are not available in the native build"}).to_string()),
 
         (_, "/sources") => {

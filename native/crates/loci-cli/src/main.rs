@@ -62,6 +62,12 @@ enum Cmd {
         #[arg(default_value = "./loci-index.jsonl")]
         out: PathBuf,
     },
+    /// per-AI-tool memory stats (which tools are installed, what they hold)
+    Harness {
+        /// machine-readable output
+        #[arg(long)]
+        json: bool,
+    },
     /// check config, index and embedding endpoint
     Doctor,
     /// the web console, served by this binary
@@ -225,6 +231,30 @@ fn run(cli: Cli) -> Result<ExitCode> {
             let store = open_store(&cfg, cli.db)?;
             let n = loci_core::migrate::export(&store, &out)?;
             println!("exported {n} chunks -> {}", out.display());
+            Ok(ExitCode::SUCCESS)
+        }
+        Cmd::Harness { json } => {
+            let store = open_store(&cfg, cli.db)?;
+            let list = loci_core::harness::load(&cfg);
+            let rows = loci_core::harness::stats(&cfg, &store, &list);
+            if json {
+                println!("{}", serde_json::to_string_pretty(&rows)?);
+            } else if rows.is_empty() {
+                println!("(no harness found — none of the known tools are installed here,\n \
+                          and no [[harness]] entries are configured)");
+            } else {
+                let head = format!("{:<22} {:<10} {:>5} {:>6}  {:<16} {}",
+                                   "harness", "type", "files", "chunks", "last update", "summary");
+                println!("{head}");
+                println!("{}", "-".repeat(head.len()));
+                for r in &rows {
+                    let name = r.display.to_string();
+                    println!("{:<22} {:<10} {:>5} {:>6}  {:<16} {}",
+                             name, r.kind, r.files, r.chunks,
+                             if r.last_updated.is_empty() { "—" } else { &r.last_updated },
+                             r.summary.status);
+                }
+            }
             Ok(ExitCode::SUCCESS)
         }
         Cmd::Doctor => {

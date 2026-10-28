@@ -37,8 +37,8 @@ of a database directory.
 
 | crate | contents |
 |---|---|
-| `crates/loci-core` | chunking, tokenizers, BM25, embeddings, store, loader, indexer, retriever, config, **mcp** |
-| `crates/loci-cli` | `loci` (demo / ingest / search / stats / doctor) and `loci-mcp` |
+| `crates/loci-core` | chunking, tokenizers, BM25, embeddings, store, loader, indexer, retriever, harness, migrate, config, **mcp** |
+| `crates/loci-cli` | `loci` (ingest / search / stats / harness / import / export / gui / doctor) and `loci-mcp` |
 
 ## Fidelity to the Python build
 
@@ -81,6 +81,31 @@ cargo run -p loci-cli -- ingest
 cargo run -p loci-cli -- search "why did we drop the BME280"
 cargo run -p loci-cli -- doctor
 ```
+
+## Harness discovery
+
+`loci harness` reports the memory directories of the AI coding tools installed
+on this machine — detected by probe (install home, app bundle, env var), not by
+trusting config:
+
+```
+$ loci harness
+harness                type       files chunks  last update      summary
+------------------------------------------------------------------------
+ZCode                  zcode         31      0  2026-08-25 02:30 missing
+Codex                  codex          4      0  2026-08-25 01:38 missing
+DeepSeek Harness       generic      325      0  2026-08-23 07:42 missing
+Claude Code            codex          0      0  —                missing (2 root(s) missing)
+```
+
+A tool that is not installed is absent rather than empty, and a configured tool
+whose directory vanished says so. `brain_harness` exposes the same over MCP;
+the console renders it as cards. Adding a tool needs config, not code:
+`[[harness]]` overrides or extends the built-in registry, and `paths` accepts
+globs.
+
+Digest generation (one LLM call per stale harness) is still Python-only — the
+console and the MCP tool say so rather than pretending.
 
 ## Migrating from the Python build
 
