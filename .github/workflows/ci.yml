@@ -52,3 +52,18 @@ jobs:
             '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
             | ./target/release/loci-mcp --config /dev/null \
             | tee /dev/stderr | grep -q brain_search
+
+  desktop:
+    name: desktop shell (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+      # macOS needs no extra system packages for Tauri; Linux would require the
+      # gtk/webkit dev libraries, so the shell build is macOS-only for now
+      - name: Build the desktop shell
+        working-directory: native
+        run: cargo build --release -p loci-desktop
