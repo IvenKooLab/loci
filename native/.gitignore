@@ -13,3 +13,4 @@
 # tauri codegen output
 src-tauri/gen/
 .DS_Store
+/native/.cargo/config.toml
