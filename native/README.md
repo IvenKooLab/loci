@@ -3,8 +3,9 @@
 A native build of [loci](https://github.com/IvenKooLab/loci): the same hybrid
 retrieval pipeline, with no Python runtime to install.
 
-**Status: retrieval core + MCP server complete.** `loci-core`, the `loci` CLI
-and the `loci-mcp` server work. The HTTP API and Tauri shell are next.
+**Status:** the retrieval core, CLI, MCP server, local console and Tauri shell
+are available. The native build implements a subset of the Python interface;
+it does not yet provide harness file browsing or digest generation.
 
 **MCP is the primary interface.** loci is listed as an MCP server (Glama and
 elsewhere) and that is how it is meant to be used: mount it in Claude Desktop,
@@ -21,7 +22,8 @@ tools. A console or a desktop shell are alternate front-ends to the same index
 ```
 
 Tools: `brain_search` (hybrid retrieval, cited excerpts), `brain_stats` (what is
-indexed), `brain_ingest` (pick up edited notes). Resources: `brain://stats` plus
+indexed), `brain_harness` (harness discovery), and `brain_ingest` (pick up
+edited notes). Resources: `brain://stats` plus
 one `brain://note/<urlencoded path>` per source file. Prompts: `brain-briefing`,
 `contradiction-check`.
 
@@ -61,7 +63,7 @@ The port is behaviour-preserving where it matters and verified by tests:
 ## Quick start
 
 ```bash
-cargo run -p loci-cli -- demo        # offline tour, no key, no network
+cargo run -p loci-cli -- --offline gui  # offline demo console, no key
 ```
 
 Then point it at real notes:
@@ -110,8 +112,9 @@ started". Drop `zcode-logo.png`, `codex-openai.png`, `claude-code.svg`,
 `deepseek.svg` in there and the console renders them; without the files it
 falls back to the emoji rather than showing a broken image.
 
-Digest generation (one LLM call per stale harness) is still Python-only — the
-console and the MCP tool say so rather than pretending.
+Harness file browsing and digest generation are currently Python-only. The
+native console reports that file browsing is unavailable and does not generate
+digests.
 
 ## Migrating from the Python build
 

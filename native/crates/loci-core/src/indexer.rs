@@ -55,6 +55,12 @@ pub fn ingest(
     embedder: &dyn Embedder,
     force: bool,
 ) -> Result<IngestReport> {
+    // Missing vaults must not look like deleted documents to the prune step.
+    for source in &cfg.sources {
+        if !Path::new(&source.path).is_dir() {
+            anyhow::bail!("source directory unavailable; index left unchanged: {}", source.path);
+        }
+    }
     let mut report = IngestReport::default();
     let docs = collect_documents(cfg);
     let keep: HashSet<String> = docs
@@ -235,6 +241,18 @@ mod tests {
         let r = ingest(&cfg, &mut store, &emb, false).unwrap();
         assert_eq!(r.pruned.len(), 1);
         assert_eq!(store.count().unwrap(), 1);
+    }
+
+    #[test]
+    fn missing_source_does_not_prune_existing_index() {
+        let (dir, cfg, mut store, emb) = setup();
+        ingest(&cfg, &mut store, &emb, false).unwrap();
+        let moved = dir.with_extension("offline");
+        std::fs::rename(&dir, &moved).unwrap();
+        let error = ingest(&cfg, &mut store, &emb, false).unwrap_err();
+        assert!(error.to_string().contains("index left unchanged"));
+        assert_eq!(store.count().unwrap(), 2);
+        std::fs::rename(&moved, &dir).unwrap();
     }
 
     #[test]
