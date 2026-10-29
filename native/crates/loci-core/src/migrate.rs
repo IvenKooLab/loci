@@ -36,6 +36,7 @@ struct Pending {
     chunks: Vec<(String, String)>,
     chashes: Vec<String>,
     vectors: Vec<Vec<f32>>,
+    links: Vec<String>,
 }
 
 pub fn import(
@@ -111,6 +112,7 @@ pub fn import(
                 chunks: Vec::new(),
                 chashes: Vec::new(),
                 vectors: Vec::new(),
+                links: Vec::new(),
             }
         });
         entry.tags = row
@@ -131,6 +133,13 @@ pub fn import(
         entry.chashes.push(
             row.get("chash").and_then(|v| v.as_str()).unwrap_or("").to_string(),
         );
+        if let Some(arr) = row.get("links").and_then(|v| v.as_array()) {
+            for t in arr.iter().filter_map(|v| v.as_str()) {
+                if !t.is_empty() {
+                    entry.links.push(t.to_string());
+                }
+            }
+        }
         entry.vectors.push(vector);
         report.chunks += 1;
     }
@@ -158,6 +167,7 @@ pub fn import(
                 chunks: &p.chunks,
                 chashes: &p.chashes,
                 vectors: &p.vectors,
+                links: &p.links,
             })?;
             report.files += 1;
         }

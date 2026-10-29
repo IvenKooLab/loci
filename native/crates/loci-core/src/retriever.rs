@@ -266,6 +266,7 @@ mod tests {
                     tags,
                     chunks: &chunks,
                     chashes: &["c".to_string()],
+                    links: &[],
                     vectors: &v,
                 })
                 .unwrap();
@@ -352,6 +353,7 @@ mod tests {
                 chunks: &chunks,
                 chashes: &["c".to_string()],
                 vectors: &v,
+                links: &[],
             })
             .unwrap();
         let second = {

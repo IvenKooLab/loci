@@ -345,11 +345,16 @@ fn route(state: &ConsoleState, method: &str, path: &str, query: &str,
                 .to_string();
             let dir = state.icons_dir();
             let file = dir.join(&name);
-            match (name.is_empty(), file.is_file()) {
-                (false, true) => (
+            // disk wins (a user override), builtin logos are the fallback so a
+            // fresh instance renders without copying any files
+            let from_disk = if name.is_empty() { None } else {
+                std::fs::read(&file).ok().filter(|_| file.is_file())
+            };
+            match from_disk.or_else(|| loci_core::assets::embedded_icon(&name).map(|b| b.to_vec())) {
+                Some(bytes) if !name.is_empty() => (
                     200,
                     mime_for(&name).to_string(),
-                    std::fs::read(&file).unwrap_or_default(),
+                    bytes.to_vec(),
                 ),
                 _ => (404, "application/json".into(),
                       json!({"error": "not found"}).to_string().into_bytes()),
@@ -440,6 +445,36 @@ fn route(state: &ConsoleState, method: &str, path: &str, query: &str,
             "result": "(harness digests need an LLM call that this build does not make yet — \
                        run the Python build for summaries; detection and stats are live here)"
         }).to_string().into_bytes()),
+        (_, "/graph") => {
+            let store = match Store::open(&state.db) {
+                Ok(s) => s,
+                Err(_) => return (200, "application/json".into(),
+                                  json!({"nodes": [], "links": []}).to_string().into_bytes()),
+            };
+            let per: std::collections::HashMap<String, usize> =
+                store_per_source(state).into_iter().collect();
+            let link_map = store.link_map().unwrap_or_default();
+
+            // 节点：任何被链接引用或自身有块的文件
+            let mut nodes: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+            let mut links: Vec<[String; 2]> = Vec::new();
+            for (src, targets) in &link_map {
+                nodes.insert(src.clone());
+                for t in targets {
+                    nodes.insert(t.clone());
+                    links.push([src.clone(), t.clone()]);
+                }
+            }
+            for src in per.keys() {
+                nodes.insert(src.clone());
+            }
+            let nodes: Vec<Value> = nodes
+                .into_iter()
+                .map(|p| json!({"path": p, "chunks": per.get(&p).cloned().unwrap_or(0)}))
+                .collect();
+            (200, "application/json".into(),
+             json!({"nodes": nodes, "links": links}).to_string().into_bytes())
+        }
         (_, "/harness") => {
             let store = match Store::open(&state.db) {
                 Ok(s) => s,
@@ -679,6 +714,7 @@ fn index_one(state: &ConsoleState, path: &Path) -> Result<usize> {
         .iter()
         .map(|c| (c.text.clone(), c.section.clone()))
         .collect();
+    let links = doc.links.clone();
     store.upsert_source(&loci_core::store::SourceWrite {
         source: &doc.path.to_string_lossy(),
         file_hash: &doc.hash,
@@ -687,6 +723,7 @@ fn index_one(state: &ConsoleState, path: &Path) -> Result<usize> {
         chunks: &pairs,
         chashes: &chashes,
         vectors: &final_vectors,
+        links: &links,
     })
 }
 

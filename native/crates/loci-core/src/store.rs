@@ -39,6 +39,8 @@ pub struct SourceWrite<'a> {
     pub chunks: &'a [(String, String)],
     pub chashes: &'a [String],
     pub vectors: &'a [Vec<f32>],
+    /// Outbound `[[wikilink]]` targets, de-duplicated by the loader.
+    pub links: &'a [String],
 }
 
 fn now() -> i64 {
@@ -94,6 +96,13 @@ impl Store {
                 hash TEXT NOT NULL,
                 mtime REAL NOT NULL DEFAULT 0
             );
+            CREATE TABLE IF NOT EXISTS links (
+                source TEXT NOT NULL,
+                target TEXT NOT NULL,
+                PRIMARY KEY (source, target)
+            );
+            CREATE INDEX IF NOT EXISTS idx_links_source ON links(source);
+            CREATE INDEX IF NOT EXISTS idx_links_target ON links(target);
             CREATE TABLE IF NOT EXISTS meta (
                 key TEXT PRIMARY KEY,
                 val TEXT NOT NULL
@@ -147,13 +156,14 @@ impl Store {
     pub fn delete_source(&self, source: &str) -> Result<()> {
         self.conn.execute("DELETE FROM chunks WHERE source = ?1", params![source])?;
         self.conn.execute("DELETE FROM files WHERE path = ?1", params![source])?;
+        self.conn.execute("DELETE FROM links WHERE source = ?1", params![source])?;
         Ok(())
     }
 
     /// Replace every chunk of `source`. Idempotent: re-indexing a file never
     /// leaves duplicates behind.
     pub fn upsert_source(&self, doc: &SourceWrite<'_>) -> Result<usize> {
-        let SourceWrite { source, file_hash, mtime, tags, chunks, chashes, vectors } = doc;
+        let SourceWrite { source, file_hash, mtime, tags, chunks, chashes, vectors, links } = doc;
         // &self on purpose: rusqlite's unchecked_transaction only needs a
         // shared connection, and this keeps the store shareable behind Arc
         let tx = self.conn.unchecked_transaction()?;
@@ -177,6 +187,19 @@ impl Store {
                     chashes.get(i).cloned().unwrap_or_default(),
                     f32_to_blob(&vectors[i])
                 ])?;
+            }
+        }
+        {
+            // outbound links are rebuilt wholesale: the file changed, so its
+            // link set may have too, and stale edges would haunt the graph
+            tx.execute("DELETE FROM links WHERE source = ?1", params![source])?;
+            let mut stmt = tx.prepare(
+                "INSERT OR IGNORE INTO links (source, target) VALUES (?1, ?2)",
+            )?;
+            for target in links.iter() {
+                if !target.is_empty() {
+                    stmt.execute(params![source, target])?;
+                }
             }
         }
         tx.execute(
@@ -259,6 +282,26 @@ impl Store {
         Ok(scored.into_iter().take(limit).map(|(_, c)| c).collect())
     }
 
+    /// `{source: [outbound targets]}` — the wikilink graph, same shape as the
+    /// Python build's link_map.
+    pub fn link_map(&self) -> Result<Vec<(String, Vec<String>)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT source, target FROM links ORDER BY source, target",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+        })?;
+        let mut out: Vec<(String, Vec<String>)> = Vec::new();
+        for row in rows {
+            let (src, tgt) = row?;
+            match out.last_mut() {
+                Some((s, targets)) if *s == src => targets.push(tgt),
+                _ => out.push((src, vec![tgt])),
+            }
+        }
+        Ok(out)
+    }
+
     /// Every chunk as an export row (JSON value), for `loci export`.
     pub fn dump_rows(&self) -> Result<Vec<serde_json::Value>> {
         let mut stmt = self.conn.prepare(
@@ -277,10 +320,16 @@ impl Store {
         for row in rows {
             let (id, source, chunk, section, text, tags, mtime, hash, chash, blob) = row?;
             let vec: Vec<f32> = blob_to_f32(&blob);
+            let links = self
+                .conn
+                .prepare("SELECT target FROM links WHERE source = ?1 ORDER BY target")?
+                .query_map(params![source], |r| r.get::<_, String>(0))?
+                .filter_map(Result::ok)
+                .collect::<Vec<String>>();
             out.push(serde_json::json!({
                 "id": id, "source": source, "chunk": chunk, "section": section,
                 "text": text, "tags": tags, "mtime": mtime, "hash": hash,
-                "chash": chash, "vec": vec,
+                "chash": chash, "vec": vec, "links": links,
             }));
         }
         Ok(out)
@@ -365,7 +414,7 @@ mod tests {
             s.upsert_source(&SourceWrite {
                 source: "/f.md", file_hash: h, mtime: 0.0, tags: "",
                 chunks: &chunks, chashes: &["c1".to_string()],
-                vectors: &[vec(&[1.0, 0.0])],
+                vectors: &[vec(&[1.0, 0.0])], links: &[],
             }).unwrap();
         }
         assert_eq!(s.count().unwrap(), 1);
@@ -378,12 +427,12 @@ mod tests {
         let a_chunks = vec![("x".to_string(), String::new())];
         s.upsert_source(&SourceWrite {
             source: "/a.md", file_hash: "h", mtime: 0.0, tags: "",
-            chunks: &a_chunks, chashes: &["c".to_string()], vectors: &[vec(&[1.0, 0.0])],
+            chunks: &a_chunks, chashes: &["c".to_string()], vectors: &[vec(&[1.0, 0.0])], links: &[],
         }).unwrap();
         let b_chunks = vec![("y".to_string(), String::new())];
         s.upsert_source(&SourceWrite {
             source: "/b.md", file_hash: "h", mtime: 0.0, tags: "",
-            chunks: &b_chunks, chashes: &["c".to_string()], vectors: &[vec(&[0.0, 1.0])],
+            chunks: &b_chunks, chashes: &["c".to_string()], vectors: &[vec(&[0.0, 1.0])], links: &[],
         }).unwrap();
         let hits = s.vector_search(&vec(&[0.9, 0.1]), 2).unwrap();
         assert_eq!(hits[0].source, "/a.md");
@@ -396,7 +445,7 @@ mod tests {
         let chunks = vec![("x".to_string(), String::new())];
         s.upsert_source(&SourceWrite {
             source: "/a.md", file_hash: "h", mtime: 0.0, tags: "",
-            chunks: &chunks, chashes: &["chash1".to_string()], vectors: &[vec(&[1.0, 0.0])],
+            chunks: &chunks, chashes: &["chash1".to_string()], vectors: &[vec(&[1.0, 0.0])], links: &[],
         }).unwrap();
         let map = s.reuse_map("/a.md").unwrap();
         assert!(map.contains_key("chash1"));
@@ -410,7 +459,7 @@ mod tests {
         s.upsert_source(&SourceWrite {
             source: "/a.md", file_hash: "h", mtime: 0.0, tags: "",
             chunks: &chunks, chashes: &["1".to_string(), "2".to_string()],
-            vectors: &[vec(&[1.0, 0.0]), vec(&[1.0, 0.0])],
+            vectors: &[vec(&[1.0, 0.0]), vec(&[1.0, 0.0])], links: &[],
         }).unwrap();
         assert_eq!(s.per_source().unwrap()["/a.md"], 2);
         s.delete_source("/a.md").unwrap();
@@ -424,9 +473,55 @@ mod tests {
         let chunks = vec![("x".to_string(), String::new())];
         s.upsert_source(&SourceWrite {
             source: "/a.md", file_hash: "h", mtime: 0.0, tags: "",
-            chunks: &chunks, chashes: &["c".to_string()], vectors: &[vec(&[1.0, 0.0])],
+            chunks: &chunks, chashes: &["c".to_string()], vectors: &[vec(&[1.0, 0.0])], links: &[],
         }).unwrap();
         let hits = s.vector_search(&vec(&[1.0, 0.0, 0.0]), 5).unwrap();
         assert!(hits.is_empty());
+    }
+
+    #[test]
+    fn links_rebuild_wholesale_on_reindex() {
+        let s = store();
+        let write = |s: &Store, links: &[&str]| {
+            s.upsert_source(&SourceWrite {
+                source: "/n.md", file_hash: "h", mtime: 0.0, tags: "",
+                chunks: &[("x".to_string(), String::new())],
+                chashes: &["c".to_string()], vectors: &[vec(&[1.0, 0.0])],
+                links: &links.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+            }).unwrap();
+        };
+        write(&s, &["a.md", "b.md"]);
+        let m = s.link_map().unwrap();
+        assert_eq!(m, vec![("/n.md".to_string(), vec!["a.md".to_string(), "b.md".to_string()])]);
+
+        // the file changed and dropped a link: the stale edge must not survive
+        write(&s, &["a.md"]);
+        assert_eq!(s.link_map().unwrap(),
+                   vec![("/n.md".to_string(), vec!["a.md".to_string()])]);
+    }
+
+    #[test]
+    fn duplicate_targets_are_ignored() {
+        let s = store();
+        s.upsert_source(&SourceWrite {
+            source: "/n.md", file_hash: "h", mtime: 0.0, tags: "",
+            chunks: &[("x".to_string(), String::new())],
+            chashes: &["c".to_string()], vectors: &[vec(&[1.0, 0.0])],
+            links: &["a.md".to_string(), "a.md".to_string()],
+        }).unwrap();
+        assert_eq!(s.link_map().unwrap()[0].1.len(), 1);
+    }
+
+    #[test]
+    fn deleting_a_source_drops_its_edges() {
+        let s = store();
+        s.upsert_source(&SourceWrite {
+            source: "/gone.md", file_hash: "h", mtime: 0.0, tags: "",
+            chunks: &[("x".to_string(), String::new())],
+            chashes: &["c".to_string()], vectors: &[vec(&[1.0])],
+            links: &["other.md".to_string()],
+        }).unwrap();
+        s.delete_source("/gone.md").unwrap();
+        assert!(s.link_map().unwrap().is_empty());
     }
 }
