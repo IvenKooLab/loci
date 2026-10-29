@@ -146,8 +146,9 @@ cargo build --release -p loci-cli     # in native/
 ./target/release/loci gui             # the same console, served natively
 ```
 
-Status: retrieval pipeline, MCP surface, harness discovery, migration and the
-console are ported; digest generation is still Python-only. See
+Status: retrieval, a subset of MCP tools, harness discovery, migration and the
+console are ported. Harness file browsing and digest generation remain
+Python-only. See
 [`native/`](native/) for what is ported and the fidelity tests that pin it
 (chunking, the frozen `default` tokenizer, the CJK bigram decoy case, RRF, and
 incremental ingest).

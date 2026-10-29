@@ -14,6 +14,7 @@
       lines dropped (stdlib regex, no new dependencies)
 - [x] Regression tests for chunk-level embedding reuse: editing one section
       re-embeds only that chunk; an unchanged file embeds nothing (3 tests)
+- [x] Web console for search, Q&A, memories and indexing
 
 ### v0.2 (2026-09-05) — the "memory layer" release
 
@@ -53,12 +54,10 @@
 
 - [ ] More loaders: Notion/Markdown dumps
 - [ ] Scanned-PDF / OCR route (image-only pages still yield no text)
-- [ ] Web UI — deliberately last: the MCP host ecosystem is the UI layer for now
 
 ## Explorations
 
 - [ ] Knowledge-graph mode (Neo4j, GraphRAG experiment)
-- [ ] Incremental embedding cache (only re-embed changed chunks, not whole files)
 
 ## Non-goals
 

@@ -131,7 +131,7 @@ cargo build --release -p loci-cli     # 在 native/ 下
 ./target/release/loci gui             # 同一套控制台，原生提供
 ```
 
-状态：检索管线、MCP 接口、harness 发现、索引迁移和控制台都已移植；只有 harness 摘要生成仍是 Python 独有。移植了哪些、以及钉住行为的测试见 [`native/`](native/)（分块、冻结的 `default` 分词器、CJK 双字分词器对 decoy 的修复、RRF、增量索引）。
+状态：检索、部分 MCP 工具、harness 发现、索引迁移和控制台已移植；harness 文件浏览及摘要生成仍是 Python 版功能。移植了哪些、以及钉住行为的测试见 [`native/`](native/)（分块、冻结的 `default` 分词器、CJK 双字分词器对 decoy 的修复、RRF、增量索引）。
 
 **两个版本的存储格式不同**（SQLite 与 ChromaDB 目录），但数据可以互通：Python 版用 `loci export` 导出，原生版用 `loci import` 导入；若嵌入模型不一致会被拒绝，除非显式加 `--force`。
 
