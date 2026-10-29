@@ -1,22 +1,30 @@
 # Console documentation screenshot
 
-`console-demo-light.png` shows the real checked-in console UI, served by
-`scripts/preview_console.py` with fixed, fictional fixtures. The screenshot
-includes a file tree and a fictional Project Atlas note.
+`console-demo-light.png` and `console-demo-dark.png` show the **Dashboard** tab
+of the current console: the left sidebar (Dashboard / Search / Memories /
+Sources / Queries / Index / Audit), the range filter, the stat cards, top
+queries, zero-hit queries, chunks per source and the 14-day activity strip.
+
+Both are rendered from a static fixture page that imports the console's real
+`style.css` and reproduces its real markup — the classes, spacing and colours
+are the shipped ones, not a mock-up. The fixture data is fictional: 128
+queries, 482 chunks, an "aurora" sensor project, three source directories.
 
 No production server, local config, personal memory, credential or vector
-index is used. Counts and timestamps are illustrative, not benchmark evidence.
-The preview does not import loci's configuration/database/model code; write
-and model endpoints are disabled.
+index is involved. Counts and timestamps are illustrative, not benchmark
+evidence.
 
-To reproduce:
+**Known limitation:** these are rendered from the stylesheet rather than
+captured from a live browser session (the machine that regenerated them has no
+headless browser). Because `app.js` does not run, only the Dashboard tab is
+shown; the other tabs need a real browser to capture. If you regenerate them
+properly, use:
 
 ```bash
 python scripts/preview_console.py --port 8877
 ```
 
-Open `http://127.0.0.1:8877/ui`, switch to English, click the Codex card and
-select `atlas/decisions.md`. Capture the console with the demo label visible.
+Open `http://127.0.0.1:8877/ui`, switch to English, then capture at 1280×820.
 The console itself currently supports English and Simplified Chinese; README
 translations do not imply additional UI language support.
 
