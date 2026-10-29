@@ -155,7 +155,9 @@ const KNOWN: &[Spec] = &[
 
 fn icon_for(spec: &Spec, icons_dir: &Path) -> String {
     for candidate in spec.icons {
-        if icons_dir.join(candidate).is_file() {
+        if icons_dir.join(candidate).is_file()
+            || crate::assets::is_builtin_icon(candidate)
+        {
             return (*candidate).to_string();
         }
     }

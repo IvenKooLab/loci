@@ -13,7 +13,7 @@ const I18N = {
   en: {
     title: "loci console",
     tagline: "Shared memory layer for your AI coding tools",
-    navBoard: "Dashboard", navDash: "Search", navMem: "Memories", navStats: "Index",
+    navBoard: "Dashboard", navGraph: "Graph", navDash: "Search", navMem: "Memories", navStats: "Index",
     navSources: "Sources", navQueries: "Queries", navAudit: "Audit",
     phSearch: "Search the knowledge base…", phAsk: "Ask a question…",
     btnSearch: "Search", btnAsk: "Ask",
@@ -56,7 +56,14 @@ const I18N = {
     files: "files", chunks: "chunks", updated: "updated",
     fresh: "fresh", stale: "stale", missing: "missing",
     badgeTip: "digest out of date — click to regenerate",
-    navBoard: "Dashboard",
+    navGraph: "Graph",
+    graphIntro: "How your notes point at each other.",
+    graphP1: "<b>Edges are <code>[[wikilinks]]</code></b>, rebuilt on every ingest — the same map Obsidian's graph view draws, but shared with your AI tools through MCP.",
+    graphP2: "Drag nodes to rearrange; click one for its links. Notes with no links sit at the edge of the pack — they are the ones nobody connects yet.",
+    graphEmpty: "No links yet — write a note containing [[another note]] and re-index.",
+    graphChunks: "chunks", graphOut: "links to", graphIn: "linked from",
+    graphSearch: "Search this note",
+    backlinks: "backlinks",
     rgToday: "today", rg7d: "7 days", rg30d: "30 days", rgAll: "all",
     cardTotal: "total queries", cardSearch: "searches", cardAsk: "questions",
     cardAvg: "avg hits", cardZero: "zero-hit", cardChunks: "indexed chunks",
@@ -118,7 +125,14 @@ const I18N = {
     files: "个文件", chunks: "块", updated: "更新于",
     fresh: "最新", stale: "待更新", missing: "未生成",
     badgeTip: "摘要已过期——点击重新生成",
-    navBoard: "看板",
+    navGraph: "图谱",
+    graphIntro: "笔记之间如何互相指向。",
+    graphP1: "<b>边就是 <code>[[wiki 链接]]</code></b>，每次索引时重建——和 Obsidian 的关系图谱画的是同一张图，并通过 MCP 共享给你的 AI 工具。",
+    graphP2: "拖动节点重排；点击节点查看链接。没有任何链接的笔记散在外圈——它们是还没被连接的部分。",
+    graphEmpty: "还没有链接——写一条包含 [[另一条笔记]] 的笔记并重新索引。",
+    graphChunks: "块", graphOut: "链接到", graphIn: "被链接",
+    graphSearch: "搜索这条笔记",
+    backlinks: "反链",
     rgToday: "今天", rg7d: "7 天", rg30d: "30 天", rgAll: "全部",
     cardTotal: "总查询", cardSearch: "搜索", cardAsk: "提问",
     cardAvg: "平均命中", cardZero: "零命中", cardChunks: "已索引块",
@@ -221,6 +235,7 @@ function refreshActiveTab() {
     pt.textContent = lbl ? lbl.textContent : btn.textContent;
   }
   if (tab === "board") loadBoard();
+  if (tab === "graph") loadGraph();
   if (tab === "mem") loadMemories();
   if (tab === "stats") loadStats();
   if (tab === "sources") loadSources();
@@ -239,6 +254,29 @@ document.querySelectorAll("nav button[data-tab]").forEach((b) =>
 );
 
 /* ---------- overview ---------- */
+/* [[wikilink]] -> clickable; clicking searches for that note */
+function linkifyWiki(text) {
+  const span = document.createElement("span");
+  const re = /\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]/g;
+  let last = 0, m;
+  while ((m = re.exec(text))) {
+    if (m.index > last) span.append(text.slice(last, m.index));
+    const b = document.createElement("button");
+    b.className = "wikilink";
+    b.textContent = m[1].trim();
+    b.title = t("graphSearch");
+    b.addEventListener("click", () => {
+      $("#q").value = m[1].trim();
+      document.querySelector('nav button[data-tab="dash"]').click();
+      $("#qbtn").click();
+    });
+    span.append(b);
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) span.append(text.slice(last));
+  return span;
+}
+
 function iconHtml(h) {
   return /\.(png|svg|jpe?g|gif|webp)$/i.test(h.icon)
     ? `<img src="/icons/${encodeURIComponent(h.icon)}" alt="">`
@@ -336,11 +374,19 @@ function showEvidence(i) {
     n.classList.toggle("on", k === i));
   $("#ev-crumb").textContent = h.source + (h.section ? " › " + h.section : "");
   $("#ev-score").textContent = scoreLabel(h);
-  $("#ev-body").textContent = h.text || "";
+  // [[wikilinks]] become clickable; the hit's own backlink count comes from
+  // the graph map (fetched once, then cached for the session)
+  $("#ev-body").replaceChildren(linkifyWiki(h.text || ""));
   const tags = String(h.tags || "").split(",").map((x) => x.trim()).filter(Boolean);
   const tagBox = $("#ev-tags");
   tagBox.replaceChildren(...tags.map((tg) => el("span", "tag", tg)));
   tagBox.classList.toggle("hidden", !tags.length);
+  graphBacklinks(h.source).then((n) => {
+    if (n == null) return;
+    const bl = $("#ev-backlinks");
+    bl.textContent = `${n} ${t("backlinks")}`;
+    bl.classList.toggle("hidden", false);
+  });
   $("#evidence").classList.remove("hidden");
   $("#query-wrap").classList.add("pane-open");
   $("#evidence").scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -872,6 +918,215 @@ async function loadBoard() {
     bar.title = `${day}: ${n}`;
     return bar;
   }));
+}
+
+/* ---------- graph tab: force-directed wikilink map on a canvas ---------- */
+let graphCache = null;            // {nodes, links} or null (fetch failed)
+const graphSim = { running: false, nodes: [], links: [], raf: 0 };
+
+async function graphBacklinks(source) {
+  if (!graphCache) {
+    try { graphCache = await api("/graph"); }
+    catch (e) { return null; }     // no graph support: badge stays hidden
+  }
+  if (!graphCache || !graphCache.nodes) return null;
+  const stem = source.split("/").pop().replace(/\.md$/i, "").toLowerCase();
+  let n = 0;
+  for (const [from, to] of graphCache.links || []) {
+    if (from === source) continue;
+    const t = to.split("/").pop().replace(/\.md$/i, "").toLowerCase();
+    if (t === stem) n += 1;
+  }
+  return n;
+}
+
+function loadGraph() {
+  api("/graph").then((g) => { graphCache = g; drawGraph(g || { nodes: [], links: [] }); })
+    .catch(() => drawGraph({ nodes: [], links: [] }));
+}
+
+function drawGraph(g) {
+  const canvas = $("#graph-canvas");
+  const empty = $("#graph-empty");
+  // size the canvas to its container once per draw (CSS shows it at 100%)
+  const box = canvas.parentElement.getBoundingClientRect();
+  if (box.width > 0) {
+    canvas.width = Math.floor(box.width);
+    canvas.height = Math.floor(Math.min(620, Math.max(380, box.width * 0.62)));
+  }
+  const nodes = (g.nodes || []).map((n) => ({
+    path: n.path, chunks: n.chunks || 0,
+    name: n.path.split("/").pop().replace(/\.md$/i, ""),
+    x: 0,
+    y: 0,
+    vx: 0, vy: 0,
+  }));
+  for (const n of nodes) {
+    n.x = canvas.width / 2 + (Math.random() - 0.5) * canvas.width * 0.5;
+    n.y = canvas.height / 2 + (Math.random() - 0.5) * canvas.height * 0.5;
+  }
+  const byPath = new Map(nodes.map((n) => [n.path, n]));
+  // [[targets]] are bare names resolved by file stem, Obsidian-style; a
+  // target that matches no real file becomes a ghost node (dashed) so a
+  // broken link is visible instead of silently missing
+  const byStem = new Map(nodes.map((n) => [n.name.toLowerCase(), n]));
+  const ghost = (target) => {
+    const name = target.split("/").pop();
+    const g = { path: target, chunks: 0, name, ghost: true,
+      x: canvas.width / 2 + (Math.random() - 0.5) * 200,
+      y: canvas.height / 2 + (Math.random() - 0.5) * 160, vx: 0, vy: 0 };
+    nodes.push(g); byPath.set(target, g);
+    return g;
+  };
+  const links = (g.links || [])
+    .map(([a, rawTarget]) => {
+      const from = byPath.get(a);
+      if (!from) return null;
+      const stem = rawTarget.split("/").pop().replace(/\.md$/i, "").toLowerCase();
+      const to = byStem.get(stem) || ghost(rawTarget);
+      return from === to ? null : [from, to];
+    })
+    .filter(Boolean);
+  empty.classList.toggle("hidden", nodes.length > 0);
+
+  // connect every island loosely to the centre so nothing drifts off-screen
+  const linked = new Set();
+  links.forEach(([a, b]) => { linked.add(a); linked.add(b); });
+  nodes.forEach((n) => {
+    if (!linked.has(n)) { n.fx = canvas.width / 2; n.fy = canvas.height / 2; }
+  });
+
+  graphSim.nodes = nodes; graphSim.links = links;
+  cancelAnimationFrame(graphSim.raf);
+
+  if (!nodes.length) {
+    canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+    return;
+  }
+
+  let ticks = 0;
+  function step() {
+    // pair repulsion (O(n²) is fine at vault scale; hundreds of nodes, not
+    // thousands — the ones who get there should ask for a real layout)
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i], b = nodes[j];
+        let dx = b.x - a.x, dy = b.y - a.y;
+        let d2 = dx * dx + dy * dy || 1;
+        if (d2 > 260 * 260) continue;
+        const f = 2400 / d2;
+        const d = Math.sqrt(d2);
+        a.vx -= (dx / d) * f; a.vy -= (dy / d) * f;
+        b.vx += (dx / d) * f; b.vy += (dy / d) * f;
+      }
+    }
+    // springs along edges
+    for (const [a, b] of links) {
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d = Math.sqrt(dx * dx + dy * dy) || 1;
+      const f = (d - 110) * 0.02;
+      a.vx += (dx / d) * f; a.vy += (dy / d) * f;
+      b.vx -= (dx / d) * f; b.vy -= (dy / d) * f;
+    }
+    for (const n of nodes) {
+      // gentle pull to centre; pinned islands stronger
+      const k = n.fx !== undefined ? 0.12 : 0.012;
+      n.vx += (canvas.width / 2 - n.x) * k; n.vy += (canvas.height / 2 - n.y) * k;
+      if (n.fx !== undefined) { n.x = n.fx; n.y = n.fy; n.vx = n.vy = 0; continue; }
+      n.vx *= 0.85; n.vy *= 0.85;
+      n.x = Math.max(30, Math.min(canvas.width - 30, n.x + n.vx));
+      n.y = Math.max(26, Math.min(canvas.height - 26, n.y + n.vy));
+    }
+    render();
+    ticks += 1;
+    if (ticks < 300) graphSim.raf = requestAnimationFrame(step);
+  }
+
+  function render() {
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const style = getComputedStyle(document.documentElement);
+    const line = style.getPropertyValue("--line").trim() || "#ddd";
+    const acc = style.getPropertyValue("--acc").trim() || "#007aff";
+    const fg = style.getPropertyValue("--fg").trim() || "#111";
+    ctx.strokeStyle = line; ctx.lineWidth = 1;
+    for (const [a, b] of links) {
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    }
+    // nothing extra: ghost edges draw like real ones, ghost nodes below
+    for (const n of nodes) {
+      const r = 6 + Math.min(10, Math.sqrt(n.chunks) * 2);
+      ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 7);
+      if (n.ghost) ctx.setLineDash([3, 3]);
+      ctx.fillStyle = n.ghost ? "transparent"
+        : n === graphSim.picked ? acc : "var(--panel, #fff)";
+      ctx.fill();
+      ctx.strokeStyle = n === graphSim.picked ? acc : line; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = n.ghost ? style.getPropertyValue("--muted").trim() || "#999" : fg;
+      ctx.font = "11px -apple-system, sans-serif";
+      ctx.fillText(n.name, n.x + r + 3, n.y + 4);
+    }
+  }
+
+  render();
+  graphSim.raf = requestAnimationFrame(step);
+
+  // click for the info panel; drag to rearrange (a dragged node stays put)
+  canvas.onclick = (ev) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (ev.clientX - rect.left) * (canvas.width / rect.width);
+    const my = (ev.clientY - rect.top) * (canvas.height / rect.height);
+    const hit = nodes.find((n) => {
+      const r = 8 + Math.min(10, Math.sqrt(n.chunks) * 2);
+      return (mx - n.x) ** 2 + (my - n.y) ** 2 <= r * r;
+    });
+    const info = $("#graph-info");
+    if (!hit) { info.classList.add("hidden"); delete graphSim.picked; render(); return; }
+    graphSim.picked = hit;
+    const outs = links.filter(([a]) => a === hit).map(([, b]) => b);
+    const ins = links.filter(([, b]) => b === hit).map(([a]) => a);
+    const list = (title, items) => {
+      if (!items.length) return "";
+      return `<div class="path">${title}:</div><ul>${items.map((n) =>
+        `<li>${n.name}</li>`).join("")}</ul>`;
+    };
+    info.innerHTML = `<h3>${hit.name}</h3>
+      <div class="path">${hit.path}</div>
+      <div>${hit.chunks} ${t("graphChunks")}</div>
+      ${list(t("graphOut"), outs)}${list(t("graphIn"), ins)}`;
+    const btn = document.createElement("button");
+    btn.textContent = t("graphSearch");
+    btn.addEventListener("click", () => {
+      $("#q").value = hit.name;
+      document.querySelector('nav button[data-tab="dash"]').click();
+      $("#qbtn").click();
+    });
+    info.append(btn);
+    info.classList.remove("hidden");
+    render();
+  };
+  canvas.onmousedown = (ev) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (ev.clientX - rect.left) * (canvas.width / rect.width);
+    const my = (ev.clientY - rect.top) * (canvas.height / rect.height);
+    const hit = nodes.find((n) => {
+      const r = 8 + Math.min(10, Math.sqrt(n.chunks) * 2);
+      return (mx - n.x) ** 2 + (my - n.y) ** 2 <= r * r;
+    });
+    if (!hit || hit.fx !== undefined) return;
+    const move = (e2) => {
+      hit.x = (e2.clientX - rect.left) * (canvas.width / rect.width);
+      hit.y = (e2.clientY - rect.top) * (canvas.height / rect.height);
+      hit.vx = hit.vy = 0; render();
+    };
+    const up = () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  };
 }
 
 $("#board-range").addEventListener("click", (ev) => {

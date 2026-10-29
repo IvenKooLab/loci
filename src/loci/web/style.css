@@ -428,3 +428,23 @@ th { color: var(--muted); font-weight: 500; font-size: 12px; }
   .sidebar nav button { justify-content: center; padding: 0; min-width: 34px; }
   .board-cols { grid-template-columns: 1fr; }
 }
+
+
+/* ---- graph tab ---- */
+.graph-wrap { position: relative; background: var(--panel); border-radius: 14px;
+  box-shadow: var(--card-shadow); overflow: hidden; }
+#graph-canvas { display: block; width: 100%; height: auto; }
+.graph-info { position: absolute; top: 12px; right: 12px; width: 260px;
+  background: var(--panel); border-radius: 12px; padding: 12px 14px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.18); font-size: 12.5px; }
+.graph-info h3 { margin: 0 0 6px; font-size: 13px; word-break: break-all; }
+.graph-info ul { margin: 4px 0; padding-left: 16px; max-height: 180px;
+  overflow-y: auto; }
+.graph-info .path { color: var(--muted); word-break: break-all; }
+.graph-info button { margin-top: 8px; }
+.ev-backlinks { font-size: 11.5px; color: var(--muted);
+  background: var(--panel2); border-radius: 8px; padding: 2px 8px; }
+button.wikilink { appearance: none; border: 0; background: none; padding: 0;
+  color: var(--acc); cursor: pointer; font: inherit;
+  text-decoration: underline dotted; text-underline-offset: 2px; }
+button.wikilink:hover { text-decoration-style: solid; }

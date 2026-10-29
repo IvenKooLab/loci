@@ -1,3 +1,4 @@
+pub mod assets;
 pub mod bm25;
 pub mod chunker;
 pub mod config;

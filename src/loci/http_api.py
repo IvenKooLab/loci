@@ -360,6 +360,24 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
             if route == "/harness":
                 return self._guard(lambda: self._json(
                     200, {"harness": harness_mod.stats(cfg, brain._store, _harnesses())}))
+            if route == "/graph":
+                def _graph_payload():
+                    store = brain._store
+                    per = store.per_source()
+                    link_map = store.link_map()
+                    nodes: dict = {}
+                    links = []
+                    for src, targets in link_map.items():
+                        nodes[src] = per.get(src, 0)
+                        for t in [t for t in targets.split(",") if t]:
+                            nodes[t] = nodes.get(t, 0)
+                            links.append([src, t])
+                    for src, n in per.items():
+                        nodes.setdefault(src, n)
+                    return {"nodes": [{"path": p, "chunks": n}
+                                      for p, n in sorted(nodes.items())],
+                            "links": links}
+                return self._guard(lambda: self._json(200, _graph_payload()))
             if route == "/harness-files":
                 name = q.get("name", "")
                 matches = [h for h in _harnesses() if h.name == name]
