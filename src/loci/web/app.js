@@ -14,7 +14,7 @@ const I18N = {
     title: "loci console",
     tagline: "Shared memory layer for your AI coding tools",
     navBoard: "Dashboard", navGraph: "Graph", navDash: "Search", navMem: "Memories", navStats: "Index",
-    navSources: "Sources", navQueries: "Queries", navAudit: "Audit",
+    navSources: "Sources", navQueries: "Queries", navAudit: "Activity log",
     phSearch: "Search the knowledge base…", phAsk: "Ask a question…",
     btnSearch: "Search", btnAsk: "Ask",
     hHarnesses: "Harnesses",
@@ -27,11 +27,12 @@ const I18N = {
     qP1: "<b>Why it exists:</b> when several agents share one instance, «Codex got nothing» is usually a query that hit an empty or different index. Write auditing cannot see that; this can.",
     qP2: "<b>What is stored:</b> time, who, kind, the query text, hit count, the top result's location, and how long it took. The returned text is never stored.",
     qP3: "<b>Retention:</b> newest 500 in memory. Set <code>[http] query_log</code> to also append them to a JSONL file.",
-    auditIntro: "Audit trail of every write and admin action on this loci instance.",
-    auditP1: "<b>What gets logged:</b> memory create / edit / delete, remember, ingest triggers, harness re-summarize.",
-    auditP2: "<b>Who it's for:</b> when several people or agents share this instance via [[auth.tokens]], trace exactly who changed what, and when.",
-    auditP3: "<b>Retention:</b> newest 500 events in memory (cleared on service restart); the full history goes to the service log.",
-    adminRequired: "admin role required.",
+    auditIntro: "Who changed the knowledge base?",
+    auditP1: "Records supported changes made through this service, such as editing or deleting memories, uploading files and starting indexing.",
+    auditP2: "Use this to investigate unexpected changes. Search and Q&A history is on Queries. This is not undo or a complete file history; external file edits and other entry points may not be recorded.",
+    auditP3: "Recent events are held in memory and cleared on restart. Identity is the access-token label or local user, not necessarily the AI application name. Log persistence depends on the backend and service setup.",
+    adminRequired: "This connection cannot view activity records. Open your local loci console to check the service's access settings.",
+    auditPreview: "This is a read-only preview with sample data. It is not connected to your activity records, and no administrator account is needed here.",
     thTime: "time", thWho: "who", thRole: "role", thAction: "action", thDetail: "detail",
     thKind: "kind", thQuery: "query", thHits: "hits", thTop: "top result", thMs: "took",
     srcIntro: "Directories and files that feed this index.",
@@ -58,8 +59,8 @@ const I18N = {
     badgeTip: "digest out of date — click to regenerate",
     navGraph: "Graph",
     graphIntro: "How your notes point at each other.",
-    graphP1: "<b>Edges are <code>[[wikilinks]]</code></b>, rebuilt on every ingest — the same map Obsidian's graph view draws, but shared with your AI tools through MCP.",
-    graphP2: "Drag nodes to rearrange; click one for its links. Notes with no links sit at the edge of the pack — they are the ones nobody connects yet.",
+    graphP1: "<b>Connections come from <code>[[wikilinks]]</code></b> in indexed notes. Dashed nodes are unresolved targets.",
+    graphP2: "Drag to rearrange. Select a note to explore its connections and search its contents.",
     graphEmpty: "No links yet — write a note containing [[another note]] and re-index.",
     graphChunks: "chunks", graphOut: "links to", graphIn: "linked from",
     graphSearch: "Search this note",
@@ -83,7 +84,7 @@ const I18N = {
     title: "loci 管理台",
     tagline: "AI 编码工具的共享记忆层",
     navBoard: "看板", navDash: "检索", navMem: "记忆", navStats: "索引",
-    navSources: "来源", navQueries: "查询", navAudit: "审计",
+    navSources: "来源", navQueries: "查询", navAudit: "操作记录",
     phSearch: "搜索知识库…", phAsk: "输入问题…",
     btnSearch: "搜索", btnAsk: "提问",
     hHarnesses: "工具（Harness）",
@@ -96,11 +97,12 @@ const I18N = {
     qP1: "<b>为什么要有：</b>多个 agent 共用一个实例时，「Codex 搜不到」往往是因为它查的是空索引或另一个索引。写入审计看不到这件事，这里能看到。",
     qP2: "<b>记录什么：</b>时间、操作者、类型、查询原文、命中数、首条结果位置、耗时。不记录返回的正文。",
     qP3: "<b>保留多久：</b>内存中最近 500 条。设置 <code>[http] query_log</code> 可另外追加写入 JSONL 文件。",
-    auditIntro: "本 loci 实例所有写入与管理操作的审计记录。",
-    auditP1: "<b>记录什么：</b>记忆的新建 / 编辑 / 删除、remember、触发 ingest、重新生成 harness 摘要。",
-    auditP2: "<b>给谁看：</b>多人或多 agent 通过 [[auth.tokens]] 共用本实例时，精确追溯「谁在什么时候改了什么」。",
-    auditP3: "<b>保留多久：</b>内存中最近 500 条（服务重启后清零）；完整历史在服务日志。",
-    adminRequired: "需要 admin 角色。",
+    auditIntro: "谁修改了知识库？",
+    auditP1: "记录通过本服务进行的记忆编辑、删除、上传和索引等受支持的操作。",
+    auditP2: "用于排查意外改动；搜索和问答历史请看「查询」。这里不能撤销操作，也不是完整的文件历史，外部编辑或其他入口的操作可能不会被记录。",
+    auditP3: "近期记录保存在内存，重启后清空。「操作者」是访问令牌的标签或本机身份，不一定是 AI 应用名。日志是否保存到磁盘取决于后端和服务配置。",
+    adminRequired: "当前连接无权查看操作记录。请在本机 loci 控制台检查服务的访问设置。",
+    auditPreview: "这是使用示例数据的只读预览，未连接你的真实操作记录，无需在这里创建管理员账号。",
     thTime: "时间", thWho: "操作者", thRole: "角色", thAction: "动作", thDetail: "详情",
     thKind: "类型", thQuery: "查询", thHits: "命中", thTop: "首条结果", thMs: "耗时",
     srcIntro: "喂给这份索引的目录与文件。",
@@ -127,8 +129,8 @@ const I18N = {
     badgeTip: "摘要已过期——点击重新生成",
     navGraph: "图谱",
     graphIntro: "笔记之间如何互相指向。",
-    graphP1: "<b>边就是 <code>[[wiki 链接]]</code></b>，每次索引时重建——和 Obsidian 的关系图谱画的是同一张图，并通过 MCP 共享给你的 AI 工具。",
-    graphP2: "拖动节点重排；点击节点查看链接。没有任何链接的笔记散在外圈——它们是还没被连接的部分。",
+    graphP1: "<b>连线来自已索引笔记的 <code>[[wiki 链接]]</code></b>；虚线节点表示尚未解析的目标。",
+    graphP2: "拖动节点调整位置，选择笔记查看关联并搜索内容。",
     graphEmpty: "还没有链接——写一条包含 [[另一条笔记]] 的笔记并重新索引。",
     graphChunks: "块", graphOut: "链接到", graphIn: "被链接",
     graphSearch: "搜索这条笔记",
@@ -646,11 +648,28 @@ async function loadAudit() {
   const admin = isAdmin();
   $("#audit-hint").classList.toggle("hidden", admin);
   $("#audit-wrap").classList.toggle("hidden", !admin);
-  if (!admin) { $("#audit-hint").textContent = t("adminRequired"); return; }
-  const { audit } = await api("/audit");
-  $("#audit-table tbody").innerHTML = audit.map((a) =>
-    `<tr><td>${a.ts}</td><td>${a.label}</td><td>${a.role}</td><td>${a.action}</td><td>${a.detail}</td></tr>`
-  ).join("") || `<tr><td colspan=5 class="muted">${t("noEvents")}</td></tr>`;
+  if (!admin) { $("#audit-hint").textContent = t(me?.preview ? "auditPreview" : "adminRequired"); return; }
+  const body = $("#audit-table tbody");
+  body.replaceChildren();
+  try {
+    const { audit } = await api("/audit");
+    for (const a of audit) {
+      const row = document.createElement("tr");
+      for (const value of [a.ts, a.label, a.role, a.action, a.detail]) {
+        const cell = document.createElement("td");
+        cell.textContent = value ?? "";
+        row.append(cell);
+      }
+      body.append(row);
+    }
+    if (!audit.length) {
+      $("#audit-hint").textContent = lang === "zh" ? "本次服务启动后还没有操作记录。搜索记录请查看「查询」。" : "No changes recorded since this service started. For searches, open Queries.";
+      $("#audit-hint").classList.remove("hidden");
+    }
+  } catch (error) {
+    $("#audit-hint").textContent = String(error.message);
+    $("#audit-hint").classList.remove("hidden");
+  }
 }
 
 async function runIngest() {
@@ -983,18 +1002,36 @@ function drawGraph(g) {
       const from = byPath.get(a);
       if (!from) return null;
       const stem = rawTarget.split("/").pop().replace(/\.md$/i, "").toLowerCase();
-      const to = byStem.get(stem) || ghost(rawTarget);
+      const to = byStem.get(stem) || byPath.get(rawTarget) || ghost(rawTarget);
       return from === to ? null : [from, to];
     })
     .filter(Boolean);
   empty.classList.toggle("hidden", nodes.length > 0);
 
-  // connect every island loosely to the centre so nothing drifts off-screen
+  // Disconnected notes have no physical centre: give each a stable grid slot.
   const linked = new Set();
   links.forEach(([a, b]) => { linked.add(a); linked.add(b); });
-  nodes.forEach((n) => {
-    if (!linked.has(n)) { n.fx = canvas.width / 2; n.fy = canvas.height / 2; }
+  const islands = nodes.filter((n) => !linked.has(n));
+  const columns = Math.max(1, Math.floor(canvas.width / 180));
+  const rows = Math.ceil(islands.length / columns);
+  const graphHeight = linked.size ? 360 : 0;
+  canvas.height = Math.max(linked.size ? 380 : 160, graphHeight + rows * 92 + 48);
+  canvas.style.height = `${canvas.height}px`;
+  islands.forEach((n, i) => {
+    n.isolated = true;
+    n.x = n.fx = (i % columns + .5) * canvas.width / columns;
+    n.y = n.fy = graphHeight + 46 + Math.floor(i / columns) * 92;
   });
+  // Spread connected nodes deterministically; a reload should not shuffle notes.
+  const connected = nodes.filter((n) => linked.has(n));
+  connected.forEach((n, i) => {
+    const angle = i * Math.PI * (3 - Math.sqrt(5));
+    const radius = Math.sqrt((i + .5) / connected.length);
+    n.x = canvas.width / 2 + Math.cos(angle) * radius * canvas.width * .35;
+    n.y = graphHeight / 2 + Math.sin(angle) * radius * graphHeight * .35;
+  });
+  delete graphSim.picked;
+  $("#graph-info").classList.add("hidden");
 
   graphSim.nodes = nodes; graphSim.links = links;
   cancelAnimationFrame(graphSim.raf);
@@ -1011,6 +1048,7 @@ function drawGraph(g) {
     for (let i = 0; i < nodes.length; i++) {
       for (let j = i + 1; j < nodes.length; j++) {
         const a = nodes[i], b = nodes[j];
+        if (a.isolated || b.isolated) continue;
         let dx = b.x - a.x, dy = b.y - a.y;
         let d2 = dx * dx + dy * dy || 1;
         if (d2 > 260 * 260) continue;
@@ -1030,12 +1068,12 @@ function drawGraph(g) {
     }
     for (const n of nodes) {
       // gentle pull to centre; pinned islands stronger
-      const k = n.fx !== undefined ? 0.12 : 0.012;
-      n.vx += (canvas.width / 2 - n.x) * k; n.vy += (canvas.height / 2 - n.y) * k;
+      const k = n.isolated ? 0.004 : 0.012;
+      n.vx += (canvas.width / 2 - n.x) * k; n.vy += (graphHeight / 2 - n.y) * k;
       if (n.fx !== undefined) { n.x = n.fx; n.y = n.fy; n.vx = n.vy = 0; continue; }
       n.vx *= 0.85; n.vy *= 0.85;
       n.x = Math.max(30, Math.min(canvas.width - 30, n.x + n.vx));
-      n.y = Math.max(26, Math.min(canvas.height - 26, n.y + n.vy));
+      n.y = Math.max(26, Math.min(graphHeight - 40, n.y + n.vy));
     }
     render();
     ticks += 1;
@@ -1046,31 +1084,38 @@ function drawGraph(g) {
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const style = getComputedStyle(document.documentElement);
-    const line = style.getPropertyValue("--line").trim() || "#ddd";
+    const line = style.getPropertyValue("--muted").trim() || "#7c8c82";
     const acc = style.getPropertyValue("--acc").trim() || "#007aff";
     const fg = style.getPropertyValue("--fg").trim() || "#111";
-    ctx.strokeStyle = line; ctx.lineWidth = 1;
+    const panel = style.getPropertyValue("--panel").trim() || "#fff";
+    ctx.strokeStyle = line; ctx.globalAlpha = .38; ctx.lineWidth = 1;
     for (const [a, b] of links) {
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
     }
-    // nothing extra: ghost edges draw like real ones, ghost nodes below
+    ctx.globalAlpha = 1;
     for (const n of nodes) {
       const r = 6 + Math.min(10, Math.sqrt(n.chunks) * 2);
       ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 7);
       if (n.ghost) ctx.setLineDash([3, 3]);
       ctx.fillStyle = n.ghost ? "transparent"
-        : n === graphSim.picked ? acc : "var(--panel, #fff)";
+        : n === graphSim.picked ? acc : panel;
       ctx.fill();
-      ctx.strokeStyle = n === graphSim.picked ? acc : line; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.strokeStyle = n.ghost ? line : acc; ctx.lineWidth = 1.8; ctx.stroke();
       ctx.setLineDash([]);
       ctx.fillStyle = n.ghost ? style.getPropertyValue("--muted").trim() || "#999" : fg;
       ctx.font = "11px -apple-system, sans-serif";
-      ctx.fillText(n.name, n.x + r + 3, n.y + 4);
+      const maxLabel = Math.min(160, canvas.width - 24);
+      let label = n.name;
+      while (label.length > 1 && ctx.measureText(label).width > maxLabel) label = label.slice(0, -1);
+      if (label !== n.name) label += "…";
+      const labelX = Math.max(8, Math.min(n.x - ctx.measureText(label).width / 2,
+        canvas.width - ctx.measureText(label).width - 8));
+      ctx.fillText(label, labelX, n.y + r + 18);
     }
   }
 
   render();
-  graphSim.raf = requestAnimationFrame(step);
+  if (connected.length) graphSim.raf = requestAnimationFrame(step);
 
   // click for the info panel; drag to rearrange (a dragged node stays put)
   canvas.onclick = (ev) => {
@@ -1086,13 +1131,14 @@ function drawGraph(g) {
     graphSim.picked = hit;
     const outs = links.filter(([a]) => a === hit).map(([, b]) => b);
     const ins = links.filter(([, b]) => b === hit).map(([a]) => a);
+    const safe = (value) => String(value).replace(/[&<>"']/g, (ch) => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"}[ch]));
     const list = (title, items) => {
       if (!items.length) return "";
       return `<div class="path">${title}:</div><ul>${items.map((n) =>
-        `<li>${n.name}</li>`).join("")}</ul>`;
+        `<li>${safe(n.name)}</li>`).join("")}</ul>`;
     };
-    info.innerHTML = `<h3>${hit.name}</h3>
-      <div class="path">${hit.path}</div>
+    info.innerHTML = `<h3>${safe(hit.name)}</h3>
+      <div class="path">${safe(hit.path)}</div>
       <div>${hit.chunks} ${t("graphChunks")}</div>
       ${list(t("graphOut"), outs)}${list(t("graphIn"), ins)}`;
     const btn = document.createElement("button");
@@ -1114,10 +1160,11 @@ function drawGraph(g) {
       const r = 8 + Math.min(10, Math.sqrt(n.chunks) * 2);
       return (mx - n.x) ** 2 + (my - n.y) ** 2 <= r * r;
     });
-    if (!hit || hit.fx !== undefined) return;
+    if (!hit) return;
     const move = (e2) => {
       hit.x = (e2.clientX - rect.left) * (canvas.width / rect.width);
       hit.y = (e2.clientY - rect.top) * (canvas.height / rect.height);
+      hit.fx = hit.x; hit.fy = hit.y;
       hit.vx = hit.vy = 0; render();
     };
     const up = () => {
@@ -1198,3 +1245,15 @@ async function boot() {
 
 applyI18n();
 boot();
+
+// Resize the drawing coordinates too, not only the CSS-scaled bitmap.
+let graphResizeFrame = 0;
+new ResizeObserver(() => {
+  cancelAnimationFrame(graphResizeFrame);
+  graphResizeFrame = requestAnimationFrame(() => {
+    if (!$("#tab-graph").classList.contains("hidden") && graphCache) {
+      const width = Math.floor($("#graph-canvas").parentElement.getBoundingClientRect().width);
+      if (width > 0 && width !== $("#graph-canvas").width) drawGraph(graphCache);
+    }
+  });
+}).observe($("#graph-canvas").parentElement);
