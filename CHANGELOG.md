@@ -12,6 +12,11 @@
 - The evidence pane renders `[[wikilinks]]` as clickable (click = search that
   note) and shows the hit's backlink count.
 - `GET /graph` on both backends, same shape, so the tab cannot tell them apart.
+- **Harness logos are embedded in the native binary** (they are application
+  assets, per Ekko's convention). A fresh instance renders real logos with no
+  files to copy; an `icons/` dir still overrides by filename. Before this,
+  every instance whose working directory lacked `icons/` silently fell back
+  to emoji — which is most of them.
 - Harness logos: the console shows each AI tool's real logo instead of an
   emoji. The icons live in the instance's `icons/` directory, and
   `[http] icons` overrides the location. Both builds resolve a bare relative

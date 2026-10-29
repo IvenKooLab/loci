@@ -345,11 +345,16 @@ fn route(state: &ConsoleState, method: &str, path: &str, query: &str,
                 .to_string();
             let dir = state.icons_dir();
             let file = dir.join(&name);
-            match (name.is_empty(), file.is_file()) {
-                (false, true) => (
+            // disk wins (a user override), builtin logos are the fallback so a
+            // fresh instance renders without copying any files
+            let from_disk = if name.is_empty() { None } else {
+                std::fs::read(&file).ok().filter(|_| file.is_file())
+            };
+            match from_disk.or_else(|| loci_core::assets::embedded_icon(&name).map(|b| b.to_vec())) {
+                Some(bytes) if !name.is_empty() => (
                     200,
                     mime_for(&name).to_string(),
-                    std::fs::read(&file).unwrap_or_default(),
+                    bytes.to_vec(),
                 ),
                 _ => (404, "application/json".into(),
                       json!({"error": "not found"}).to_string().into_bytes()),
