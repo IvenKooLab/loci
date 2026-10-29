@@ -1,0 +1,5 @@
+{"query":"为什么选用 SHT45 湿度传感器？", "source":"Projects/传感器决策.md", "section":"温室项目 > 传感器选型", "evidence":"BME280 长期湿度读数漂移"}
+{"query":"温室节点 Wi-Fi 重连间隔多少秒？", "source":"日记/2025-03-12.md", "section":"现场记录 > 通信故障", "evidence":"重连间隔改为 10 秒"}
+{"query":"2400mAh 锂电池目标续航多少天？", "source":"Projects/传感器决策.md", "section":"温室项目 > 电池方案", "evidence":"目标续航 30 天"}
+{"query":"哪个旧电池方案预计续航 12 天？", "source":"Archive/旧测试.md", "section":"废弃方案 > 电池方案", "evidence":"1200mAh 电池"}
+{"query":"温室项目传感器选型负责人是谁？", "source":"Projects/传感器决策.md", "section":"温室项目 > 传感器选型", "evidence":"负责人是林岚"}
