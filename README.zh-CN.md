@@ -78,6 +78,8 @@ loci ask "我们之前决定如何部署？原因是什么？"
 
 > 密钥也可通过 `BRAIN_LLM_API_KEY`、`BRAIN_EMBED_API_KEY` 环境变量传入。更换向量模型后，需要运行 `loci ingest --force` 重建索引。
 
+使用 Obsidian？请看 [vault 接入、隐私与兼容性指南](docs/obsidian.zh-CN.md)。
+
 ## Web 管理台
 
 ```bash

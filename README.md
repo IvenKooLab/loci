@@ -91,6 +91,8 @@ Already have a configuration? Install the package with `python -m pip install lo
 
 > API keys can be supplied through `BRAIN_LLM_API_KEY` and `BRAIN_EMBED_API_KEY`. After changing the embedding model, rebuild with `loci ingest --force`.
 
+Using Obsidian? See the [vault setup, privacy and compatibility guide](docs/obsidian.en.md).
+
 ## Web console
 
 ```bash
