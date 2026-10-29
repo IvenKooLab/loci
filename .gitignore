@@ -1,29 +1,38 @@
+# ---- secrets / local config ----
 config.toml
+.env
+/native/.cargo/config.toml      # machine-local SDK pin, see native/README.md
+
+# ---- indexes and generated data ----
 chroma_db/
 data/
-__pycache__/
-*.pyc
-.env
-src/*.egg-info/
-*.egg-info/
-
-.pytest_cache/
-
-# generated wiki pages (loci wiki output)
 /wiki/
 generated/
-
-# `loci demo` writes its sample corpus here
 loci-demo-notes/
+*.db
+*.db-journal
+*.db-wal
 
-# python build artifacts
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
 dist/
 build/
-*.egg-info/
+.venv/
+venv/
 
-# native build pins a working SDK on this machine; it is config, not a secret
+# ---- Rust ----
+target/
+**/target/
 
+# ---- OS / editors ----
 .DS_Store
-
-# machine-local SDK pin (native/README.md); never commit
-/native/.cargo/config.toml
+**/.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
