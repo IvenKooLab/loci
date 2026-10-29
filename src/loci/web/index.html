@@ -27,6 +27,10 @@
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7.5" height="9" rx="1.8"/><rect x="13.5" y="3" width="7.5" height="5.5" rx="1.8"/><rect x="13.5" y="12" width="7.5" height="9" rx="1.8"/><rect x="3" y="15.5" width="7.5" height="5.5" rx="1.8"/></svg>
       <span class="nav-label">Dashboard</span>
     </button>
+    <button data-tab="graph" data-i18n="navGraph">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="5.5" cy="6" r="2.2"/><circle cx="18.5" cy="5" r="2.2"/><circle cx="16" cy="18" r="2.2"/><circle cx="6" cy="17.5" r="2.2"/><circle cx="12" cy="11.5" r="2.6"/><path d="M7.5 7.2 10 9.8M16.6 6.7l-2.7 3M14.4 16.6l-1.4-2.8M7.9 16.1l2.4-2.6"/></svg>
+      <span class="nav-label">Graph</span>
+    </button>
     <button data-tab="dash" data-i18n="navDash">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
       <span class="nav-label">Search</span>
@@ -93,6 +97,20 @@
     <div id="board-act" class="act-strip"></div>
   </section>
 
+  <!-- Graph: the wikilink map, force-laid-out on a canvas -->
+  <section id="tab-graph" class="hidden">
+    <div class="info-card">
+      <p class="info-title" data-i18n="graphIntro">How your notes point at each other.</p>
+      <p data-i18n="graphP1"><b>Edges are <code>[[wikilinks]]</code></b>, rebuilt on every ingest — the same map Obsidian's graph view draws, but shared with your AI tools through MCP.</p>
+      <p data-i18n="graphP2">Drag nodes to rearrange; click one for its links. Notes with no links sit at the edge of the pack — they are the ones nobody connects yet.</p>
+    </div>
+    <div class="graph-wrap">
+      <canvas id="graph-canvas"></canvas>
+      <div id="graph-info" class="graph-info hidden"></div>
+      <div id="graph-empty" class="muted hidden" data-i18n="graphEmpty"></div>
+    </div>
+  </section>
+
   <!-- Overview -->
   <section id="tab-dash">
     <div class="row">
@@ -110,6 +128,7 @@
         <div class="ev-head">
           <span class="ev-title" data-i18n="evTitle">Evidence</span>
           <span id="ev-score" class="ev-score"></span>
+          <span id="ev-backlinks" class="ev-backlinks hidden"></span>
           <button id="ev-close" class="linklike" data-i18n-title="evClose" title="close">✕</button>
         </div>
         <div id="ev-crumb" class="ev-crumb"></div>

@@ -145,6 +145,7 @@ pub fn ingest(
             chunks: &pairs,
             chashes: &chashes,
             vectors: &final_vectors,
+            links: &doc.links,
         })?;
         report.chunks += n;
     }

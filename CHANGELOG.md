@@ -3,6 +3,15 @@
 ## Unreleased
 
 ### Added
+- **Graph tab in the console**: the `[[wikilink]]` map, force-laid-out on a
+  canvas — drag nodes, click for in/out links, one click to search a note.
+  Targets resolve by file stem, Obsidian-style; a link to a note that does not
+  exist shows as a dashed ghost node instead of disappearing. Edges rebuild on
+  every ingest. Works with zero configuration and no LLM — it is drawn from
+  the links the loader already extracts.
+- The evidence pane renders `[[wikilinks]]` as clickable (click = search that
+  note) and shows the hit's backlink count.
+- `GET /graph` on both backends, same shape, so the tab cannot tell them apart.
 - Harness logos: the console shows each AI tool's real logo instead of an
   emoji. The icons live in the instance's `icons/` directory, and
   `[http] icons` overrides the location. Both builds resolve a bare relative
