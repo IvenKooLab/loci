@@ -143,13 +143,19 @@ directory:
 ```bash
 cargo build --release -p loci-cli     # in native/
 ./target/release/loci-mcp --config ~/.loci/config.toml
+./target/release/loci gui             # the same console, served natively
 ```
 
-Status: core + MCP complete; packaging and the desktop shell are in progress.
-See [`native/`](native/) for what is ported and the fidelity tests that pin it
+Status: retrieval pipeline, MCP surface, harness discovery, migration and the
+console are ported; digest generation is still Python-only. See
+[`native/`](native/) for what is ported and the fidelity tests that pin it
 (chunking, the frozen `default` tokenizer, the CJK bigram decoy case, RRF, and
-incremental ingest). **The two builds keep separate indexes** — a ChromaDB
-instance is not read by the native one; a migration command is on the list.
+incremental ingest).
+
+**The two builds keep separate store formats** (SQLite vs ChromaDB directory),
+but they exchange data: export from Python with `loci export`, import in the
+native build with `loci import`, which refuses to mix embedding spaces unless
+you pass `--force`.
 
 ## A small daily workflow
 
