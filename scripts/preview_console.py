@@ -88,7 +88,7 @@ class Preview(BaseHTTPRequestHandler):
             return self.send(200, (WEB / name).read_bytes(), mime)
         if route == "/health":
             return self.send(200, {"status": "ok", "version": VERSION,
-                                   "me": {"label": "Demo data", "role": "viewer"}})
+                                   "me": {"label": "Demo data", "role": "viewer", "preview": True}})
         if route == "/harness":
             return self.send(200, {"harness": HARNESSES})
         if route == "/harness-files":
@@ -110,6 +110,17 @@ class Preview(BaseHTTPRequestHandler):
             return self.send(200, {"audit": []})
         if route == "/queries":
             return self.send(200, {"queries": QUERIES})
+        if route == "/graph":
+            return self.send(200, {"nodes": [
+                {"path": "atlas/decisions.md", "chunks": 12},
+                {"path": "atlas/release-checklist.md", "chunks": 7},
+                {"path": "atlas/field-notes.md", "chunks": 5},
+                {"path": "notes/preferences.md", "chunks": 3},
+                {"path": "notes/reading-list.md", "chunks": 4}],
+                "links": [] if getattr(self.server, "isolated", False) else [["atlas/decisions.md", "release-checklist"],
+                          ["atlas/field-notes.md", "decisions"],
+                          ["notes/reading-list.md", "field-notes"],
+                          ["atlas/decisions.md", "future-plans"]]})
         if route == "/sources":
             return self.send(200, {
                 "sources": [{"path": "/demo/atlas", "chunks": 42},
@@ -171,7 +182,9 @@ class Preview(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=8877)
+    parser.add_argument("--isolated", action="store_true", help="Preview disconnected graph nodes")
     args = parser.parse_args()
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Preview)
+    server.isolated = args.isolated
     print(f"Synthetic-data preview: http://127.0.0.1:{args.port}/ui", flush=True)
     server.serve_forever()
