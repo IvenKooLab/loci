@@ -559,6 +559,7 @@ fn route(state: &ConsoleState, method: &str, path: &str, query: &str,
             }
         }
         ("POST", "/memory") => memory_write(state, body),
+        ("POST", "/remember") => remember_write(state, body),
         ("DELETE", "/memory") => memory_delete(state, qget(&q, "name").unwrap_or("")),
 
         (_, "/source-file") => (404, "application/json".into(),
@@ -725,6 +726,86 @@ fn index_one(state: &ConsoleState, path: &Path) -> Result<usize> {
         vectors: &final_vectors,
         links: &links,
     })
+}
+
+/// `POST /remember` — the Python build's memory-capture endpoint, mirrored so
+/// clients written against it (loci-dsh's quick capture) work unchanged against
+/// the native build. Same filename scheme (`YYYYMMDD-HHMMSS-slug.md` — the
+/// filename IS the timestamp loci-dsh's timeline parses), same frontmatter,
+/// same response text.
+fn remember_write(state: &ConsoleState, body: Value) -> (u16, String, Vec<u8>) {
+    let text = body.get("text").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+    if text.is_empty() {
+        return (400, "application/json".into(),
+                json!({"error": "text is required"}).to_string().into_bytes());
+    }
+    let tags: Vec<String> = body
+        .get("tags")
+        .and_then(|v| v.as_array())
+        .map(|a| a.iter().filter_map(|t| t.as_str()).map(str::to_string).collect())
+        .unwrap_or_default();
+    let title = body
+        .get("title")
+        .and_then(|v| v.as_str())
+        .map(|t| t.trim().to_string())
+        .filter(|t| !t.is_empty())
+        .unwrap_or_else(|| {
+            text.lines().find(|l| !l.trim().is_empty()).unwrap_or("memory").trim().to_string()
+        });
+    let title: String = title.chars().take(80).collect();
+
+    std::fs::create_dir_all(&state.memories).ok();
+    let (y, mo, d, h, mi, sec) = now_datetime();
+    let base = format!("{y:04}{mo:02}{d:02}-{h:02}{mi:02}{sec:02}-{}", slugify(&title));
+    let mut path = state.memories.join(format!("{base}.md"));
+    let mut n = 2;
+    while path.exists() {                       // two IDEs writing in the same second
+        path = state.memories.join(format!("{base}-{n}.md"));
+        n += 1;
+    }
+    let mut tag_list = vec!["memory".to_string()];
+    tag_list.extend(tags.iter().filter(|t| !t.trim().is_empty()).cloned());
+    let iso = format!("{y:04}-{mo:02}-{d:02} {h:02}:{mi:02}");
+    let front = format!("---\ntags: [{}]\ncreated: {iso}\ntitle: {title}\n---\n",
+                        tag_list.join(", "));
+    let tmp = path.with_extension("md.tmp");
+    if std::fs::write(&tmp, format!("{front}# {title}\n\n{text}\n")).is_err() {
+        return (500, "application/json".into(),
+                json!({"error": "cannot write memory file"}).to_string().into_bytes());
+    }
+    std::fs::rename(&tmp, &path).ok();          // atomic, overwrites on Windows
+
+    match index_one(state, &path) {
+        Ok(chunks) => {
+            state.log_audit("remember",
+                &path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default());
+            (200, "application/json".into(),
+             json!({"result": format!("remembered: {} ({chunks} chunks, searchable now)",
+                                      path.display())}).to_string().into_bytes())
+        }
+        Err(e) => (500, "application/json".into(),
+                   json!({"error": format!("{e:#}")}).to_string().into_bytes()),
+    }
+}
+
+/// Civil date and time-of-day from the system clock, no chrono dependency.
+fn now_datetime() -> (i64, u32, u32, u32, u32, u32) {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
+    let days = secs.div_euclid(86_400);
+    let rem = secs.rem_euclid(86_400);
+    // Howard Hinnant's civil-from-days
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+    let y = if m <= 2 { y + 1 } else { y };
+    (y, m, d, (rem / 3600) as u32, (rem % 3600 / 60) as u32, (rem % 60) as u32)
 }
 
 fn memory_write(state: &ConsoleState, body: Value) -> (u16, String, Vec<u8>) {
