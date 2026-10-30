@@ -985,10 +985,18 @@ function drawGraph(g) {
     n.y = canvas.height / 2 + (Math.random() - 0.5) * canvas.height * 0.5;
   }
   const byPath = new Map(nodes.map((n) => [n.path, n]));
-  // [[targets]] are bare names resolved by file stem, Obsidian-style; a
-  // target that matches no real file becomes a ghost node (dashed) so a
-  // broken link is visible instead of silently missing
-  const byStem = new Map(nodes.map((n) => [n.name.toLowerCase(), n]));
+  // Resolve unique path suffixes; ambiguous names stay visibly unresolved.
+  const normalize = (path) => path.replace(/\\/g, "/").replace(/\.md$/i, "").toLowerCase();
+  const targets = new Map();
+  for (const n of nodes) {
+    const parts = normalize(n.path).split("/").filter(Boolean);
+    for (let i = 0; i < parts.length; i++) {
+      const key = parts.slice(i).join("/");
+      targets.set(key, targets.has(key) ? null : n);
+    }
+  }
+  const resolveTarget = (target) => byPath.get(target)
+    || targets.get(normalize(target).replace(/^\/+/g, ""));
   const ghost = (target) => {
     const name = target.split("/").pop();
     const g = { path: target, chunks: 0, name, ghost: true,
@@ -1001,8 +1009,7 @@ function drawGraph(g) {
     .map(([a, rawTarget]) => {
       const from = byPath.get(a);
       if (!from) return null;
-      const stem = rawTarget.split("/").pop().replace(/\.md$/i, "").toLowerCase();
-      const to = byStem.get(stem) || byPath.get(rawTarget) || ghost(rawTarget);
+      const to = resolveTarget(rawTarget) || byPath.get(rawTarget) || ghost(rawTarget);
       return from === to ? null : [from, to];
     })
     .filter(Boolean);
@@ -1043,12 +1050,10 @@ function drawGraph(g) {
 
   let ticks = 0;
   function step() {
-    // pair repulsion (O(n²) is fine at vault scale; hundreds of nodes, not
-    // thousands — the ones who get there should ask for a real layout)
-    for (let i = 0; i < nodes.length; i++) {
-      for (let j = i + 1; j < nodes.length; j++) {
-        const a = nodes[i], b = nodes[j];
-        if (a.isolated || b.isolated) continue;
+    // Only connected nodes participate in the force simulation.
+    for (let i = 0; i < connected.length; i++) {
+      for (let j = i + 1; j < connected.length; j++) {
+        const a = connected[i], b = connected[j];
         let dx = b.x - a.x, dy = b.y - a.y;
         let d2 = dx * dx + dy * dy || 1;
         if (d2 > 260 * 260) continue;

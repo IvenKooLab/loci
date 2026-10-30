@@ -22,3 +22,22 @@ for (const width of [240, 1168]) {
   }
 }
 console.log('Graph layout: empty/single/5/40 disconnected notes at narrow/wide widths passed');
+
+// A qualified target resolves correctly; an ambiguous bare name remains unresolved.
+{
+  const ctx = new Proxy({measureText: s => ({width:s.length*6})}, {get:(o,k)=>o[k] || (()=>{})});
+  const canvas = {width:800, style:{}, parentElement:{getBoundingClientRect:()=>({width:800})}, getContext:()=>ctx};
+  const el = {classList:{add(){},toggle(){}}, style:{}};
+  const sandbox = { $: id => id === '#graph-canvas' ? canvas : el, document:{documentElement:{}},
+    getComputedStyle:()=>({getPropertyValue:()=>''}), graphSim:{}, cancelAnimationFrame(){}, requestAnimationFrame:()=>1, Math};
+  vm.createContext(sandbox); vm.runInContext(draw, sandbox);
+  sandbox.drawGraph({nodes:['source.md','a/note.md','b/note.md'].map(path=>({path})),
+    links:[['source.md','a/note'],['source.md','note'],['source.md','note'],
+      ['source.md','B/NOTE.MD'],['source.md','a/note.md']]});
+  assert.equal(sandbox.graphSim.links[0][1].path, 'a/note.md');
+  assert.equal(sandbox.graphSim.links[1][1].ghost, true);
+  assert.equal(sandbox.graphSim.links[1][1], sandbox.graphSim.links[2][1]);
+  assert.equal(sandbox.graphSim.links[3][1].path, 'b/note.md');
+  assert.equal(sandbox.graphSim.links[4][1].path, 'a/note.md');
+}
+console.log('Graph link resolution: qualified and ambiguous targets passed');
