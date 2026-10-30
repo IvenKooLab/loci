@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.9.0 — 2026-09-26
+
+### Added
+- **Knowledge graph** (`loci graph build|show`, MCP `brain_graph`): LLM-extracted
+  entity-relation triples from memories and wiki pages, stored in a
+  human-readable `graph.json` — no graph database. Edges cite their source
+  files; wiki generation injects graph relations as extra context. Incremental
+  per file; robust against LLMs wrapping JSON in code fences
+- **OCR** (`[ocr]` extra, rapidocr): images and scanned PDFs recognized and
+  indexed; `doctor` reports availability
+- **HTML loader** (stdlib, zero deps): `.html/.htm` — headings → `#`, `<li>` →
+  `- `, charset detection with gb18030 fallback
+- **org-mode loader** (stdlib, zero deps): `#+TITLE` → h1, `#+FILETAGS` → tags,
+  org links → markdown links
+- **Console UI**: graph view with clickable wikilinks, embedded harness logos,
+  aligned page layouts
+
+### Fixed
+- Graph unique note paths, skip isolated force pairs
+- Obsidian vault hardening — ingest no longer prunes offline vaults
+- Console page layout alignment, graph node separation
+
+
 ## Unreleased
 
 ### Added
