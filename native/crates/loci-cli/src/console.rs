@@ -455,18 +455,22 @@ fn route(state: &ConsoleState, method: &str, path: &str, query: &str,
                 store_per_source(state).into_iter().collect();
             let link_map = store.link_map().unwrap_or_default();
 
-            // 节点：任何被链接引用或自身有块的文件
+            // Nodes are files that exist in the index. A link to a note that was
+            // never indexed stays a bare target inside `links` — the client
+            // resolves targets by name and reports the rest as unresolved, so
+            // adding a node here would double-count every real note.
             let mut nodes: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
             let mut links: Vec<[String; 2]> = Vec::new();
-            for (src, targets) in &link_map {
-                nodes.insert(src.clone());
-                for t in targets {
-                    nodes.insert(t.clone());
-                    links.push([src.clone(), t.clone()]);
-                }
-            }
             for src in per.keys() {
                 nodes.insert(src.clone());
+            }
+            for (src, targets) in &link_map {
+                if per.contains_key(src) {
+                    nodes.insert(src.clone());
+                }
+                for t in targets {
+                    links.push([src.clone(), t.clone()]);
+                }
             }
             let nodes: Vec<Value> = nodes
                 .into_iter()

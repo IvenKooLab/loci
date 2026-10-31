@@ -365,15 +365,14 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
                     store = brain._store
                     per = store.per_source()
                     link_map = store.link_map()
-                    nodes: dict = {}
+                    # Nodes are indexed files only: a link target that is not a
+                    # real note travels inside `links` and is reported by the
+                    # UI as unresolved. Making it a node would double every note.
+                    nodes: dict = {src: n for src, n in per.items()}
                     links = []
                     for src, targets in link_map.items():
-                        nodes[src] = per.get(src, 0)
                         for t in [t for t in targets.split(",") if t]:
-                            nodes[t] = nodes.get(t, 0)
                             links.append([src, t])
-                    for src, n in per.items():
-                        nodes.setdefault(src, n)
                     return {"nodes": [{"path": p, "chunks": n}
                                       for p, n in sorted(nodes.items())],
                             "links": links}
