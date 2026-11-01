@@ -175,7 +175,9 @@ def _root(spec: str) -> Path:
 
 def _root_prefix(root: Path) -> str:
     """The non-wildcard part of a root, for "is this chunk under that harness?".
-    For `~/.claude/**/*.md` that is `~/.claude`."""
+    For `~/.claude/**/*.md` that is `~/.claude`. The returned prefix keeps the
+    OS-native separators of the input, so startswith() comparisons against
+    recorded chunk paths work on every platform."""
     text = str(root)
     if not _is_glob(text):
         return text

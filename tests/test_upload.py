@@ -139,7 +139,7 @@ def test_oversize_body_is_refused_before_decoding(server):
     huge = "A" * (UPLOAD_MAX_BYTES + 1024)
     try:
         status, data = call(srv, "POST", "/upload", {"name": "x.md", "data": huge})
-    except (BrokenPipeError, ConnectionResetError):
+    except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
         return                              # refused mid-write: correct outcome
     assert status == 413
     assert "MiB" in data["error"]
