@@ -61,7 +61,7 @@ def test_glob_root_needs_no_code_change(tmp_path):
 
 
 def test_root_prefix_strips_the_wildcard(tmp_path):
-    assert hm._root_prefix(Path("/v/**/*.md")) == "/v"
+    assert hm._root_prefix(Path("/v/**/*.md")).replace("\\", "/") == "/v"
     assert hm._root_prefix(tmp_path) == str(tmp_path)
 
 
