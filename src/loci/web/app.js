@@ -17,6 +17,7 @@ const I18N = {
     navSources: "Sources", navQueries: "Queries", navAudit: "Activity log",
     phSearch: "Search the knowledge base…", phAsk: "Ask a question…",
     btnSearch: "Search", btnAsk: "Ask",
+    searching: "Searching…", thinking: "Thinking… (LLM synthesis takes a few seconds)",
     hHarnesses: "Harnesses",
     optAll: "all", optShared: "shared", optHarness: "harness",
     btnNew: "＋ New memory", pickNote: "select a memory",
@@ -87,6 +88,7 @@ const I18N = {
     navSources: "来源", navQueries: "查询", navAudit: "操作记录",
     phSearch: "搜索知识库…", phAsk: "输入问题…",
     btnSearch: "搜索", btnAsk: "提问",
+    searching: "检索中…", thinking: "思考中…（LLM 合成需要几秒）",
     hHarnesses: "工具（Harness）",
     optAll: "全部", optShared: "共享记忆", optHarness: "工具记忆",
     btnNew: "＋ 新建记忆", pickNote: "选择左侧记忆",
@@ -420,8 +422,17 @@ $("#ev-copy").addEventListener("click", async () => {
 
 async function runQuery() {
   const q = $("#q").value.trim(), ask = $("#ask").value.trim();
+  if (!q && !ask) return;
   const out = $("#answer"), ul = $("#hits");
+  const busy = ask ? $("#askbtn") : $("#qbtn");
+  const busyLabel = busy.textContent;
+  busy.disabled = true;
+  busy.textContent = t("searching");
+  out.classList.remove("hidden");
+  out.classList.add("hidden");
   try {
+    out.textContent = t("thinking");
+    out.classList.remove("hidden");
     if (ask) {                                  // Ask keeps the text answer
       closeEvidence();
       ul.classList.add("hidden");
@@ -447,6 +458,9 @@ async function runQuery() {
   } catch (e) {
     out.classList.remove("hidden");
     out.textContent = t("errorPrefix") + e.message;
+  } finally {
+    busy.disabled = false;
+    busy.textContent = busyLabel;
   }
 }
 
@@ -1230,6 +1244,12 @@ $("#login-btn").addEventListener("click", trySignIn);
 $("#token").addEventListener("keydown", (e) => e.key === "Enter" && trySignIn());
 $("#qbtn").addEventListener("click", runQuery);
 $("#askbtn").addEventListener("click", runQuery);
+$("#q").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); runQuery(); }
+});
+$("#ask").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); runQuery(); }
+});
 $("#mem-new").addEventListener("click", newMemory);
 $("#mem-save").addEventListener("click", saveMemory);
 $("#mem-del").addEventListener("click", deleteMemory);
