@@ -387,9 +387,15 @@ class Brain:
         if self._guard():
             return 0
         try:
-            prefix = str(path)
-            return sum(n for src, n in self._store.per_source().items()
-                       if src.startswith(prefix))
+            def norm(p: str) -> str:
+                return str(p).replace("\\", "/").rstrip("/")
+            prefix = norm(path)
+            total = 0
+            for src, n in self._store.per_source().items():
+                s = norm(src)
+                if s == prefix or s.startswith(prefix + "/"):
+                    total += n
+            return total
         except Exception:
             return 0
 
