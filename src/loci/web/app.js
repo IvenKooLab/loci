@@ -342,6 +342,10 @@ function scoreLabel(h) {
     : "";
 }
 
+function noteTitle(source) {
+  return String(source).split(/[\\/]/).pop().replace(/\.md$/i, "") || String(source);
+}
+
 function renderHits(hits) {
   const ul = $("#hits");
   ul.replaceChildren();
@@ -352,14 +356,16 @@ function renderHits(hits) {
     li.tabIndex = 0;
     li.setAttribute("role", "button");
     const head = el("div", "hit-head");
-    head.append(el("span", "hit-path",
-      h.source + (h.section ? " › " + h.section : "")));
+    // People read titles, not filesystem paths: lead with the note name and
+    // demote the full path to a muted single line under it.
+    head.append(el("span", "hit-title", noteTitle(h.source)
+      + (h.section ? " › " + String(h.section).replace(/^#+\s*/gm, "") : "")));
     if (typeof h.distance === "number") {
       head.append(el("span", "hit-score", (1 - h.distance).toFixed(2)));
     }
     const body = el("div", "hit-text",
       String(h.text || "").replace(/\s+/g, " ").slice(0, 160));
-    li.append(head, body);
+    li.append(head, el("div", "hit-path", h.source), body);
     const open = () => showEvidence(i);
     li.addEventListener("click", open);
     li.addEventListener("keydown", (ev) => {
@@ -428,8 +434,6 @@ async function runQuery() {
   const busyLabel = busy.textContent;
   busy.disabled = true;
   busy.textContent = t("searching");
-  out.classList.remove("hidden");
-  out.classList.add("hidden");
   try {
     out.textContent = t("thinking");
     out.classList.remove("hidden");
@@ -651,7 +655,7 @@ async function loadStats() {
   let text = stats;
   if (harness?.length) {
     text += "\n" + t("hHarnesses") + ":\n" + harness.map((h) =>
-      `  ${h.name}  ${h.files} ${t("files")} / ${h.chunks} ${t("chunks")}  ${t("updated")}: ${h.summary.status}`).join("\n");
+      `  ${h.name}  ${h.files} ${t("files")} / ${h.chunks} ${t("chunks")}  ${t("updated")}: ${t(h.summary.status)}`).join("\n");
   }
   $("#stats-out").textContent = text;
   $("#ingest-btn").style.display = isAdmin() ? "" : "none";
@@ -829,6 +833,7 @@ async function loadBoard() {
   let rows = [];
   let sources = [];
   let memories = 0;
+  let indexed = { chunks: 0, files: 0 };
   try {
     const [q, s, m] = await Promise.all([
       api("/queries?limit=500"),
@@ -838,6 +843,7 @@ async function loadBoard() {
     rows = q.queries || [];
     sources = s.sources || [];
     memories = (m.memories || []).length;
+    indexed = s.indexed || indexed;
   } catch (e) { /* render with zeros below */ }
 
   const scoped = rows.filter((r) => withinRange(r.ts || "", boardRange));
@@ -847,7 +853,6 @@ async function loadBoard() {
   const avgHits = scoped.length
     ? (scoped.reduce((a, r) => a + (r.hits || 0), 0) / scoped.length) : 0;
   const zeroPct = scoped.length ? Math.round((scoped.length - withHits.length) * 100 / scoped.length) : 0;
-  const indexed = window.__board_indexed || { chunks: 0, files: 0 };
 
   const cards = [
     [t("cardTotal"), scoped.length, ""],
@@ -963,7 +968,7 @@ async function graphBacklinks(source) {
     catch (e) { return null; }     // no graph support: badge stays hidden
   }
   if (!graphCache || !graphCache.nodes) return null;
-  const stem = source.split("/").pop().replace(/\.md$/i, "").toLowerCase();
+  const stem = source.split(/[\\/]/).pop().replace(/\.md$/i, "").toLowerCase();
   let n = 0;
   for (const [from, to] of graphCache.links || []) {
     if (from === source) continue;
@@ -987,9 +992,23 @@ function drawGraph(g) {
     canvas.width = Math.floor(box.width);
     canvas.height = Math.floor(Math.min(620, Math.max(380, box.width * 0.62)));
   }
+  // Same basename in two dirs (docs/ and docs/en/): prefix the parent so the
+  // canvas doesn't show two indistinguishable "01-hardware-limits" labels.
+  const baseCount = new Map();
+  for (const n of g.nodes || []) {
+    const parts = String(n.path).replace(/\.md$/i, "").split(/[\\/]/).filter(Boolean);
+    const base = parts.pop() || String(n.path);
+    baseCount.set(base, (baseCount.get(base) || 0) + 1);
+  }
+  const labelFor = (path) => {
+    const parts = String(path).replace(/\.md$/i, "").split(/[\\/]/).filter(Boolean);
+    const base = parts.pop() || String(path);
+    return baseCount.get(base) > 1 && parts.length
+      ? parts[parts.length - 1] + "/" + base : base;
+  };
   const nodes = (g.nodes || []).map((n) => ({
     path: n.path, chunks: n.chunks || 0,
-    name: n.path.split("/").pop().replace(/\.md$/i, ""),
+    name: labelFor(n.path),
     x: 0,
     y: 0,
     vx: 0, vy: 0,
@@ -1012,7 +1031,7 @@ function drawGraph(g) {
   const resolveTarget = (target) => byPath.get(target)
     || targets.get(normalize(target).replace(/^\/+/g, ""));
   const ghost = (target) => {
-    const name = target.split("/").pop();
+    const name = target.split(/[\\/]/).pop();
     const g = { path: target, chunks: 0, name, ghost: true,
       x: canvas.width / 2 + (Math.random() - 0.5) * 200,
       y: canvas.height / 2 + (Math.random() - 0.5) * 160, vx: 0, vy: 0 };
@@ -1027,7 +1046,9 @@ function drawGraph(g) {
       return from === to ? null : [from, to];
     })
     .filter(Boolean);
-  empty.classList.toggle("hidden", nodes.length > 0);
+  // The hint covers both true emptiness and "nodes exist but nothing links
+  // yet" — a bare grid of circles reads as broken without one line of why.
+  empty.classList.toggle("hidden", nodes.length > 0 && links.length > 0);
 
   // Disconnected notes have no physical centre: give each a stable grid slot.
   const linked = new Set();

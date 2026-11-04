@@ -172,8 +172,10 @@ h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; margin: 22px 0 1
 .hit:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .hit.on { border-color: var(--acc); box-shadow: var(--focus-ring); }
 .hit-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
-.hit-path { font-size: 12px; color: var(--muted); overflow: hidden;
+.hit-title { font-size: 13.5px; font-weight: 600; color: var(--fg); overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
+.hit-path { font-size: 11px; color: var(--muted); overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; margin-bottom: 4px; }
 .hit-score { margin-left: auto; font-size: 11px; color: var(--muted);
   font-variant-numeric: tabular-nums; }
 .hit-text { font-size: 13px; line-height: 1.5; }
@@ -484,7 +486,7 @@ h2 { font-size: 16px; letter-spacing: -.15px; }
   border-radius: 14px; padding: 18px; box-shadow: 0 12px 32px rgba(0,0,0,.14); }
 .graph-info h3 { font-size: 16px; line-height: 1.3; margin-bottom: 8px; }
 .graph-info .path { font-size: 12px; line-height: 1.5; }
-#graph-empty { position: absolute; inset: 45% 24px auto; text-align: center; }
+#graph-empty { position: absolute; inset: 14px 24px auto; text-align: center; }
 @media (max-width: 720px) {
   .topbar { padding: 20px 20px 0; }
   main { padding: 18px 18px 36px; }

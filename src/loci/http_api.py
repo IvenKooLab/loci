@@ -325,6 +325,11 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
                 self.headers.get("Authorization", ""),
                 self.client_address[0], local_admin)
             route, q = urlsplit(self.path).path, self._query()
+            if route == "/":                        # the console is the product
+                self.send_response(302)
+                self.send_header("Location", "/ui")
+                self.end_headers()
+                return
             if route == "/ui":                      # public shell; data is authed
                 if self._file("index.html", "text/html; charset=utf-8"):
                     return
