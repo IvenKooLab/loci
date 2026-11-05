@@ -358,8 +358,14 @@ function renderHits(hits) {
     const head = el("div", "hit-head");
     // People read titles, not filesystem paths: lead with the note name and
     // demote the full path to a muted single line under it.
-    head.append(el("span", "hit-title", noteTitle(h.source)
-      + (h.section ? " › " + String(h.section).replace(/^#+\s*/gm, "") : "")));
+    const title = h.title || noteTitle(h.source);
+    // title-aware chunking makes the section breadcrumb often repeat the
+    // title itself ("标题 › 标题") — strip the echo, keep sub-headings
+    let sec = h.section ? String(h.section).replace(/^#+\s*/gm, "") : "";
+    if (sec && sec.startsWith(title))
+      sec = sec.slice(title.length).replace(/^\s*›\s*/, "");
+    const label = title + (sec ? " › " + sec : "");
+    head.append(el("span", "hit-title", label));
     if (typeof h.distance === "number") {
       head.append(el("span", "hit-score", (1 - h.distance).toFixed(2)));
     }

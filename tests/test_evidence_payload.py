@@ -64,8 +64,11 @@ def test_payload_returns_full_text_and_slim_hits():
     assert payload["result"] == legacy_text(HITS)
     assert len(payload["hits"]) == 2
     assert payload["hits"][0]["text"] == HITS[0]["text"]      # not truncated
+    # title rides along for hit cards (None here: fixture paths don't exist
+    # on disk, so nothing could be extracted)
     assert set(payload["hits"][0]) == {"source", "section", "text",
-                                       "tags", "distance"}
+                                       "tags", "distance", "title"}
+    assert payload["hits"][0]["title"] is None
 
 
 def test_payload_retrieves_once():
