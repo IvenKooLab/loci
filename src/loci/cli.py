@@ -371,6 +371,55 @@ def cmd_export(cfg, out: str) -> None:
     print("next: in the native build, `loci import " + r["path"] + "`")
 
 
+def cmd_state(cfg, action: str, type_: str, key: str, data: str) -> None:
+    """Exact-key structured state (task snapshots, entity records).
+
+    Retrieved by key, never by semantic search — see `state` in the README
+    for the boundary between this and `loci remember`.
+    """
+    from loci import state
+    if action == "save":
+        raw = Path(data).read_text(encoding="utf-8") if data.startswith("@") else data
+        try:
+            parsed = json.loads(raw)
+        except ValueError as e:
+            raise SystemExit(f"data is not valid JSON: {e}")
+        print(state.save(cfg, type_, key, parsed))
+    elif action == "get":
+        found = state.get(cfg, type_, key)
+        if found is None:
+            raise SystemExit(f"(no {type_}/{key})")
+        print(json.dumps(found, ensure_ascii=False, indent=2))
+    elif action == "list":
+        rows = state.list_records(cfg, type_ or "")
+        if not rows:
+            print("(state store is empty)")
+            return
+        for r in rows:
+            when = time.strftime("%Y-%m-%d %H:%M", time.localtime(r["mtime"]))
+            print(f"{when}  {r['type']}/{r['key']}  {r['bytes']}B")
+    elif action == "del":
+        print("deleted" if state.delete(cfg, type_, key) else f"(no {type_}/{key})")
+
+
+def cmd_memory_health(cfg, as_json: bool) -> None:
+    """Which memory notes earn their keep: citations, corrections, age."""
+    from loci import citations
+    rows = citations.health(cfg)
+    if as_json:
+        print(json.dumps(rows, ensure_ascii=False, indent=2))
+        return
+    if not rows:
+        print("(no memory notes yet — loci remember writes them)")
+        return
+    print(f"{len(rows)} memory note(s), most-cited first")
+    print(f"{'cited':>5}  {'corr':>4}  {'age(d)':>6}  {'last-cited':>10}  flags  file")
+    for r in rows:
+        last = f"{r['last_cited_days_ago']:.1f}" if r["last_cited_days_ago"] is not None else "-"
+        print(f"{r['citations']:>5}  {r['corrections']:>4}  {r['age_days']:>6.1f}  "
+              f"{last:>10}  {','.join(r['flags']) or '-':<6} {r['file']}")
+
+
 def cmd_stats(cfg) -> None:
     _, store = build(cfg)
     hybrid = "on" if cfg.retrieval["hybrid"] else "off"
@@ -582,6 +631,19 @@ def main() -> None:
     p_export.add_argument("out", nargs="?", default="./loci-index.jsonl",
                           help="output file (default: ./loci-index.jsonl)")
 
+    p_state = sub.add_parser(
+        "state", help="exact-key structured state (task snapshots, entity records)")
+    p_state.add_argument("action", choices=["save", "get", "list", "del"])
+    p_state.add_argument("type", nargs="?", default="", help="record namespace")
+    p_state.add_argument("key", nargs="?", default="", help="unique id within the type")
+    p_state.add_argument("data", nargs="?", default="",
+                         help="JSON for save ('{...}' or @file); ignored otherwise")
+
+    p_health = sub.add_parser(
+        "memory-health",
+        help="which memory notes are cited, corrected, or dead weight")
+    p_health.add_argument("--json", action="store_true", help="machine-readable rows")
+
     sub.add_parser("stats", help="show what is in the index")
     p_harness = sub.add_parser(
         "harness", help="per-AI-tool memory stats; optionally refresh summaries")
@@ -654,6 +716,10 @@ def main() -> None:
         serve()
     elif args.cmd == "export":
         cmd_export(cfg, args.out)
+    elif args.cmd == "state":
+        cmd_state(cfg, args.action, args.type, args.key, args.data)
+    elif args.cmd == "memory-health":
+        cmd_memory_health(cfg, getattr(args, "json", False))
     elif args.cmd == "stats":
         cmd_stats(cfg)
     elif args.cmd == "harness":

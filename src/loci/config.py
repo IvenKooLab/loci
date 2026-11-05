@@ -35,6 +35,7 @@ DEFAULTS = {
     "http": {"host": "127.0.0.1", "port": 8765, "token": "", "icons": "./icons",
              "query_log": ""},
     "store": {"path": "./chroma_db"},
+    "state": {"path": "./state"},
 }
 
 
@@ -53,6 +54,7 @@ class Config:
     sync: dict = field(default_factory=dict)
     http: dict = field(default_factory=dict)
     store: dict = field(default_factory=dict)
+    state: dict = field(default_factory=dict)
     sources: list = field(default_factory=list)
     harnesses: list = field(default_factory=list)   # [[harness]] entries
     auth: list = field(default_factory=list)        # [[auth.tokens]] entries
@@ -94,7 +96,7 @@ def load(path: str = "config.toml") -> Config:
     if base is not None:
         # anchor relative runtime paths at LOCI_HOME so the same config works
         # from any cwd (chroma/store resolve against cwd otherwise)
-        for section in ("store", "memories", "wiki"):
+        for section in ("store", "memories", "wiki", "state"):
             v = getattr(cfg, section).get("path")
             if v and not Path(v).expanduser().is_absolute():
                 getattr(cfg, section)["path"] = str((base / v).resolve())

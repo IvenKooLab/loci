@@ -26,6 +26,23 @@
 ## Unreleased
 
 ### Added
+- **Exact-key structured state** (`brain_state_save` / `brain_state_get` /
+  `brain_state_list` / `brain_state_delete`, plus `loci state` and
+  `POST /state/*`): task snapshots and entity records live as plain JSON under
+  `state/<type>/<key>.json` and are fetched by exact key — no embedding, no
+  ranking, no dilution by similar-but-irrelevant content. Deliberately not
+  indexed into vectors; the README's "What belongs where" draws the boundary
+  (real-time slot state belongs in the host agent's session).
+- **Memory health** (`loci memory-health`, MCP `brain_memory_health`,
+  `GET /memory-health`): every search/answer that uses a memory note is
+  ledgered to `citations.jsonl`; the report joins citations, corrections
+  (`loci feedback bad`, which already sinks rated chunks), and age, flagging
+  `corrected` and `never-cited` notes as review candidates.
+- **Retrieval regression gate**: a fixed eval corpus (10 notes, en+zh) and 28
+  cases scored offline with deterministic token-hash vectors; recall@1/@5 and
+  MRR are compared against a committed baseline on every CI run. Hash vectors
+  are not product quality — they are *stable*, which is what makes a
+  regression visible.
 - **Graph tab in the console**: the `[[wikilink]]` map, force-laid-out on a
   canvas — drag nodes, click for in/out links, one click to search a note.
   Targets resolve by file stem, Obsidian-style; a link to a note that does not

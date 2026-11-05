@@ -45,8 +45,54 @@ loci combines vector search with BM25 and returns answers with `file > section` 
 | Carry context between AI tools | MCP tools share one instance; durable memories are Markdown files |
 | See what each coding agent remembers | Harness discovery, file browsing, per-tool stats and digest notes |
 | Manage the knowledge base visually | Built-in Web console for search, Q&A, memories, indexing and audit |
+| Resume a task exactly where it left off | Structured state by exact key (`brain_state_save` / `brain_state_get`) — no ranking in the way |
+| Prune memory with evidence instead of vibes | Memory health: citations, corrections and age per note (`loci memory-health`) |
 
 Markdown, text, HTML, org-mode and chat exports work out of the box. Optional extras add PDF, Word and OCR support. Keep using your existing note editor or Obsidian vault.
+
+## What belongs where
+
+Three kinds of "memory" fail differently, and mixing them is the classic
+misuse:
+
+| Kind | Lives in | Retrieved by | Right for | Wrong for |
+|---|---|---|---|---|
+| Free-text knowledge | memory notes (`brain_remember`) | hybrid retrieval | "what do we know about X" | exact resume of a task |
+| Structured state | `state/<type>/<key>.json` (`brain_state_save`) | exact key, no ranking | task snapshots, entity records, slot state worth persisting | prose you might want to fuzzy-find |
+| Live dialogue slots | the host agent's session | the host's own context | this turn's variables | anything you expect to survive the session |
+
+Rules of thumb:
+
+- If retrieval returning a *similar but wrong* record would be a bug, it is
+  state — key it and fetch exactly (`brain_state_get type=task key=8f3c`).
+- Real-time slot values change every turn; do not put them in the vector
+  store. Persist the ones worth keeping across sessions as state records.
+- Prose that a future question might phrase differently is knowledge —
+  `brain_remember` it, and let ranking do the work.
+
+State records are plain JSON, hand-editable, and deliberately **not indexed**
+into vectors: that is the boundary, not an omission.
+
+## Memory health
+
+Every search or answer that uses a memory note is ledgered (`citations.jsonl`
+in the instance directory). `loci memory-health` joins that with feedback
+(`loci feedback bad` — which also sinks the rated chunks in later retrieval)
+and age, and flags notes worth looking at:
+
+```
+$ loci memory-health
+12 memory note(s), most-cited first
+cited  corr  age(d)  last-cited  flags  file
+   17     0     41.2        0.3  -      20260920-103000-deploy-policy.md
+    0     2     63.8         -     corrected  20260830-090000-old-strategy.md
+    0     0     51.4         -     never-cited  20260901-120000-random-idea.md
+```
+
+`corrected` = rated bad after being used; `never-cited` = old and unused.
+Both are candidates for `brain_forget` — with evidence, not vibes. loci sees
+tool calls, not your conversation, so corrections reach it only through
+explicit feedback; the report never silently rewrites retrieval.
 
 ## Quick start
 

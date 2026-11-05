@@ -28,6 +28,36 @@ jobs:
           loci --help
           echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}' | loci-mcp | grep serverInfo
 
+  eval:
+    name: retrieval regression gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      # The gate refuses to run without a committed baseline: a deleted
+      # baseline must break the build, not silently disarm it. When missing,
+      # this job generates one, uploads it as an artifact, and fails — the
+      # committer lands the file and the next run gates for real.
+      - name: Recall@k over the fixed eval set
+        run: |
+          if [ ! -f scripts/eval_retrieval.baseline.json ]; then
+            echo "::error::baseline missing - generating one; commit the artifact as scripts/eval_retrieval.baseline.json"
+            python scripts/eval_retrieval.py --update-baseline
+            cat scripts/eval_retrieval.baseline.json
+            exit 1
+          fi
+          python scripts/eval_retrieval.py
+      - name: Upload generated baseline (first run only)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: retrieval-baseline
+          path: scripts/eval_retrieval.baseline.json
+          if-no-files-found: ignore
+
   native:
     name: native (Rust)
     runs-on: ubuntu-latest

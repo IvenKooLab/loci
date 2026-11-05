@@ -503,6 +503,38 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
                                      tags=body.get("tags"))
                 audit.add(self.entry, "remember", str(body.get("title", "")))
                 return self._guard(lambda: self._json(200, {"result": out}))
+            if route == "/state/save":
+                from loci import state as state_mod
+                try:
+                    path = state_mod.save(cfg, str(body.get("type", "")),
+                                          str(body.get("key", "")), body.get("data"))
+                    audit.add(self.entry, "state.save",
+                              f"{body.get('type')}/{body.get('key')}")
+                    return self._json(200, {"result": "saved", "path": path})
+                except ValueError as e:
+                    return self._json(400, {"error": str(e)})
+            if route == "/state/get":
+                from loci import state as state_mod
+                data = state_mod.get(cfg, str(body.get("type", "")),
+                                     str(body.get("key", "")))
+                if data is None:
+                    return self._json(404, {"error": "not found"})
+                return self._json(200, {"data": data})
+            if route == "/state/list":
+                from loci import state as state_mod
+                prefix = str(body.get("type_prefix", ""))
+                return self._json(200, {"records": state_mod.list_records(cfg, prefix)})
+            if route == "/state/delete":
+                from loci import state as state_mod
+                gone = state_mod.delete(cfg, str(body.get("type", "")),
+                                        str(body.get("key", "")))
+                if gone:
+                    audit.add(self.entry, "state.delete",
+                              f"{body.get('type')}/{body.get('key')}")
+                return self._json(200, {"deleted": gone})
+            if route == "/memory-health":
+                from loci import citations
+                return self._json(200, {"health": citations.health(cfg)})
             if route == "/memory":
                 return self._guard(lambda: self._memory_write(body))
             if not allowed(self.entry, "admin"):

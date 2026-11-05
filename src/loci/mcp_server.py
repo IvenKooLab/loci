@@ -22,6 +22,7 @@ import io
 import json
 import re
 import sys
+import time
 from pathlib import Path
 from urllib.parse import quote, unquote
 
@@ -177,6 +178,31 @@ TOOLS = [
             "properties": {"entity": {"type": "string",
                                       "description": "entity name; omit to list hub entities"}},
         },
+    },
+    {
+        "name": "brain_state_save",
+        "description": "Save structured state (task snapshot, entity record) under an exact key - retrieved later by key, never by semantic search. This is the right place for task state an agent must resume precisely; free-text knowledge belongs in brain_remember. data is stored verbatim as JSON (object or array, max 256 KiB); saving again with the same type+key overwrites.",
+        "inputSchema": {"type": "object", "required": ["type", "key", "data"], "properties": {"type": {"type": "string", "description": "record namespace, e.g. task / order / customer"}, "key": {"type": "string", "description": "unique id within the type"}, "data": {"type": ["object", "array"], "description": "the state to persist, verbatim"}}}
+    },
+    {
+        "name": "brain_state_get",
+        "description": "Fetch one structured record by exact type+key - no embedding, no ranking, no dilution by similar-but-irrelevant content. Use this to resume a task or read entity state saved with brain_state_save.",
+        "inputSchema": {"type": "object", "required": ["type", "key"], "properties": {"type": {"type": "string"}, "key": {"type": "string"}}}
+    },
+    {
+        "name": "brain_state_list",
+        "description": "List saved structured records (newest first), optionally only those whose type starts with type_prefix. Use it to discover ids before an exact brain_state_get.",
+        "inputSchema": {"type": "object", "properties": {"type_prefix": {"type": "string", "default": ""}}}
+    },
+    {
+        "name": "brain_state_delete",
+        "description": "Delete one structured record by exact type+key.",
+        "inputSchema": {"type": "object", "required": ["type", "key"], "properties": {"type": {"type": "string"}, "key": {"type": "string"}}}
+    },
+    {
+        "name": "brain_memory_health",
+        "description": "Report which memory notes are earning their keep: times cited by searches/answers, corrections (bad feedback), age, and flags for review (corrected, never-cited). Use it before brain_forget to prune dead weight with evidence instead of guessing.",
+        "inputSchema": {"type": "object", "properties": {}}
     },
     {
         "name": "brain_forget",
@@ -354,6 +380,7 @@ class Brain:
             # k rides as a per-call override — never mutates retriever state
             hits = self._retriever.search(query, tag=tag,
                                           path_contains=path_contains, k=k)
+            self._record_citations(hits, query, "search")
             blocks = []
             for i, h in enumerate(hits, 1):
                 where = h["source"] + (f" > {h['section']}" if h["section"] else "")
@@ -368,6 +395,75 @@ class Brain:
         # transient failure), which has no hits to report
         return {"result": out, "hits": []} if isinstance(out, str) else out
 
+    def _record_citations(self, hits: list[dict], query: str, via: str) -> None:
+        """Ledger every memory note a query actually used. Instrumentation:
+        must never raise into the search result."""
+        try:
+            from loci import citations
+            sources = [h["source"] for h in hits
+                       if "memory" in [t.strip().lower()
+                                       for t in str(h.get("tags", "")).split(",")]]
+            citations.record_citations(self._cfg, sources, query, via=via)
+        except Exception:
+            pass
+
+    # ---- exact-key state: task snapshots, entity records -------------
+
+    def _state_cfg(self):
+        return self._cfg if self._cfg is not None else __import__(
+            "loci.config", fromlist=["Config"]).Config()
+
+    def state_save(self, type_: str, key: str, data) -> str:
+        from loci import state as state_mod
+        path = state_mod.save(self._state_cfg(), type_, key, data)
+        return (f"saved: {type_}/{key}\n"
+                f"exact get with brain_state_get type={type_!r} key={key!r} — "
+                "no embedding, no ranking")
+
+    def state_get(self, type_: str, key: str) -> str:
+        from loci import state as state_mod
+        data = state_mod.get(self._state_cfg(), type_, key)
+        if data is None:
+            return f"(no {type_}/{key} — check the exact type and key with brain_state_list)"
+        return json.dumps(data, ensure_ascii=False, indent=2)
+
+    def state_list(self, type_prefix: str = "") -> str:
+        from loci import state as state_mod
+        rows = state_mod.list_records(self._state_cfg(), type_prefix)
+        if not rows:
+            return "(state store is empty)"
+        lines = [f"{len(rows)} record(s), newest first:"]
+        for r in rows[:50]:
+            when = time.strftime("%Y-%m-%d %H:%M", time.localtime(r["mtime"]))
+            lines.append(f"  {r['type']}/{r['key']}  {when}  {r['bytes']}B")
+        return "\n".join(lines)
+
+    def state_delete(self, type_: str, key: str) -> str:
+        from loci import state as state_mod
+        return ("deleted" if state_mod.delete(self._state_cfg(), type_, key)
+                else f"(no {type_}/{key})")
+
+    # ---- memory health: adoption made visible -------------------------
+
+    def memory_health(self) -> str:
+        from loci import citations
+        rows = citations.health(self._state_cfg())
+        if not rows:
+            return "(no memory notes yet — brain_remember writes them)"
+        lines = [f"{len(rows)} memory note(s), most-cited first:",
+                 "cited  corr  age(d)  last-cited  flags  file"]
+        for r in rows:
+            last = f"{r['last_cited_days_ago']:>6.1f}" if r["last_cited_days_ago"] is not None else "     -"
+            flags = ",".join(r["flags"]) or "-"
+            lines.append(f"{r['citations']:>5}  {r['corrections']:>4}  {r['age_days']:>6.1f}  "
+                         f"{last}  {flags:<14} {r['file']}")
+        flagged = [r for r in rows if r["flags"]]
+        if flagged:
+            lines.append("")
+            lines.append("review: `corrected` = rated bad via `loci feedback`; "
+                         "`never-cited` = old and unused. Remove with brain_forget.")
+        return "\n".join(lines)
+
     def search(self, query: str, k: int | None = None,
                tag: str | None = None, path_contains: str | None = None) -> str:
         return self.search_payload(query, k=k, tag=tag,
@@ -379,6 +475,7 @@ class Brain:
 
         def _do() -> str:
             hits = self._retriever.search(question)
+            self._record_citations(hits, question, "ask")
             if not hits:
                 return "(nothing relevant in the knowledge base)"
             from loci.retriever import answer, verify_answer
@@ -592,6 +689,16 @@ def _call_tool(brain: Brain, name: str, args: dict) -> str:
         return brain.wiki(args["topic"], k=args.get("k"))
     if name == "brain_graph":
         return brain.graph(args.get("entity"))
+    if name == "brain_state_save":
+        return brain.state_save(args["type"], args["key"], args["data"])
+    if name == "brain_state_get":
+        return brain.state_get(args["type"], args["key"])
+    if name == "brain_state_list":
+        return brain.state_list(args.get("type_prefix", ""))
+    if name == "brain_state_delete":
+        return brain.state_delete(args["type"], args["key"])
+    if name == "brain_memory_health":
+        return brain.memory_health()
     if name == "brain_forget":
         return brain.forget(args["query"])
     if name == "brain_ingest":
