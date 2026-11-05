@@ -112,6 +112,10 @@ started". Drop `zcode-logo.png`, `codex-openai.png`, `claude-code.svg`,
 `deepseek.svg` in there and the console renders them; without the files it
 falls back to the emoji rather than showing a broken image.
 
+Structured state (`brain_state_save`/`brain_state_get`), the citation ledger
+and `memory-health` are likewise Python-only for now — the native MCP surface
+does not expose them yet.
+
 Harness file browsing and digest generation are currently Python-only. The
 native console reports that file browsing is unavailable and does not generate
 digests.

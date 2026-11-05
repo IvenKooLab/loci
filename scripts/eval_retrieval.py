@@ -1,56 +1,105 @@
-"""Tiny retrieval eval: hit@5 for vector-only vs hybrid retrieval.
+"""Retrieval regression gate: recall@k over a fixed eval set.
+
+Changing retrieval parameters (rrf_k, top_k, tokenizer, fusion) used to land
+with tests green and quality unknown — the unit tests pin behavior, not
+ranking. This script pins ranking: a fixed corpus + fixed cases, scored
+offline with deterministic token-hash vectors, compared against a committed
+baseline. CI fails if any metric drops.
+
+Honest about what it is: hash vectors are not a real embedding model, so
+absolute numbers are not product quality. What they are is *stable* — any
+change that moves recall@k moved it for a reason you can find in the diff.
 
 Usage:
-    python scripts/eval_retrieval.py cases.jsonl
-
-Each line of cases.jsonl: {"query": "...", "expect": "substring of the
-relevant file's path"} — e.g. {"query": "T8 speedup", "expect": "08-t8"}.
-
-Prints a per-query comparison and a summary line. Read-only: never indexes.
+    python scripts/eval_retrieval.py                 # gate: fail on regression
+    python scripts/eval_retrieval.py --update-baseline   # after a deliberate change
 """
+from __future__ import annotations
+
+import argparse
+import importlib.util
 import json
+import math
 import sys
+import tempfile
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
 
-from loci import config  # noqa: E402
-from loci.cli import build, make_retriever  # noqa: E402
+# reuse the Obsidian eval's embedder/index helpers verbatim — two copies of
+# "deterministic test vectors" would drift, and then they would lie
+_spec = importlib.util.spec_from_file_location(
+    "obsidian_eval", ROOT / "scripts" / "eval_obsidian.py")
+_obsidian_eval = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_obsidian_eval)
+
+CORPUS = ROOT / "tests" / "fixtures" / "retrieval-eval" / "corpus"
+CASES = ROOT / "tests" / "fixtures" / "retrieval-eval" / "cases.jsonl"
+BASELINE = ROOT / "scripts" / "eval_retrieval.baseline.json"
+
+METRICS = ("recall_at_1", "recall_at_5", "mrr")
+TOLERANCE = 1e-9      # deterministic vectors: any real drop is a real drop
 
 
-def _run_variant(retriever, hybrid, cases, k=5):
-    retriever.hybrid = hybrid
-    ok = 0
-    for case in cases:
-        hits = retriever.search(case["query"])[:k]
-        good = any(case["expect"].lower() in h["source"].lower() for h in hits)
-        ok += good
-        top1 = hits[0]["source"].replace("\\", "/").split("/")[-1] if hits else "-"
-        print(f"  {'✓' if good else '✗'} {case['query'][:48]:<50} top1={top1}")
-    return ok, len(cases)
+def load_cases() -> list[dict]:
+    return [json.loads(line) for line in
+            CASES.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def main():
-    if len(sys.argv) < 2:
-        print(__doc__)
-        return
-    cases = [json.loads(l) for l in
-             Path(sys.argv[1]).read_text(encoding="utf-8").splitlines() if l.strip()]
-    if not cases:
-        print("no eval cases found")
-        return
+def score(k: int = 5) -> dict[str, float]:
+    cases = load_cases()
+    with tempfile.TemporaryDirectory(prefix="loci-retrieval-eval-") as tmp:
+        retriever = _obsidian_eval.make_index(CORPUS, Path(tmp) / "index")
+        ranks = []
+        for case in cases:
+            hits = retriever.search(case["query"], k=k)
+            rank = next((i for i, hit in enumerate(hits, 1)
+                         if case["expect"] in str(hit["source"])), None)
+            ranks.append(rank)
+    n = len(ranks)
+    return {
+        "recall_at_1": sum(r == 1 for r in ranks) / n,
+        "recall_at_5": sum(r is not None for r in ranks) / n,
+        "mrr": sum((1.0 / r if r else 0.0) for r in ranks) / n,
+    }
 
-    cfg = config.load()
-    embedder, store = build(cfg)
-    retriever = make_retriever(cfg, embedder, store)
 
-    print(f"eval: {sys.argv[1]} — hit@5 across {len(cases)} queries\n")
-    print("vector-only (hybrid off):")
-    v_ok, n = _run_variant(retriever, False, cases)
-    print("\nhybrid (vector + BM25, RRF fusion):")
-    h_ok, _ = _run_variant(retriever, True, cases)
-    print(f"\nsummary: vector-only {v_ok}/{n}  →  hybrid {h_ok}/{n}")
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--update-baseline", action="store_true",
+                        help="write current scores as the new baseline")
+    parser.add_argument("--verbose", action="store_true",
+                        help="print per-case ranks")
+    args = parser.parse_args()
+
+    current = score()
+    for name, value in current.items():
+        print(f"{name:>12}: {value:.4f}")
+
+    if args.update_baseline:
+        BASELINE.write_text(json.dumps(current, indent=2) + "\n", encoding="utf-8")
+        print(f"baseline updated -> {BASELINE.name}")
+        return 0
+
+    if not BASELINE.exists():
+        # first run on a machine: refuse to gate on nothing
+        print(f"no baseline at {BASELINE} — run with --update-baseline first")
+        return 2
+
+    baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
+    regressions = [name for name in METRICS
+                   if current[name] < baseline.get(name, 0.0) - TOLERANCE]
+    if regressions:
+        print("\nRETRIEVAL REGRESSION — the eval set got worse:")
+        for name in regressions:
+            print(f"  {name}: {baseline[name]:.4f} -> {current[name]:.4f}")
+        print("\nIf the change is deliberate and reviewed, update the baseline:")
+        print("  python scripts/eval_retrieval.py --update-baseline")
+        return 1
+    print("no regression against baseline")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

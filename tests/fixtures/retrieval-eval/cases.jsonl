@@ -1,0 +1,28 @@
+{"query": "how do we roll back a bad release", "expect": "deployment.md"}
+{"query": "blue green release process", "expect": "deployment.md"}
+{"query": "rollback criteria p99 latency", "expect": "deployment.md"}
+{"query": "consumer lag alarm threshold", "expect": "kafka-pipeline.md"}
+{"query": "how are kafka events partitioned", "expect": "kafka-pipeline.md"}
+{"query": "exactly once semantics idempotent producer", "expect": "kafka-pipeline.md"}
+{"query": "重疾险的等待期是多久", "expect": "insurance-products.md"}
+{"query": "医疗险免赔额 报销", "expect": "insurance-products.md"}
+{"query": "定期寿险需要体检吗", "expect": "insurance-products.md"}
+{"query": "乙肝携带者能标准体承保吗", "expect": "underwriting-rules.md"}
+{"query": "高空作业职业加费比例", "expect": "underwriting-rules.md"}
+{"query": "哪些情况直接拒保", "expect": "underwriting-rules.md"}
+{"query": "pager triage first steps", "expect": "oncall-runbook.md"}
+{"query": "when to escalate on-call", "expect": "oncall-runbook.md"}
+{"query": "postmortem deadline sev1", "expect": "oncall-runbook.md"}
+{"query": "how does rrf fusion work", "expect": "embedding-models.md"}
+{"query": "why lexical channel still needed", "expect": "embedding-models.md"}
+{"query": "cjk bigram tokenizer tradeoff", "expect": "embedding-models.md"}
+{"query": "投诉多久内要响应", "expect": "customer-complaints.md"}
+{"query": "拒赔争议复议流程", "expect": "customer-complaints.md"}
+{"query": "token rotation policy 90 days", "expect": "security-policy.md"}
+{"query": "where do secrets live", "expect": "security-policy.md"}
+{"query": "audit rows kept how long", "expect": "security-policy.md"}
+{"query": "免赔额降到五千的影响", "expect": "pricing-model.md"}
+{"query": "费率厘定考虑哪些因子", "expect": "pricing-model.md"}
+{"query": "偿付能力资本约束 定价", "expect": "pricing-model.md"}
+{"query": "3月12日会议的决议", "expect": "meeting-2026-03-12.md"}
+{"query": "streaming upgrade decision march", "expect": "meeting-2026-03-12.md"}
