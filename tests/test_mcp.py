@@ -39,7 +39,9 @@ def test_tools_list_matches_registry():
     names = [t["name"] for t in resp["result"]["tools"]]
     assert names == ["brain_search", "brain_ask", "brain_links",
                      "brain_stats", "brain_wiki", "brain_remember",
-                     "brain_graph", "brain_forget", "brain_ingest",
+                     "brain_graph", "brain_state_save", "brain_state_get",
+                     "brain_state_list", "brain_state_delete",
+                     "brain_memory_health", "brain_forget", "brain_ingest",
                      "brain_harness"]
     for tool in TOOLS:
         assert tool["inputSchema"]["type"] == "object"
