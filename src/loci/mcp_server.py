@@ -20,6 +20,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import re
 import sys
 from pathlib import Path
 from urllib.parse import quote, unquote
@@ -296,11 +297,39 @@ class Brain:
             return fn()
 
     @staticmethod
-    def _slim_hit(h: dict) -> dict:
+    def _slim_hit(h: dict, title: str | None = None) -> dict:
         """The fields a UI needs to render one hit — no index internals."""
         return {"source": h.get("source", ""), "section": h.get("section", ""),
                 "text": h.get("text", ""), "tags": h.get("tags", ""),
-                "distance": h.get("distance")}
+                "distance": h.get("distance"), "title": title}
+
+    def _file_title(self, path: str) -> str | None:
+        """Human title of a source file for hit cards: frontmatter `title:`,
+        else the first markdown heading, else frontmatter `name:` (zcode's
+        native memory format). None → UI falls back to the file stem. Cached
+        by (path, mtime) so edited files re-extract without a restart."""
+        cache = getattr(self, "_title_cache", None)
+        if cache is None:
+            cache = self._title_cache = {}
+        try:
+            mtime = Path(path).stat().st_mtime
+        except OSError:
+            return None
+        hit = cache.get(path)
+        if hit and hit[0] == mtime:
+            return hit[1]
+        title = None
+        try:
+            head = Path(path).read_text(encoding="utf-8", errors="ignore")[:2000]
+        except OSError:
+            head = ""
+        for pattern in (r"^title:\s*(.+)$", r"^#\s+(.+)$", r"^name:\s*(.+)$"):
+            m = re.search(pattern, head, re.M)
+            if m:
+                title = m.group(1).strip().strip('"')[:80]
+                break
+        cache[path] = (mtime, title)
+        return title
 
     def search_payload(self, query: str, k: int | None = None,
                        tag: str | None = None,
@@ -330,7 +359,9 @@ class Brain:
                 where = h["source"] + (f" > {h['section']}" if h["section"] else "")
                 blocks.append(f"[{i}] {where}\n{h['text'][:500]}")
             return {"result": "\n\n".join(blocks) or "(no results)",
-                    "hits": [self._slim_hit(h) for h in hits]}
+                    "hits": [self._slim_hit(
+                        h, title=self._file_title(h.get("source", "")))
+                        for h in hits]}
 
         out = self._retryable(_do)
         # _retryable can still hand back guidance text (pipeline gone after a

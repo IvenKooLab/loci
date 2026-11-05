@@ -99,3 +99,31 @@ def test_ingest_tool_keeps_protocol_stream_clean(monkeypatch, tmp_path):
 
 def test_protocol_version_constant_is_valid():
     assert PROTOCOL_VERSION.count("-") == 2
+
+
+def test_file_title_fallback_chain(tmp_path):
+    """Hit-card titles: frontmatter title: > first heading > name: > None."""
+    brain = Brain()
+    cases = {
+        "title.md": "---\ntitle: 显式标题\n---\nbody",
+        "heading.md": "# 正文一级标题\nbody",
+        "name.md": "---\nname: zcode-slug\n---\n# Heading wins over name",
+        "none.md": "plain text, no markers",
+    }
+    paths = {}
+    for name, text in cases.items():
+        p = tmp_path / name
+        p.write_text(text, encoding="utf-8")
+        paths[name] = str(p)
+
+    assert brain._file_title(paths["title.md"]) == "显式标题"
+    assert brain._file_title(paths["heading.md"]) == "正文一级标题"
+    # heading takes priority over name:
+    assert brain._file_title(paths["name.md"]) == "Heading wins over name"
+    assert brain._file_title(paths["none.md"]) is None
+    assert brain._file_title(str(tmp_path / "missing.md")) is None
+
+    # cache: same result on second call, fresh read after the file changes
+    assert brain._file_title(paths["title.md"]) == "显式标题"
+    (tmp_path / "title.md").write_text("---\ntitle: 新标题\n---\n", encoding="utf-8")
+    assert brain._file_title(paths["title.md"]) == "新标题"
