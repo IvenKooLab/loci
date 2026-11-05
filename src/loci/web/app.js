@@ -245,7 +245,6 @@ function refreshActiveTab() {
   if (tab === "sources") loadSources();
   if (tab === "queries") loadQueries();
   if (tab === "audit") loadAudit();
-  if (tab === "dash") loadDash();
 }
 document.querySelectorAll("nav button[data-tab]").forEach((b) =>
   b.addEventListener("click", () => {
@@ -287,7 +286,7 @@ function iconHtml(h) {
     : `<span class="icon">${h.icon}</span>`;
 }
 
-async function loadDash() {
+async function loadHarnessCards() {
   const { harness } = await api("/harness");
   const cards = $("#cards");
   cards.innerHTML = harness.map((h) => {
@@ -316,7 +315,7 @@ async function loadDash() {
         await api("/harness", { method: "POST",
           body: JSON.stringify({ action: "summarize", name: b.dataset.h }) });
       } catch (e) { alert(e.message); }
-      await loadDash();
+      await loadHarnessCards();
     }));
 }
 
@@ -836,6 +835,7 @@ function withinRange(ts, range) {
 }
 
 async function loadBoard() {
+  loadHarnessCards();                    // tools strip lives on the board
   let rows = [];
   let sources = [];
   let memories = 0;
@@ -1291,7 +1291,7 @@ async function boot() {
     me = h.me || null;
     $("#who").textContent = me ? `${me.label} · ${me.role}` : "";
     if (h.version) $("#ver").textContent = `v${h.version}`;
-    await loadDash();
+    await loadBoard();
   } catch (e) { /* login overlay shown on 401; other errors surface inline */ }
 }
 
