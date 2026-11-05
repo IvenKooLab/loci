@@ -1,0 +1,30 @@
+# loci
+
+> A local second brain that indexes notes and docs for hybrid search and question answering with citations, exposed as an MCP server, terminal tool, and web console.
+
+Requires Python 3.11+; install as loci-rag via pip, run `loci demo` with no configuration to try keyword-only search, and configure providers in config.toml for hybrid search. Key components: loci-mcp MCP server, web console at 127.0.0.1:8765/ui, and an optional native Rust build using a single SQLite index. All MCP clients should point at the same LOCI_HOME instance directory to share config, index, and memory files.
+
+## Docs
+
+- [loci README](https://raw.githubusercontent.com/IvenKooLab/loci/main/README.md): Turning notes and agent memories into a searchable knowledge base with citations, as MCP server, terminal, or browser.
+- [Architecture](https://raw.githubusercontent.com/IvenKooLab/loci/main/docs/ARCHITECTURE.md): Data flow into ChromaDB, module overview, identity and chunk ID invariants, and recipes for extending loaders, retrieval, and MCP tools.
+- [Usage guide](https://raw.githubusercontent.com/IvenKooLab/loci/main/docs/guide.en.md): Model provider configuration, hybrid retrieval demo with bilingual queries, reranking setup, and indexing PDFs, Word, org files and chat logs.
+- [Connect an Obsidian vault to loci (Python build)](https://raw.githubusercontent.com/IvenKooLab/loci/main/docs/obsidian.en.md): Setting up loci against an Obsidian vault on the Python build: selective scanning, config editing, and API key handling.
+- [Roadmap](https://raw.githubusercontent.com/IvenKooLab/loci/main/docs/roadmap.md): Shipped features by release, including the HTML and org-mode loaders, MCP server, hybrid retrieval, and planned work.
+
+## Diagrams
+
+- [Diagram sources](https://raw.githubusercontent.com/IvenKooLab/loci/main/docs/diagrams/diagrams.md): Editable Mermaid sources for the README diagrams, with pre-styled dark SVG versions in docs/assets.
+
+## Marketing
+
+- [Launch post — loci (EN)](https://raw.githubusercontent.com/IvenKooLab/loci/main/docs/marketing/launch-post-en.md): Ready-to-post Show HN and Reddit draft announcing loci, with problem framing, competitive findings, and title options.
+
+## Research
+
+- [Competitive Landscape Study — September 2026](https://raw.githubusercontent.com/IvenKooLab/loci/main/docs/research/competitive-landscape.md): Study of 13 high-star chat-with-your-notes tools, with star counts, five patterns, and what not to build.
+
+## Optional
+
+- [Changelog](https://raw.githubusercontent.com/IvenKooLab/loci/main/CHANGELOG.md): Release history listing added and fixed features per version, including knowledge graph, OCR, loaders, and state storage.
+- [Contributing](https://raw.githubusercontent.com/IvenKooLab/loci/main/CONTRIBUTING.md): Development setup, ground rules on dependencies and tests, module map pointer, and commit style.
