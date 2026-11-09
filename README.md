@@ -244,4 +244,4 @@ python -m pip install -e '.[dev,pdf]'
 pytest  # offline tests; no API keys required
 ```
 
-Find loci on [Glama](https://glama.ai/mcp/servers/IvenKooLab/loci), [ModelScope](https://modelscope.cn/mcp/servers/IvenKooLab/loci) and [awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers). Source: [GitHub](https://github.com/IvenKooLab/loci) · [Gitee](https://gitee.com/IvenKooLab/loci). Licensed under [MIT](LICENSE).
+Find loci on [Glama](https://glama.ai/mcp/servers/IvenKooLab/loci), [ModelScope](https://modelscope.cn/mcp/servers/IvenKooLab/loci) and [awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers). Source: [GitHub](https://github.com/IvenKooLab/loci) . Licensed under [MIT](LICENSE).
