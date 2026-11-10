@@ -83,3 +83,64 @@ def test_verify_prompt_bans_outside_knowledge(monkeypatch):
     system = _FakeOpenAI.seen["messages"][0]["content"]
     assert "outside knowledge" in system
     assert _FakeOpenAI.seen["temperature"] == 0.0
+
+
+# ---- cross-file inference (review thread: Jatin Garg, Dan Kornas) ----
+# "Two accurate citations can still be joined into a wrong conclusion."
+# The verifier must check the join, not just each excerpt.
+
+MULTI = [
+    {"id": "1", "text": "staging is used for demos", "source": "a.md",
+     "section": "Policy", "tags": "", "links": "", "chunk": 0,
+     "mtime": 0.0, "distance": None},
+    {"id": "2", "text": "the demo policy was replaced in March", "source": "b.md",
+     "section": "Update", "tags": "", "links": "", "chunk": 0,
+     "mtime": 0.0, "distance": None},
+]
+
+
+def test_multi_file_header_names_the_file_count(monkeypatch):
+    patch(monkeypatch, '[{"claim": "x", "status": "supported", "excerpts": [1, 2],'
+                       ' "cross_file": "ok"}]')
+    out = verify_answer(LLM, "q?", "a", MULTI)
+    assert "across 2 files" in out
+    assert "cross-file join checked" in out
+
+
+def test_unlicensed_cross_file_join_is_flagged(monkeypatch):
+    """Each citation is accurate, the inference is not in the sources."""
+    patch(monkeypatch, """[{"claim": "use staging for the demo next week",
+        "status": "supported", "excerpts": [1, 2], "cross_file": "unstated",
+        "reason": "b.md says the policy was replaced, not that it still applies"}]""")
+    out = verify_answer(LLM, "q?", "a", MULTI)
+    assert "⚠ cross-file inference not in the sources" in out
+    assert "replaced, not that it still applies" in out
+
+
+def test_single_source_claim_needs_no_cross_file_check(monkeypatch):
+    patch(monkeypatch, '[{"claim": "staging is used for demos", "status": "supported",'
+                       ' "excerpts": [1], "cross_file": "n/a"}]')
+    out = verify_answer(LLM, "q?", "a", MULTI)
+    claim_line = next(l for l in out.splitlines() if "staging is used for demos" in l)
+    assert "[excerpt 1]" in claim_line
+    # the header may mention the cross-file legend; the claim itself is clean
+    assert "cross-file" not in claim_line and "⚠" not in claim_line
+
+
+def test_legacy_single_excerpt_field_still_parses(monkeypatch):
+    patch(monkeypatch, '[{"claim": "old shape", "status": "supported", "excerpt": 2}]')
+    assert "[excerpt 2]" in verify_answer(LLM, "q?", "a", MULTI)
+
+
+def test_out_of_range_excerpt_numbers_are_dropped(monkeypatch):
+    patch(monkeypatch, '[{"claim": "x", "status": "supported", "excerpts": [1, 99]}]')
+    out = verify_answer(LLM, "q?", "a", MULTI)
+    assert "[excerpt 1]" in out and "99" not in out
+
+
+def test_prompt_requires_the_cross_file_check(monkeypatch):
+    patch(monkeypatch, "[]")
+    verify_answer(LLM, "q?", "a", MULTI)
+    system = _FakeOpenAI.seen["messages"][0]["content"]
+    assert "CROSS-FILE CHECK" in system
+    assert "unstated" in system

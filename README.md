@@ -41,6 +41,8 @@ loci combines vector search with BM25 and returns answers with `file > section` 
 | Need | How loci helps |
 |---|---|
 | Find a decision buried in your notes | Hybrid search across directories, with tag, path and date filters |
+| Search for an exact identifier | Literal matching for `user_id`, `api/v2`, `SHT45` — a symbol does not have to win a semantic ranking |
+| Know whether a decision still applies | `loci history` walks the supersession chain: what replaced it, and when |
 | Ask a question and check the evidence | Answers cite source sections; optional claim-by-claim verification |
 | Carry context between AI tools | MCP tools share one instance; durable memories are Markdown files |
 | See what each coding agent remembers | Harness discovery, file browsing, per-tool stats and digest notes |
@@ -72,6 +74,30 @@ Rules of thumb:
 
 State records are plain JSON, hand-editable, and deliberately **not indexed**
 into vectors: that is the boundary, not an omission.
+
+## Decision history
+
+A decision note edited in place loses the fact that something replaced it. Two
+frontmatter keys keep that visible, and `loci history` walks the chain:
+
+```markdown
+---
+supersedes: use-staging      # the note this one replaces
+effective: 2026-03-01        # when this one took effect
+---
+```
+
+```bash
+loci history use-staging
+# decision history, oldest first:
+#   1. use-staging (effective 2026-01-05)  → superseded by
+#   2. staging-exception (effective 2026-03-01)
+# current decision: staging-exception (effective 2026-03-01)
+```
+
+`loci ask` marks excerpts from superseded notes in the context it sends to the
+model, so an answer does not quote last quarter's decision as current policy —
+and it tells you how many excerpts were affected.
 
 ## Memory health
 

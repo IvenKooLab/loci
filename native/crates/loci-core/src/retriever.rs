@@ -12,7 +12,7 @@ use anyhow::Result;
 use crate::bm25::{Bm25Index, Bm25Params};
 use crate::embed::Embedder;
 use crate::store::{Store, StoredChunk};
-use crate::tokenizer::Tokenizer;
+use crate::tokenizer::{identifier_runs, Tokenizer};
 
 #[derive(Debug, Clone)]
 pub struct RetrievalConfig {
@@ -117,6 +117,18 @@ impl<'a> Retriever<'a> {
 
     /// Lexical ranking for `query`, rebuilding the index only when the corpus
     /// size changed. Returns owned pairs so callers do not hold a borrow.
+    /// Identifier-shaped literals in a query, lowercased.
+    ///
+    /// Plain words and pure numbers are excluded — they match too much text to
+    /// be a precise signal.
+    fn identifier_terms(query: &str) -> Vec<String> {
+        let lowered = query.to_lowercase();
+        identifier_runs(&lowered)
+            .into_iter()
+            .filter(|t| t.len() >= 3 && !t.chars().all(|c| c.is_ascii_digit()))
+            .collect()
+    }
+
     fn lexical_score(&mut self, query: &str) -> Result<Vec<(String, f64)>> {
         let count = self.store.count()?;
         let stale = self.bm25.is_none() || self.bm25_key != Some(count);
@@ -210,7 +222,44 @@ impl<'a> Retriever<'a> {
             }
         }
 
-        let fused = self.fuse(&ranked_lists);
+        let mut fused = self.fuse(&ranked_lists);
+
+        // Exact-literal channel for identifier-shaped queries: a specific
+        // symbol should not have to win a semantic ranking. Additive — it
+        // promotes chunks containing the literal string, never drops one.
+        let terms = Self::identifier_terms(query);
+        if !terms.is_empty() {
+            let texts = self.store.all_texts()?;
+            let mut boost: HashMap<String, f64> = HashMap::new();
+            for (id, text) in &texts {
+                let lowered = text.to_lowercase();
+                let hits = terms.iter().filter(|t| lowered.contains(t.as_str())).count();
+                if hits > 0 {
+                    boost.insert(id.clone(), hits as f64);
+                }
+            }
+            if !boost.is_empty() {
+                for (id, score) in fused.iter_mut() {
+                    if let Some(b) = boost.get(id) {
+                        *score += b;
+                    }
+                }
+                // a literal match outside the fused candidates is a channel of
+                // its own; it must be able to surface, so give it an entry
+                let known: std::collections::HashSet<String> =
+                    fused.iter().map(|(id, _)| id.clone()).collect();
+                let extra: Vec<(String, f64)> = boost
+                    .iter()
+                    .filter(|(id, _)| !known.contains(*id))
+                    .map(|(id, b)| (id.clone(), *b))
+                    .collect();
+                fused.extend(extra);
+                fused.sort_by(|a, b| {
+                    b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)
+                });
+            }
+        }
+
         let mut out = Vec::new();
         for (id, score) in fused {
             let Some(chunk) = by_id.get(&id) else { continue };
@@ -364,5 +413,46 @@ mod tests {
             second.iter().any(|h| h.source == "/new.md"),
             "{first:?} {second:?}"
         );
+    }
+
+    /// Identifiers must be findable by their exact spelling (review thread:
+    /// "searching for a specific symbol shouldn't depend on the semantic
+    /// ranking"). `user_id` and `user-id` are different strings and must
+    /// surface different documents.
+    #[test]
+    fn exact_identifier_beats_the_vector_favourite() {
+        use crate::store::SourceWrite;
+        let dir = std::env::temp_dir().join(format!("loci-ident-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let store = Store::open(dir.join("index.db")).unwrap();
+        let emb = HashEmbedder::default();
+        let docs = [
+            ("/a.md", "the user id column is set during signup; user table has id"),
+            ("/b.md", "call the user_id field from the API response"),
+            ("/c.md", "use user-id in the header when proxying to the legacy service"),
+        ];
+        for (src, text) in docs {
+            let vec = emb.embed(&[text.to_string()]).unwrap();
+            let chunks = crate::chunker::split_markdown(
+                text, crate::chunker::ChunkParams { size: 400, overlap: 0 });
+            let pairs: Vec<(String, String)> = chunks
+                .iter().map(|c| (c.text.clone(), c.section.clone())).collect();
+            store.upsert_source(&SourceWrite {
+                source: src, file_hash: "h", mtime: 0.0, tags: "",
+                chunks: &pairs,
+                chashes: &pairs.iter().map(|(t, _)| crate::loader::chunk_hash(t)).collect::<Vec<_>>(),
+                vectors: &vec.into_iter().take(pairs.len()).collect::<Vec<_>>(),
+                links: &[],
+            }).unwrap();
+        }
+        let mut r = Retriever::new(&store, &emb, RetrievalConfig::default());
+
+        let underscore = r.search("user_id", &Filters::default(), Some(3)).unwrap();
+        assert_eq!(underscore[0].source, "/b.md", "got {:?}",
+                   underscore.iter().map(|h| &h.source).collect::<Vec<_>>());
+
+        let hyphen = r.search("user-id", &Filters::default(), Some(3)).unwrap();
+        assert_eq!(hyphen[0].source, "/c.md", "got {:?}",
+                   hyphen.iter().map(|h| &h.source).collect::<Vec<_>>());
     }
 }
