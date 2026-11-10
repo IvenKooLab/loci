@@ -142,6 +142,8 @@ loci serve-http
 |---|---|
 | `brain_search` · `brain_ask` | 检索片段，或生成带来源的回答 |
 | `brain_remember` · `brain_forget` | 写入或撤回长期记忆 |
+| `brain_state_save` · `brain_state_get` · `brain_state_list` · `brain_state_delete` | 按精确键存取结构化状态（任务快照、实体档案） |
+| `brain_memory_health` | 查看每条记忆的引用数、纠正次数与年龄 |
 | `brain_links` · `brain_graph` | 查看笔记链接和提取的知识关系 |
 | `brain_wiki` · `brain_harness` | 整理专题知识、查看 Agent 记忆 |
 | `brain_stats` · `brain_ingest` | 查看和刷新索引 |

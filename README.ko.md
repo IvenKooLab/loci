@@ -9,6 +9,7 @@
 <p align="center">
   <a href="https://github.com/IvenKooLab/loci/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/IvenKooLab/loci/ci.yml?branch=main&amp;label=CI" alt="CI"></a>
   <a href="https://pypi.org/project/loci-rag/"><img src="https://img.shields.io/pypi/v/loci-rag?color=367d65" alt="PyPI"></a>
+  <img src="https://img.shields.io/badge/MCP-server-367d65" alt="MCP server">
   <img src="https://img.shields.io/badge/Python-3.11%2B-367d65" alt="Python 3.11+">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-367d65" alt="MIT license"></a>
 </p>
@@ -16,6 +17,8 @@
 **흩어진 노트, 프로젝트 문서, Agent의 기억을 검색하고 질문하며 출처까지 확인할 수 있는 지식 베이스로 만드세요. 터미널, 브라우저, MCP 클라이언트에서 사용할 수 있습니다.**
 
 loci는 벡터 검색과 BM25를 결합하고 답변에 `파일 > 섹션` 인용을 붙입니다. 파일과 인덱스는 로컬에 저장됩니다. 임베딩과 채팅 요청은 설정한 서비스로 전송되며, 로컬 모델로 전체 과정을 오프라인에서 실행할 수도 있습니다.
+
+**MCP가 핵심입니다.** `loci-mcp`를 Claude Desktop, Cursor, Cline 등 MCP 호스트에 등록하면 어시스턴트가 지식 베이스 전체를 도구로 사용합니다. Web 콘솔과 데스크톱 셸은 같은 인덱스의 다른 프런트엔드일 뿐, 꼭 필요하지는 않습니다.
 
 [빠른 시작](#빠른-시작) · [Web 콘솔](#web-콘솔) · [AI 도구 연결](#ai-도구-연결) · [상세 가이드 · 영어](docs/guide.en.md)
 
@@ -29,6 +32,23 @@ loci는 벡터 검색과 BM25를 결합하고 답변에 `파일 > 섹션` 인용
 ![loci console — dark theme, fictional demo data](docs/assets/console-demo-dark.png)
 
 </details>
+
+
+## 무엇을 어디에 둘까
+
+세 종류의 "기억"은 실패 방식이 다릅니다. 섞어 쓰는 것이 가장 흔한 오용입니다.
+
+| 종류 | 저장 위치 | 가져오는 방식 | 적합 | 부적합 |
+|---|---|---|---|---|
+| 자유 텍스트 지식 | 메모리 노트(`brain_remember`) | 하이브리드 검색 | "X에 대해 무엇을 아는가" | 작업을 정확히 재개하기 |
+| 구조화 상태 | `state/<type>/<key>.json` (`brain_state_save`) | 키로 정확히 조회, 랭킹 없음 | 작업 스냅샷, 엔티티 기록, 세션을 넘겨 남길 값 | 대충 찾고 싶은 산문 |
+| 실시간 대화 슬롯 | 호스트 Agent의 세션 | 호스트 자체 컨텍스트 | 이번 턴의 변수 | 세션을 넘겨 남기고 싶은 것 |
+
+판단 기준: 검색이 "비슷하지만 틀린" 레코드를 반환하는 것이 버그라면 그것은 상태입니다. 키를 붙여 `brain_state_get type=task key=8f3c` 로 정확히 가져오세요. 매 턴 바뀌는 슬롯을 벡터 DB에 넣지 마십시오. 상태 레코드는 손으로 편집 가능한 평범한 JSON이며 **의도적으로** 벡터 인덱스에 넣지 않습니다. 빠진 것이 아니라 경계입니다.
+
+## 메모리 건강도
+
+검색이나 답변이 메모리 노트를 사용할 때마다 원장(인스턴스 디렉터리의 `citations.jsonl`)에 한 줄 기록됩니다. `loci memory-health` 는 여기에 피드백(`loci feedback bad` — bad 평가는 해당 청크를 이후 검색에서 가라앉힙니다)과 경과 일수를 합쳐 `corrected`(사용 후 bad 평가)와 `never-cited`(오래됐고 인용된 적 없음)를 검토 후보로 표시합니다. 근거를 가지고 `brain_forget` 하기 위한 것입니다. loci 는 도구 호출만 볼 수 있고 대화는 볼 수 없으므로, 정정 신호는 명시적 피드백을 통해서만 전달됩니다. 보고서가 검색 동작을 몰래 바꾸지는 않습니다.
 
 ## 무엇을 할 수 있나요?
 

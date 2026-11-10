@@ -172,6 +172,8 @@ Use an absolute executable path if your client cannot find `loci-mcp`. The insta
 |---|---|
 | `brain_search` · `brain_ask` | Retrieve excerpts or get cited answers |
 | `brain_remember` · `brain_forget` | Store or retract durable memories |
+| `brain_state_save` · `brain_state_get` · `brain_state_list` · `brain_state_delete` | Exact-key structured state (task snapshots, entity records) |
+| `brain_memory_health` | Which memory notes are cited, corrected, or dead weight |
 | `brain_links` · `brain_graph` | Explore note links and extracted relations |
 | `brain_wiki` · `brain_harness` | Consolidate knowledge and inspect agent memories |
 | `brain_stats` · `brain_ingest` | Inspect and refresh the index |

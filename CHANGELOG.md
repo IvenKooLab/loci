@@ -26,6 +26,17 @@
 ## Unreleased
 
 ### Added
+### Fixed
+- README tool table drifted from the registry: it still listed 10 MCP tools
+  after state + memory-health shipped (15 now), so the docs a share sends
+  people to undercounted the product. `tests/test_readme_tools.py` pins the
+  table to the `TOOLS` literal via `ast` (no heavy imports), both directions —
+  a new tool missing from the docs, or a ghost tool left in it, fails CI.
+- zh-TW / ja / ko READMEs: added the missing MCP-server badge and the
+  "**MCP is the point**" positioning line (the three translations listed
+  terminal/browser/MCP as equals and had no MCP badge), plus the three-way
+  memory boundary and memory-health sections already present in en/zh-CN.
+
 - **Exact-key structured state** (`brain_state_save` / `brain_state_get` /
   `brain_state_list` / `brain_state_delete`, plus `loci state` and
   `POST /state/*`): task snapshots and entity records live as plain JSON under
