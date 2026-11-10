@@ -9,6 +9,7 @@
 <p align="center">
   <a href="https://github.com/IvenKooLab/loci/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/IvenKooLab/loci/ci.yml?branch=main&amp;label=CI" alt="CI"></a>
   <a href="https://pypi.org/project/loci-rag/"><img src="https://img.shields.io/pypi/v/loci-rag?color=367d65" alt="PyPI"></a>
+  <img src="https://img.shields.io/badge/MCP-server-367d65" alt="MCP server">
   <img src="https://img.shields.io/badge/Python-3.11%2B-367d65" alt="Python 3.11+">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-367d65" alt="MIT license"></a>
 </p>
@@ -16,6 +17,8 @@
 **將散落的筆記、專案文件與 Agent 記憶，整理成可搜尋、提問及追溯來源的知識庫。終端機、瀏覽器與 MCP 用戶端都能使用。**
 
 loci 結合向量檢索與 BM25，回答附上「檔案 > 章節」引用。檔案與索引保存在本機；向量化及對話請求會送往你設定的服務，也可以搭配本機模型離線運作。
+
+**MCP 才是核心。** 把 `loci-mcp` 掛到 Claude Desktop、Cursor、Cline 或任何 MCP 宿主，你的助理就能把整個知識庫當成工具使用。Web 管理介面與桌面外殼只是同一份索引的其他前端，完全可以不用。
 
 [快速開始](#快速開始) · [Web 管理介面](#web-管理介面) · [接入-ai-工具](#接入-ai-工具) · [詳細指南（簡中）](docs/guide.zh-CN.md)
 
@@ -29,6 +32,23 @@ loci 結合向量檢索與 BM25，回答附上「檔案 > 章節」引用。檔�
 ![loci console — dark theme, fictional demo data](docs/assets/console-demo-dark.png)
 
 </details>
+
+
+## 什麼該放在哪
+
+三種「記憶」的失效方式不同，混用是最典型的誤用：
+
+| 類型 | 存放位置 | 取回方式 | 適合 | 不適合 |
+|---|---|---|---|---|
+| 自由文字知識 | 記憶筆記（`brain_remember`） | 混合檢索 | 「關於 X 我們知道什麼」 | 精確續接某個任務 |
+| 結構化狀態 | `state/<type>/<key>.json`（`brain_state_save`） | 按鍵精確取回，不排序 | 任務快照、實體檔案、值得跨會話保留的欄位 | 想模糊找一找的散文 |
+| 即時對話欄位 | 宿主 Agent 的會話 | 宿主自己的上下文 | 本輪變數 | 任何想跨會話存活的東西 |
+
+判斷法則：如果檢索回傳「相似但錯誤」的紀錄算 bug，那就是狀態——加鍵，用 `brain_state_get type=task key=8f3c` 精確取。即時欄位每輪都在變，不要進向量庫；值得跨會話保留的才寫成狀態。狀態紀錄是純 JSON、可手改，並且**刻意不進**向量索引：這是邊界，不是缺失。
+
+## 記憶健康度
+
+每次搜尋或回答用到某條記憶，都會記入台帳（實例目錄下的 `citations.jsonl`）。`loci memory-health` 把它與回饋（`loci feedback bad`，bad 同時會讓這些塊在後續檢索中下沉）及年齡合在一起，標出 `corrected`（用過之後被評 bad）與 `never-cited`（老舊且從未被引用）——兩者都是 `brain_forget` 的候選，用證據說話而非憑感覺。loci 看得到工具呼叫、看不到你的對話，所以糾正訊號只能透過顯式回饋到達；報告本身不會靜默改寫檢索行為。
 
 ## 可以用來做什麼
 

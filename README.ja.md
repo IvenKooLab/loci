@@ -9,6 +9,7 @@
 <p align="center">
   <a href="https://github.com/IvenKooLab/loci/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/IvenKooLab/loci/ci.yml?branch=main&amp;label=CI" alt="CI"></a>
   <a href="https://pypi.org/project/loci-rag/"><img src="https://img.shields.io/pypi/v/loci-rag?color=367d65" alt="PyPI"></a>
+  <img src="https://img.shields.io/badge/MCP-server-367d65" alt="MCP server">
   <img src="https://img.shields.io/badge/Python-3.11%2B-367d65" alt="Python 3.11+">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-367d65" alt="MIT license"></a>
 </p>
@@ -16,6 +17,8 @@
 **散らばったノート、プロジェクト文書、Agent の記憶を、検索・質問・出典確認ができる知識ベースに。ターミナル、ブラウザー、MCP クライアントから使えます。**
 
 loci はベクトル検索と BM25 を組み合わせ、回答に「ファイル > セクション」の引用を付けます。ファイルとインデックスはローカルに保存され、埋め込みとチャットのリクエストは設定したサービスに送信されます。ローカルモデルでオフライン運用することもできます。
+
+**MCP が本体です。** `loci-mcp` を Claude Desktop / Cursor / Cline などの MCP ホストに登録すれば、アシスタントが知識ベース全体をツールとして使えます。Web コンソールとデスクトップ版は同じインデックスの別フロントエンドにすぎず、必須ではありません。
 
 [クイックスタート](#クイックスタート) · [Web コンソール](#web-コンソール) · [AI ツールとの接続](#ai-ツールとの接続) · [詳細ガイド（英語）](docs/guide.en.md)
 
@@ -29,6 +32,23 @@ loci はベクトル検索と BM25 を組み合わせ、回答に「ファイル
 ![loci console — dark theme, fictional demo data](docs/assets/console-demo-dark.png)
 
 </details>
+
+
+## 何をどこに置くか
+
+3 種類の「記憶」は失敗のしかたが違います。混ぜることが典型的な誤用です。
+
+| 種類 | 置き場所 | 取り出し方 | 向いているもの | 向かないもの |
+|---|---|---|---|---|
+| 自由テキストの知識 | メモリノート（`brain_remember`） | ハイブリッド検索 | 「X について何を知っているか」 | タスクの正確な再開 |
+| 構造化ステート | `state/<type>/<key>.json`（`brain_state_save`） | キーで正確に取得、ランキングなし | タスクのスナップショット、エンティティ情報、セッションを跨いで残したい値 | 曖昧に探したい散文 |
+| 対話中のスロット | ホスト Agent のセッション | ホスト自身のコンテキスト | そのターンの変数 | セッションを跨いで残したいもの |
+
+判断基準：検索が「似ているが誤った」レコードを返すことがバグなら、それはステートです。キーを付け、`brain_state_get type=task key=8f3c` で正確に取得します。毎ターン変わるスロットをベクタ DB に入れないでください。ステートは手編集できるプレーン JSON で、**意図的に**ベクタインデックスには入れません。省略ではなく境界です。
+
+## メモリの健全性
+
+検索や回答がメモリノートを使うたび、台帳（インスタンス配下の `citations.jsonl`）に 1 行記録されます。`loci memory-health` はこれとフィードバック（`loci feedback bad`。bad 評価は該当チャンクを以降の検索で沈めます）と経過日数を突き合わせ、`corrected`（使用後に bad と評価）と `never-cited`（古く未引用）をレビュー候補として示します。証拠にもとづく `brain_forget` のためのものです。loci が見えるのはツール呼び出しだけで対話は見えないため、訂正は明示的なフィードバック経由でのみ届きます。レポートが検索動作を黙って書き換えることはありません。
 
 ## できること
 
