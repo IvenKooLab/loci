@@ -173,4 +173,4 @@ python -m pip install -e '.[dev,pdf]'
 pytest
 ```
 
-[GitHub](https://github.com/IvenKooLab/loci) · [Gitee](https://gitee.com/IvenKooLab/loci) · [MIT](LICENSE)
+[GitHub](https://github.com/IvenKooLab/loci) · [MIT](LICENSE)

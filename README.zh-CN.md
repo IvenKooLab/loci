@@ -206,4 +206,4 @@ python -m pip install -e '.[dev,pdf]'
 pytest  # 纯离线测试，无需 API key
 ```
 
-收录与展示：[Glama](https://glama.ai/mcp/servers/IvenKooLab/loci)、[ModelScope](https://modelscope.cn/mcp/servers/IvenKooLab/loci)、[awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers)。源码：[GitHub](https://github.com/IvenKooLab/loci) · [Gitee](https://gitee.com/IvenKooLab/loci)。[MIT 许可证](LICENSE)。
+收录与展示：[Glama](https://glama.ai/mcp/servers/IvenKooLab/loci)、[ModelScope](https://modelscope.cn/mcp/servers/IvenKooLab/loci)、[awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers)。源码：[GitHub](https://github.com/IvenKooLab/loci)。[MIT 许可证](LICENSE)。
