@@ -54,16 +54,16 @@ H3 官方完整版工作流在 Turing 卡上会因节点缺失（如 T8 BlockCac
 
 ## Sources
 
-- E:\work\gitee\minimax-h3-turing\docs\01-hardware-limits.md > 01 · 2080Ti 22G 的先天限制
-- E:\work\gitee\minimax-h3-turing\docs\05-workflows.md > 05 · compat 工作流说明 > 为什么是 "compat"
-- E:\work\gitee\minimax-h3-turing\docs\06-faq.md > 06 · 踩坑 FAQ > 9. TE-Speed 能装能跑，但作品报废
-- E:\work\gitee\minimax-h3-turing\docs\01-hardware-limits.md > 01 · 2080Ti 22G 的先天限制 > 对 H3 的三个直接影响 > 2. DiT 必须跑 INT8（W4A8）
-- E:\work\gitee\minimax-h3-turing\docs\08-t8-blockcache-4step.md > 08 · T8 BlockCache 四步实测：43% 提速就在眼前，但有两个坑 > 实操建议（4 步 Turbo 路线）
-- E:\work\gitee\minimax-h3-turing\docs\07-upgrade-watch.md > 07 · ComfyUI 升级窗口追踪 > 提速路线判决全景（截至本文）
-- E:\work\gitee\minimax-h3-turing\docs\01-hardware-limits.md > 01 · 2080Ti 22G 的先天限制 > h3lite 仓库没有 2080 专属 issue
-- E:\work\gitee\minimax-h3-turing\docs\02-w4a8-vs-w4a4.md > 02 · 量化路线实测：W4A8 vs W4A4 > 误差数据
-- E:\work\gitee\minimax-h3-turing\docs\09-pdd-backport.md > 09 · PDD 提前落地：不等 release 的 master backport 实录 > Ref2VA（i2v 路线）同样落地（2026-09-04 补测）
-- E:\work\gitee\minimax-h3-turing\docs\04-community-tips.md > 04 · 社区经验验证：可直接抄的三点
-- E:\work\gitee\minimax-h3-turing\docs\01-hardware-limits.md > 01 · 2080Ti 22G 的先天限制 > 对 H3 的三个直接影响 > 1. SageAttention / T8 加速内核面向 SM80+
-- E:\work\gitee\minimax-h3-turing\docs\09-pdd-backport.md > 09 · PDD 提前落地：不等 release 的 master backport 实录 > 未尽事项
+- notes/minimax-h3-turing/docs/01-hardware-limits.md > 01 · 2080Ti 22G 的先天限制
+- notes/minimax-h3-turing/docs/05-workflows.md > 05 · compat 工作流说明 > 为什么是 "compat"
+- notes/minimax-h3-turing/docs/06-faq.md > 06 · 踩坑 FAQ > 9. TE-Speed 能装能跑，但作品报废
+- notes/minimax-h3-turing/docs/01-hardware-limits.md > 01 · 2080Ti 22G 的先天限制 > 对 H3 的三个直接影响 > 2. DiT 必须跑 INT8（W4A8）
+- notes/minimax-h3-turing/docs/08-t8-blockcache-4step.md > 08 · T8 BlockCache 四步实测：43% 提速就在眼前，但有两个坑 > 实操建议（4 步 Turbo 路线）
+- notes/minimax-h3-turing/docs/07-upgrade-watch.md > 07 · ComfyUI 升级窗口追踪 > 提速路线判决全景（截至本文）
+- notes/minimax-h3-turing/docs/01-hardware-limits.md > 01 · 2080Ti 22G 的先天限制 > h3lite 仓库没有 2080 专属 issue
+- notes/minimax-h3-turing/docs/02-w4a8-vs-w4a4.md > 02 · 量化路线实测：W4A8 vs W4A4 > 误差数据
+- notes/minimax-h3-turing/docs/09-pdd-backport.md > 09 · PDD 提前落地：不等 release 的 master backport 实录 > Ref2VA（i2v 路线）同样落地（2026-09-04 补测）
+- notes/minimax-h3-turing/docs/04-community-tips.md > 04 · 社区经验验证：可直接抄的三点
+- notes/minimax-h3-turing/docs/01-hardware-limits.md > 01 · 2080Ti 22G 的先天限制 > 对 H3 的三个直接影响 > 1. SageAttention / T8 加速内核面向 SM80+
+- notes/minimax-h3-turing/docs/09-pdd-backport.md > 09 · PDD 提前落地：不等 release 的 master backport 实录 > 未尽事项
 
