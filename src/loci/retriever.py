@@ -3,6 +3,7 @@ LLM reranking and answer verification, and grounded answer synthesis."""
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from openai import OpenAI
@@ -16,6 +17,36 @@ SYSTEM_PROMPT = (
     "say so plainly — do not invent. End your reply with a list of citations "
     "in the form [source: file path > section]."
 )
+
+
+# Identifiers are the queries semantic ranking serves worst: `user_id`,
+# `user-id` and `user id` carry the same words but mean different things, and
+# an embedding sees all three as "about users". A literal match is the honest
+# signal, so an identifier-shaped query gets one — additive only, it promotes
+# chunks that contain the exact string and never removes a result.
+_IDENTIFIER_QUERY = re.compile(
+    r"[A-Za-z0-9]+(?:[-_.:/]{1,2}[A-Za-z0-9]+)+"      # user_id, api/v2, a.b.c, ns::f
+    r"|[A-Za-z]*\d[A-Za-z0-9]*")                      # SHT45, v2, x64
+
+
+def identifier_terms(query: str) -> list[str]:
+    """Identifier-shaped literals in a query, lowercased and de-duplicated.
+
+    Plain words, single letters and pure numbers are excluded: they match too
+    much text to be a precise signal, and boosting them would just re-rank
+    common words.
+    """
+    terms: list[str] = []
+    for match in _IDENTIFIER_QUERY.finditer(query):
+        token = match.group(0).lower().strip("-_.:/")
+        if len(token) < 3 or token.isdigit() or token in terms:
+            continue
+        # a bare word with a trailing digit (`sht45`) is worth matching; a
+        # single letter plus digit (`v2`) is too common to be a signal
+        if len(token) <= 2:
+            continue
+        terms.append(token)
+    return terms
 
 
 class Retriever:
@@ -127,12 +158,28 @@ class Retriever:
         for r, (cid, _) in enumerate(ranked):
             scores[cid] = scores.get(cid, 0.0) + 1.0 / (self.rrf_k + r + 1)
         by_id = {h["id"]: h for h in vhits}
-        missing = [cid for cid, _ in ranked if cid not in by_id]
+        # Identifier-shaped queries get an exact-literal channel (Dan Kornas'
+        # point: a specific symbol should not have to win a semantic ranking).
+        # The corpus texts are already in hand from the cache path, so this is
+        # one substring scan, and only for queries that contain an identifier.
+        # Additive: it promotes literal matches, never drops a result.
+        terms = identifier_terms(query)
+        if terms:
+            for cid, doc in zip(ids, docs):
+                lowered = doc.lower()
+                hits = sum(1 for term in terms if term in lowered)
+                if hits:
+                    # an RRF contribution is ~1/(60+r) ≈ 0.016, so a whole
+                    # point per matched term puts literal hits decisively above
+                    # semantic-only ones while preserving their order among
+                    # themselves
+                    scores[cid] = scores.get(cid, 0.0) + float(hits)
+
+        ordered = sorted(scores.items(), key=lambda kv: -kv[1])[: self.top_k * 4]
+        missing = [cid for cid, _ in ordered if cid not in by_id]
         if missing:
             by_id.update({h["id"]: h for h in self.store.get_many(missing)})
-        ordered = sorted(scores.items(), key=lambda kv: -kv[1])[: self.top_k * 4]
         return [by_id[cid] for cid, _ in ordered if cid in by_id]
-
 
 QUERY_REWRITE_PROMPT = (
     "Rewrite this search query for a personal knowledge base to improve retrieval. "
@@ -199,15 +246,88 @@ def rerank_hits(llm_cfg: dict, query: str, hits: list[dict]) -> list[dict]:
 
 VERIFY_PROMPT = (
     "You audit RAG answers for faithfulness. You get a question, an answer, "
-    "and numbered source excerpts. Split the answer into its individual "
-    "factual claims. For each claim, decide whether the excerpts support it. "
-    'Reply with ONLY a JSON array like [{"claim": "...", "status": "supported", '
-    '"excerpt": 2}] — status is "supported", "partial" or "unsupported"; '
-    '"excerpt" is the best supporting excerpt number, or null when unsupported. '
+    "and numbered source excerpts, each labelled with the file it came from.\n\n"
+    "Split the answer into its individual factual claims. For each claim, find "
+    "every excerpt that supports it, then decide:\n"
+    '  "supported"   — the excerpts state it outright\n'
+    '  "partial"     — they support part of it, or support it only through a '
+    "step they do not state\n"
+    '  "unsupported" — nothing in the excerpts backs it\n\n'
+    "CROSS-FILE CHECK — required whenever a claim rests on excerpts from more "
+    "than one file. Two accurate citations can still be joined into a wrong "
+    "conclusion, so verify the join itself: are the excerpts about the same "
+    "entity, version, time period and scope? Does the combination license the "
+    "claim, or does it need an assumption the sources never state? Report "
+    '\"cross_file\":\n'
+    '  "n/a"      — the claim rests on a single excerpt\n'
+    '  "ok"       — the multi-source join is licensed by what the excerpts say\n'
+    '  "unstated" — each citation is accurate, but the inference joining them '
+    'is not stated in the sources; name the missing step in \"reason\"\n\n'
+    "Reply with ONLY a JSON array like "
+    '[{"claim": "...", "status": "supported", "excerpts": [1, 3], '
+    '"cross_file": "ok", "reason": ""}] — "excerpts" lists every excerpt the '
+    "claim relies on; \"reason\" is a short note, used when status is not "
+    "\"supported\" or cross_file is \"unstated\". "
     "Do not use outside knowledge to judge claims."
 )
 
 _STATUS_MARK = {"supported": "✓", "partial": "~", "unsupported": "✗"}
+
+
+def _excerpt_refs(claim: dict, n_hits: int) -> list[int]:
+    """Excerpt numbers a claim cites, from `excerpts` (list) or `excerpt` (int)."""
+    raw = claim.get("excerpts")
+    if raw is None:
+        raw = claim.get("excerpt")
+    if isinstance(raw, (int, float)):
+        raw = [raw]
+    if not isinstance(raw, list):
+        return []
+    return [int(i) for i in raw
+            if isinstance(i, (int, float)) and 0 < int(i) <= n_hits]
+
+
+def format_verification(claims: list, hits: list[dict]) -> str:
+    """Render the verification report. Pure — no LLM, so it is testable.
+
+    A multi-file answer is called out in the header, and a claim whose support
+    needs a cross-file inference the sources do not license is marked with the
+    missing step, rather than getting a clean ✓.
+    """
+    files = {h["source"] for h in hits}
+    header = ("Claim-by-claim check against the sources "
+              "(✓ supported, ~ partial, ✗ unsupported):")
+    if len(files) > 1:
+        header = (f"Claim-by-claim check across {len(files)} files "
+                  f"({len(hits)} excerpts; ✓ supported, ~ partial, "
+                  "✗ unsupported, ⚠ unlicensed cross-file join):")
+    lines = []
+    for c in claims:
+        claim = str(c.get("claim", "")).strip()
+        status = str(c.get("status", "unsupported")).lower()
+        mark = _STATUS_MARK.get(status, "?")
+        refs = _excerpt_refs(c, len(hits))
+        # singular for one source of support, plural when the claim needs a
+        # join — the shape of the citation is itself information
+        if len(refs) == 1:
+            where = f" [excerpt {refs[0]}]"
+        elif refs:
+            where = f" [excerpts {', '.join(str(r) for r in refs)}]"
+        else:
+            where = ""
+        line = f"  {mark} {claim}{where}"
+        cross = str(c.get("cross_file", "")).lower()
+        reason = str(c.get("reason", "")).strip()
+        if cross == "unstated":
+            # the exact failure mode the review thread named: both citations
+            # check out, the conclusion does not follow from them
+            line += "  ⚠ cross-file inference not in the sources"
+            if reason:
+                line += f": {reason}"
+        elif cross == "ok" and len(refs) > 1:
+            line += "  (cross-file join checked)"
+        lines.append(line)
+    return header + "\n" + "\n".join(lines)
 
 
 def verify_answer(llm_cfg: dict, question: str, answer_text: str,
@@ -236,26 +356,26 @@ def verify_answer(llm_cfg: dict, question: str, answer_text: str,
         claims = json.loads(resp.choices[0].message.content or "[]")
         if not claims:
             return "(verification returned no claims — answer not audited)"
-        lines = []
-        for c in claims:
-            claim = str(c.get("claim", "")).strip()
-            status = str(c.get("status", "unsupported")).lower()
-            mark = _STATUS_MARK.get(status, "?")
-            idx = c.get("excerpt")
-            where = f" [excerpt {idx}]" if isinstance(idx, int) and 0 < idx <= len(hits) else ""
-            lines.append(f"  {mark} {claim}{where}")
-        return ("Claim-by-claim check against the sources "
-                f"(✓ supported, ~ partial, ✗ unsupported):\n" + "\n".join(lines))
+        return format_verification(claims, hits)
     except Exception as e:
         return f"(verification unavailable: {type(e).__name__}: {e})"
 
 
 def answer(llm_cfg: dict, question: str, hits: list[dict],
            history: list[dict] | None = None) -> str:
+    def _warn(hit: dict) -> str:
+        # a superseded note is history, not current practice: say so in the
+        # context, or the model will quote last quarter's decision as policy
+        if not hit.get("superseded_by"):
+            return ""
+        when = f" (effective {hit['effective']})" if hit.get("effective") else ""
+        return (f"\n[SUPERSEDED by {hit['superseded_by']}{when} — historical, "
+                "not current practice]")
+
     context = "\n\n---\n\n".join(
         f"[chunk {i + 1} | source: {h['source']}"
         + (f" | section: {h['section']}" if h.get("section") else "")
-        + f"]\n{h['text']}"
+        + f"]{_warn(h)}\n{h['text']}"
         for i, h in enumerate(hits))
     client = OpenAI(base_url=llm_cfg["base_url"], api_key=llm_cfg["api_key"])
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]

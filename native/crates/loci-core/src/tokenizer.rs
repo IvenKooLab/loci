@@ -15,6 +15,7 @@ pub enum Tokenizer {
     Default,
     CjkBigram,
     HyphenJoin,
+    Identifier,
 }
 
 impl Tokenizer {
@@ -23,12 +24,13 @@ impl Tokenizer {
             "default" | "" => Some(Self::Default),
             "cjk_bigram" => Some(Self::CjkBigram),
             "hyphen_join" => Some(Self::HyphenJoin),
+            "identifier" => Some(Self::Identifier),
             _ => None,
         }
     }
 
     pub fn names() -> &'static [&'static str] {
-        &["default", "cjk_bigram", "hyphen_join"]
+        &["default", "cjk_bigram", "hyphen_join", "identifier"]
     }
 
     pub fn tokenize(self, text: &str) -> Vec<String> {
@@ -36,6 +38,7 @@ impl Tokenizer {
             Self::Default => default_tokens(text),
             Self::HyphenJoin => hyphen_join_tokens(text),
             Self::CjkBigram => cjk_bigram_tokens(text),
+            Self::Identifier => identifier_tokens(text),
         }
     }
 }
@@ -73,6 +76,67 @@ fn default_tokens(text: &str) -> Vec<String> {
 
 /// default, plus the joined spelling of hyphenated compounds so a `wifi`
 /// query finds `Wi-Fi`.
+/// `default`, plus each identifier kept whole.
+///
+/// `default` splits on every non-alphanumeric run, so `user_id`, `user-id`
+/// and `user id` all become `user` + `id`: identical tokens, mutually
+/// indistinguishable, and a query for one ranks documents containing the
+/// others equally. This appends the untouched surface form (lowercased) so
+/// `user_id` also indexes as `user_id`.
+///
+/// Purely additive — every `default` token is still emitted, so recall cannot
+/// drop; only identifier-bearing documents gain a discriminating term.
+fn identifier_tokens(text: &str) -> Vec<String> {
+    let mut out = default_tokens(text);
+    let lowered = text.to_lowercase();
+    let mut seen: std::collections::HashSet<String> = out.iter().cloned().collect();
+    for run in identifier_runs(&lowered) {
+        if seen.insert(run.clone()) {
+            out.push(run);
+        }
+    }
+    out
+}
+
+/// Identifier-shaped runs: segments joined by `_ - . : /`, or letters mixed
+/// with digits (`sht45`, `x64`).
+pub(crate) fn identifier_runs(lowered: &str) -> Vec<String> {
+    let chars: Vec<char> = lowered.chars().collect();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        if !is_word_char(chars[i]) {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        while i < chars.len() {
+            let c = chars[i];
+            let joins = matches!(c, '_' | '-' | '.' | ':' | '/');
+            if is_word_char(c) {
+                i += 1;
+            } else if joins
+                && i + 1 < chars.len()
+                && is_word_char(chars[i + 1])
+                && i > start
+            {
+                i += 1;              // keep the separator inside the run
+            } else {
+                break;
+            }
+        }
+        let run: String = chars[start..i].iter().collect();
+        let trimmed = run.trim_matches(|c| matches!(c, '-' | '_' | '.' | ':' | '/'));
+        let has_separator = trimmed.contains(['_', '-', '.', ':', '/']);
+        let mixed = trimmed.chars().any(|c| c.is_ascii_digit())
+            && trimmed.chars().any(|c| c.is_ascii_alphabetic());
+        if !trimmed.is_empty() && (has_separator || mixed) {
+            out.push(trimmed.to_string());
+        }
+    }
+    out
+}
+
 fn hyphen_join_tokens(text: &str) -> Vec<String> {
     let mut out = default_tokens(text);
     let lowered = text.to_lowercase();
@@ -215,5 +279,43 @@ mod tests {
         assert_eq!(Tokenizer::from_name("cjk_bigram"), Some(Tokenizer::CjkBigram));
         assert_eq!(Tokenizer::from_name(""), Some(Tokenizer::Default));
         assert_eq!(Tokenizer::from_name("nope"), None);
+    }
+
+    #[test]
+    fn identifier_keeps_the_surface_form() {
+        let toks = Tokenizer::Identifier.tokenize("call the user_id field");
+        assert!(toks.contains(&"user_id".to_string()));
+        // additive: the default tokens are still there
+        assert!(toks.contains(&"user".to_string()));
+        assert!(toks.contains(&"id".to_string()));
+    }
+
+    #[test]
+    fn identifier_separates_underscore_from_hyphen() {
+        let underscore = Tokenizer::Identifier.tokenize("user_id");
+        let hyphen = Tokenizer::Identifier.tokenize("user-id");
+        assert!(underscore.contains(&"user_id".to_string()));
+        assert!(!underscore.contains(&"user-id".to_string()));
+        assert!(hyphen.contains(&"user-id".to_string()));
+        assert!(!hyphen.contains(&"user_id".to_string()));
+    }
+
+    #[test]
+    fn identifier_does_not_double_plain_words() {
+        // `sht45` is already one default token; re-emitting it would skew TF
+        let toks = Tokenizer::Identifier.tokenize("SHT45 drift");
+        assert_eq!(toks.iter().filter(|t| *t == "sht45").count(), 1);
+    }
+
+    #[test]
+    fn identifier_is_registered_by_name() {
+        assert_eq!(Tokenizer::from_name("identifier"), Some(Tokenizer::Identifier));
+        assert!(Tokenizer::names().contains(&"identifier"));
+    }
+
+    #[test]
+    fn default_stays_frozen() {
+        assert_eq!(Tokenizer::Default.tokenize("user_id"),
+                   vec!["user".to_string(), "id".to_string()]);
     }
 }

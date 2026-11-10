@@ -112,6 +112,8 @@ started". Drop `zcode-logo.png`, `codex-openai.png`, `claude-code.svg`,
 `deepseek.svg` in there and the console renders them; without the files it
 falls back to the emoji rather than showing a broken image.
 
+Decision history (`loci history`), cross-file verification and ask-time supersession warnings are Python-only; the native build has no `ask` surface yet. Identifier matching (tokenizer + exact-literal channel) is in both builds.
+
 Structured state (`brain_state_save`/`brain_state_get`), the citation ledger
 and `memory-health` are likewise Python-only for now — the native MCP surface
 does not expose them yet.

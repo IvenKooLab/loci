@@ -26,6 +26,23 @@
 ## Unreleased
 
 ### Added
+- **Identifier matching** (review feedback on the launch post): the BM25
+  tokenizer split on every non-alphanumeric run, so `user_id`, `user-id` and
+  `user id` produced identical tokens and a query for one ranked the others
+  equally. Two fixes, both additive — `[bm25] tokenizer = "identifier"` keeps
+  each identifier whole *in addition* to the old tokens (recall cannot drop),
+  and identifier-shaped queries now get an exact-literal channel in fusion, so
+  a symbol no longer has to win a semantic ranking. In both builds.
+- **Cross-file verification**: `loci ask --verify` now asks for the excerpts
+  behind each claim (`excerpts: [1,3]`) and checks the *join* when they come
+  from different files — "two accurate citations can still be joined into a
+  wrong conclusion". A claim whose inference is not licensed by the sources is
+  marked `⚠ cross-file inference not in the sources` with the missing step.
+- **Decision history** (`loci history <note>`): `supersedes:` / `effective:`
+  frontmatter records what replaced a decision and when; the command walks the
+  chain oldest-first and names the current one. `loci ask` tags excerpts from
+  superseded notes in the model context, so stale policy is not quoted as
+  current.
 ### Fixed
 - README tool table drifted from the registry: it still listed 10 MCP tools
   after state + memory-health shipped (15 now), so the docs a share sends

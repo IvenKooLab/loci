@@ -28,6 +28,13 @@ _TOKEN = re.compile(r"[a-z0-9]+|[\u4e00-\u9fff]")
 _CJK_RUN = re.compile(r"[\u4e00-\u9fff]+")
 _LATIN_RUN = re.compile(r"[a-z0-9]+")
 _HYPHENATED = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)+")
+# An identifier-shaped run: joined by `_`, `-`, `.`, `::` or `/`, or containing
+# both letters and digits. Kept whole so `user_id`, `user-id` and `user id`
+# stop collapsing into the same two tokens.
+_IDENTIFIER = re.compile(
+    r"[a-z0-9]+(?:[-_.:/]+[a-z0-9]+)+"
+    r"|(?=[a-z0-9]*\d)[a-z0-9]*[a-z]\d[a-z0-9]*"
+    r"|\d+[a-z][a-z0-9]*")
 
 _registry: dict[str, object] = {}
 
@@ -81,6 +88,35 @@ def cjk_bigram_tokenize(text: str) -> list[str]:
             tokens.append(run)
         else:
             tokens.extend(run[i:i + 2] for i in range(len(run) - 1))
+    return tokens
+
+
+@register("identifier")
+def identifier_tokenize(text: str) -> list[str]:
+    """`default`, plus each identifier kept whole.
+
+    `default` splits on every non-alphanumeric run, so `user_id`, `user-id`
+    and `user id` all become `user` + `id` — identical tokens, mutually
+    indistinguishable, and a query for one ranks documents containing the
+    others equally. This adds the untouched surface form (lowercased) as an
+    extra token, so `user_id` also indexes as `user_id` and only documents
+    that literally contain it match.
+
+    Purely additive: every `default` token is still emitted, so recall never
+    drops — only the identifier-bearing documents gain a discriminating term.
+    Opt in with `[bm25] tokenizer = "identifier"`.
+    """
+    lowered = text.lower()
+    tokens = _TOKEN.findall(lowered)
+    seen = set(tokens)
+    for m in _IDENTIFIER.finditer(lowered):
+        token = m.group(0)
+        # a plain word like `sht45` is already a `default` token; re-emitting it
+        # would double its term frequency and skew BM25 — only add new surface
+        # forms, which is the whole point of this tokenizer
+        if token not in seen:
+            seen.add(token)
+            tokens.append(token)
     return tokens
 
 

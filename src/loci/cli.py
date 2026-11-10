@@ -135,11 +135,47 @@ def cmd_ask(cfg, question: str, rerank: bool | None = None,
     if not hits:
         print("(nothing relevant in the knowledge base)")
         return
+    from loci import supersede
+    supersede.annotate(hits, supersede.table_for(cfg.sources, cfg.memories.get("path", "")))
+    stale = [h for h in hits if h.get("superseded_by")]
+    if stale:
+        print("(note: %d excerpt(s) are superseded — see `loci history`)\n"
+              % len(stale))
     print("Answer:\n")
     reply = answer(cfg.llm, question, hits)
     print(reply)
     if verify:
         print("\n" + verify_answer(cfg.llm, question, reply, hits))
+
+
+def cmd_history(cfg, name: str) -> None:
+    """Walk a decision's supersession chain, oldest first.
+
+    Reads `supersedes` / `effective` from note frontmatter — no LLM, no
+    database. Answers both "what should I do now?" and "why did it change?".
+    """
+    from loci import supersede
+    table = supersede.table_for(cfg.sources, cfg.memories.get("path", ""))
+    if not table:
+        print("(no supersession history — add `supersedes: <note>` and "
+              "`effective: YYYY-MM-DD` to a note's frontmatter)")
+        return
+    stem = name.lower()
+    matches = [k for k in table if k.lower() == stem] or \
+              [k for k in table if stem in k.lower()]
+    if not matches:
+        print(f"(no note matching '{name}' in the supersession history)")
+        print("known chains: " + ", ".join(sorted(table)))
+        return
+    for key in matches:
+        line = supersede.chain(table, key)
+        print(f"{table[key]['path']}")
+        print(supersede.describe(line))
+        current = supersede.current_of(table, key)
+        if current and current["stem"] != key:
+            when = f" (effective {current['effective']})" if current["effective"] else ""
+            print(f"\ncurrent decision: {current['stem']}{when}")
+        print()
 
 
 def cmd_feedback(cfg, verdict: str) -> None:
@@ -577,6 +613,10 @@ def main() -> None:
     p_ask.add_argument("--rewrite", action="store_true",
                        help="LLM-rewrite the query (keyword + translation variants)")
 
+    p_hist = sub.add_parser(
+        "history", help="what superseded a decision, and when it took effect")
+    p_hist.add_argument("name", help="note name or stem to trace")
+
     p_links = sub.add_parser("links", help="show [[wikilink]] outbound/inbound links for a note")
     p_links.add_argument("note", help="note name (stem) to look up")
 
@@ -688,6 +728,8 @@ def main() -> None:
     elif args.cmd == "chat":
         cfg.validate()
         cmd_chat(cfg)
+    elif args.cmd == "history":
+        cmd_history(cfg, args.name)
     elif args.cmd == "links":
         cmd_links(cfg, args.note)
     elif args.cmd == "remember":

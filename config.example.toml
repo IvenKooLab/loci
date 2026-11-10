@@ -101,6 +101,10 @@ rrf_k = 60        # RRF smoothing constant; higher = flatter fusion weights
 #   "jieba"      word-level Chinese segmentation; needs the optional package
 #                (pip install 'loci-rag[zh]'). Sharper on dictionary words but
 #                loses sub-word matches, so try cjk_bigram first.
+#   "identifier" default, plus each identifier kept whole — "user_id" also
+#                indexes as "user_id", so it stops meaning the same thing as
+#                "user-id" and "user id". Use for dev notes, config and API
+#                references. Purely additive: recall never drops.
 tokenizer = "default"
 
 [watch]
