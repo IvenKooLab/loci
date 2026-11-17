@@ -202,6 +202,7 @@ Use an absolute executable path if your client cannot find `loci-mcp`. The insta
 | `brain_memory_health` | Which memory notes are cited, corrected, or dead weight |
 | `brain_links` · `brain_graph` | Explore note links and extracted relations |
 | `brain_wiki` · `brain_harness` | Consolidate knowledge and inspect agent memories |
+| `brain_governance` · `brain_quality` | Lifecycle scan (superseded / duplicate / stale notes) and retrieval-quality drift |
 | `brain_stats` · `brain_ingest` | Inspect and refresh the index |
 
 The server also exposes note resources and briefing, study-plan and contradiction-check prompts. See the [MCP guide](docs/guide.en.md#mount-it-in-any-mcp-host) for details.

@@ -36,6 +36,9 @@ DEFAULTS = {
              "query_log": ""},
     "store": {"path": "./chroma_db"},
     "state": {"path": "./state"},
+    # Read-only governance defaults. Nothing here changes retrieval; it only
+    # decides when `loci governance` starts calling a note stale.
+    "governance": {"stale_days": 180},
 }
 
 
@@ -55,6 +58,7 @@ class Config:
     http: dict = field(default_factory=dict)
     store: dict = field(default_factory=dict)
     state: dict = field(default_factory=dict)
+    governance: dict = field(default_factory=dict)
     sources: list = field(default_factory=list)
     harnesses: list = field(default_factory=list)   # [[harness]] entries
     auth: list = field(default_factory=list)        # [[auth.tokens]] entries
