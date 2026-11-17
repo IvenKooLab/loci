@@ -178,6 +178,32 @@ def cmd_history(cfg, name: str) -> None:
         print()
 
 
+def cmd_governance(cfg, as_json: bool, stale_days: int | None) -> None:
+    """Read-only lifecycle scan: what in this corpus can no longer be trusted."""
+    from loci import citations, governance
+    cited = citations.load_citations(cfg)
+    findings = governance.scan(cfg, stale_days=stale_days, cited=cited)
+    if as_json:
+        print(json.dumps(findings, ensure_ascii=False, indent=2))
+        return
+    print(governance.report(findings))
+
+
+def cmd_quality(cfg, pin: bool, window: int) -> None:
+    """Retrieval health over the query log, against a pinned baseline."""
+    from loci import quality
+    if pin:
+        snap = quality.pin(cfg, window)
+        print(f"pinned baseline -> {quality.baseline_path(cfg)}")
+        print(f"  {snap['queries']} queries, zero-hit {snap['zero_hit_rate']:.1%}, "
+              f"bad-answer {snap['bad_rate']:.1%}")
+        return
+    result = quality.compare(cfg, window)
+    print(quality.report(result))
+    if result["alerts"]:
+        raise SystemExit(1)
+
+
 def cmd_feedback(cfg, verdict: str) -> None:
     """Rate the chunks used in the last ask; bad ratings down-weight chunks."""
     last = Path(cfg.store["path"]) / ".last_ask.json"
@@ -684,6 +710,19 @@ def main() -> None:
         help="which memory notes are cited, corrected, or dead weight")
     p_health.add_argument("--json", action="store_true", help="machine-readable rows")
 
+    p_gov = sub.add_parser(
+        "governance",
+        help="read-only lifecycle scan: superseded, duplicated, dangling, stale notes")
+    p_gov.add_argument("--json", action="store_true", help="machine-readable output")
+    p_gov.add_argument("--stale-days", type=int, default=None,
+                       help="override [governance] stale_days (default 180)")
+    p_qual = sub.add_parser(
+        "quality",
+        help="retrieval health from the query log, compared to a pinned baseline")
+    p_qual.add_argument("--pin", action="store_true",
+                        help="pin the current window as the known-good baseline")
+    p_qual.add_argument("--window", type=int, default=200,
+                        help="queries per window (default 200)")
     sub.add_parser("stats", help="show what is in the index")
     p_harness = sub.add_parser(
         "harness", help="per-AI-tool memory stats; optionally refresh summaries")
@@ -736,6 +775,10 @@ def main() -> None:
         cmd_remember(cfg, args.text, title=args.title, tags=args.tags)
     elif args.cmd == "graph":
         cmd_graph(cfg, args.action, entity=args.entity, force=args.force)
+    elif args.cmd == "governance":
+        cmd_governance(cfg, args.json, args.stale_days)
+    elif args.cmd == "quality":
+        cmd_quality(cfg, args.pin, args.window)
     elif args.cmd == "feedback":
         cmd_feedback(cfg, args.verdict)
     elif args.cmd == "serve-http":

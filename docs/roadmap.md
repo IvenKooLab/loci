@@ -15,6 +15,11 @@
 - [x] Regression tests for chunk-level embedding reuse: editing one section
       re-embeds only that chunk; an unchanged file embeds nothing (3 tests)
 - [x] Web console for search, Q&A, memories and indexing
+- [x] **Governance scan + retrieval-quality drift** (`loci governance`,
+      `loci quality`; MCP `brain_governance`, `brain_quality`): superseded,
+      duplicated, dangling and stale notes reported read-only; zero-hit rate,
+      bad-answer rate and latency compared against a pinned baseline, with
+      `stale_truth` called out when retrieval still hits but answers degrade
 
 ### v0.2 (2026-09-05) — the "memory layer" release
 

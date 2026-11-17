@@ -245,6 +245,37 @@ TOOLS = [
             "required": ["action"],
         },
     },
+    {
+        "name": "brain_governance",
+        "description": "Read-only lifecycle scan of the configured sources. Reports "
+                       "notes whose frontmatter marks them superseded but which are "
+                       "still indexed, duplicate active notes sharing one title, "
+                       "`supersedes:` links pointing at missing notes, and old notes "
+                       "that were never cited. Nothing is changed; retire explicitly "
+                       "with brain_forget. Run this when answers look plausible but "
+                       "outdated.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"stale_days": {"type": "integer",
+                                          "description": "age threshold (default [governance] stale_days = 180)"}},
+        },
+    },
+    {
+        "name": "brain_quality",
+        "description": "Retrieval health from the query log: zero-hit rate, average "
+                       "hits and latency, bad-answer rate from feedback, plus drift "
+                       "against a pinned baseline. Use action=pin on a known-good day, "
+                       "then action=report to see whether quality slid.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "enum": ["report", "pin"],
+                           "description": "report = compare to baseline; pin = set it"},
+                "window": {"type": "integer", "description": "queries per window (default 200)"},
+            },
+            "required": ["action"],
+        },
+    },
 ]
 
 
@@ -463,6 +494,22 @@ class Brain:
             lines.append("review: `corrected` = rated bad via `loci feedback`; "
                          "`never-cited` = old and unused. Remove with brain_forget.")
         return "\n".join(lines)
+
+    def governance(self, stale_days: int | None = None) -> str:
+        from loci import citations, governance
+        findings = governance.scan(self._cfg, stale_days=stale_days,
+                                   cited=citations.load_citations(self._cfg))
+        return governance.report(findings)
+
+    def quality(self, action: str = "report", window: int = 200) -> str:
+        from loci import quality
+        if action == "pin":
+            snap = quality.pin(self._cfg, window)
+            return (f"pinned baseline -> {quality.baseline_path(self._cfg)}\n"
+                    f"  {snap['queries']} queries, zero-hit "
+                    f"{snap['zero_hit_rate']:.1%}, bad-answer {snap['bad_rate']:.1%}")
+        result = quality.compare(self._cfg, window)
+        return quality.report(result)
 
     def search(self, query: str, k: int | None = None,
                tag: str | None = None, path_contains: str | None = None) -> str:
@@ -695,6 +742,10 @@ def _call_tool(brain: Brain, name: str, args: dict) -> str:
         return brain.state_get(args["type"], args["key"])
     if name == "brain_state_list":
         return brain.state_list(args.get("type_prefix", ""))
+    if name == "brain_governance":
+        return brain.governance(args.get("stale_days"))
+    if name == "brain_quality":
+        return brain.quality(args.get("action", "report"), args.get("window", 200))
     if name == "brain_state_delete":
         return brain.state_delete(args["type"], args["key"])
     if name == "brain_memory_health":

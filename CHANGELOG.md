@@ -26,6 +26,25 @@
 ## Unreleased
 
 ### Added
+- **`loci governance`** (MCP `brain_governance`): a read-only lifecycle scan of
+  the configured sources. Reports notes whose frontmatter marks them
+  superseded but which are still indexed, two active notes sharing one title
+  with different bodies (`duplicate_truth`), `supersedes:` links pointing at
+  missing notes, and old notes that were never cited. This is the failure mode
+  behind "accuracy fell from 85% to 60% while retrieval did not change": the
+  corpus still answers confidently with last quarter's policy. Nothing is
+  changed — retiring stays explicit (`loci forget` / `brain_forget`), because
+  auto-deleting on a heuristic is how a governance tool loses work.
+- **`loci quality`** (MCP `brain_quality`): retrieval health from the query log
+  already written by the console — zero-hit rate, average hits and latency,
+  bad-answer rate from feedback — compared against a baseline pinned with
+  `loci quality --pin`. Detects `zero_hit_spike`, `fewer_hits`,
+  `feedback_degradation`, and `stale_truth` (retrieval still finds sources but
+  answers got worse, which is the signature of a corpus that drifted away from
+  the truth). Exits non-zero on drift, so it can run in cron/CI.
+- New `[governance] stale_days` config section (default 180). Purely
+  advisory — it decides when `loci governance` calls a note stale, and changes
+  no retrieval behaviour.
 - **Identifier matching** (review feedback on the launch post): the BM25
   tokenizer split on every non-alphanumeric run, so `user_id`, `user-id` and
   `user id` produced identical tokens and a query for one ranked the others

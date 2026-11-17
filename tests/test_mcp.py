@@ -42,7 +42,7 @@ def test_tools_list_matches_registry():
                      "brain_graph", "brain_state_save", "brain_state_get",
                      "brain_state_list", "brain_state_delete",
                      "brain_memory_health", "brain_forget", "brain_ingest",
-                     "brain_harness"]
+                     "brain_harness", "brain_governance", "brain_quality"]
     for tool in TOOLS:
         assert tool["inputSchema"]["type"] == "object"
 
