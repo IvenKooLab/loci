@@ -6,7 +6,19 @@ from __future__ import annotations
 import re
 
 _HEADING = re.compile(r"^(#{1,6})\s+(.*)$", re.M)
-_FENCE = re.compile(r"^\s*```")
+_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+
+
+def _fence_after(line: str, fence: str | None) -> str | None:
+    match = _FENCE.match(line)
+    if not match:
+        return fence
+    marker, info = match.groups()
+    if fence:
+        if marker[0] == fence[0] and len(marker) >= len(fence) and not info.strip(" \t"):
+            return None
+        return fence
+    return marker if marker[0] == "~" or "`" not in info else None
 
 
 def params_for(doc: dict, defaults: dict) -> tuple[int, int]:
@@ -56,18 +68,19 @@ def _blocks_with_breadcrumbs(text: str) -> list[tuple[str, str]]:
     blocks: list[tuple[str, str]] = []
     crumb = ""
     lines: list[str] = []
-    in_fence = False
+    fence: str | None = None
 
     def flush() -> None:
         if lines and "\n".join(lines).strip():
             blocks.append((crumb, "\n".join(lines)))
 
     for line in text.splitlines():
-        if _FENCE.match(line):
-            in_fence = not in_fence
+        next_fence = _fence_after(line, fence)
+        if next_fence != fence:
+            fence = next_fence
             lines.append(line)
             continue
-        m = None if in_fence else _HEADING.match(line)
+        m = None if fence else _HEADING.match(line)
         if not m:
             lines.append(line)
             continue
@@ -83,30 +96,31 @@ def _blocks_with_breadcrumbs(text: str) -> list[tuple[str, str]]:
 
 
 def _split_around_code(block: str) -> list[tuple[str, bool]]:
-    """Split a block into (segment, is_code) pieces along ``` fences.
+    """Split a block into (segment, is_code) pieces along code fences.
     An unclosed fence treats the rest of the block as code (safe default)."""
     segments: list[tuple[str, bool]] = []
     prose: list[str] = []
     code: list[str] = []
-    in_code = False
+    fence: str | None = None
     for line in block.splitlines():
-        if _FENCE.match(line):
-            if in_code:
+        next_fence = _fence_after(line, fence)
+        if next_fence != fence:
+            if fence:
                 code.append(line)
                 segments.append(("\n".join(code), True))
                 code = []
-                in_code = False
+                fence = None
             else:
                 if "\n".join(prose).strip():
                     segments.append(("\n".join(prose), False))
                 prose = []
-                in_code = True
+                fence = next_fence
                 code = [line]
-        elif in_code:
+        elif fence:
             code.append(line)
         else:
             prose.append(line)
-    if in_code:
+    if fence:
         segments.append(("\n".join(code), True))
     elif "\n".join(prose).strip():
         segments.append(("\n".join(prose), False))
