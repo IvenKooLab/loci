@@ -76,13 +76,17 @@ def extract_memories(llm_cfg: dict, transcript: str) -> list[dict]:
 
 
 def find_memories(mem_dir: str, query: str) -> list[Path]:
-    """Memory files whose filename or content mentions query (newest first)."""
+    """Memory files whose filename or content mentions query (newest first).
+    `._*` AppleDouble sidecars (Finder artifacts on exFAT/network copies)
+    are skipped — they are binary, not memories."""
     d = Path(mem_dir).expanduser()
     if not d.exists():
         return []
     q = query.lower()
     hits = [p for p in d.glob("*.md")
-            if q in p.stem.lower() or q in p.read_text(encoding="utf-8", errors="ignore").lower()]
+            if not p.name.startswith("._")
+            and (q in p.stem.lower()
+                 or q in p.read_text(encoding="utf-8", errors="ignore").lower())]
     return sorted(hits, key=lambda p: p.name, reverse=True)
 
 
