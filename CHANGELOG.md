@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.9.1 (unreleased) — macOS hardening + Linux container fix
+
+Found in a macOS-focused bug hunt that mirrored the Windows batch; the first
+two are cross-platform by nature.
+
+### Fixed
+- **`forget` resurrection**: pathlib globs happily match dotfiles, so
+  `scan_sources` indexed `.trash/` — every note ever soft-deleted came back on
+  the next ingest — plus `.git`/`.obsidian` internals. Hidden directories are
+  now an explicit cut (hidden files stay the user's call)
+- **AppleDouble sidecars** (`._foo.md`, Finder artifacts on exFAT/network
+  copies) were decoded into NUL-laced garbage chunks; now filtered at the
+  scanner, memory listing and find/forget layers
+- **Case-insensitive volumes**: on macOS default APFS a differently-cased
+  source path is still the same directory, yet `normcase` is a POSIX no-op —
+  Sources and harness cards reported 0 chunks for live directories. New
+  `loci.fsutil.realcase` folds each path to the volume's on-disk spelling
+  (inert on case-sensitive volumes)
+- **`.MD` uppercase extensions** skipped by harness presets (pathlib globs
+  match case-sensitively); markdown-ness is now decided by a folded suffix
+  check everywhere
+- **macOS TCC blocks looked like empty sources**: `rglob` swallows
+  `PermissionError`, so `~/Documents` without Full Disk Access silently
+  indexed nothing — each source is now probed once with an actionable hint
+  (Linux gets chmod/ACL wording)
+- **C-locale containers** (docker without `LANG`) crash on the first CJK/emoji
+  print: the tolerant-output guard exempted ASCII streams, which is exactly
+  what those containers give stdout. Covered now; `lsof` port hints gain an
+  `ss` alternative
+
 ## v0.9.0 — 2026-09-26
 
 ### Added

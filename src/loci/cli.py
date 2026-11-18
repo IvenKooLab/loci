@@ -600,15 +600,15 @@ def cmd_doctor(cfg) -> int:
 
 
 def _tolerant_output() -> None:
-    """Piped/redirected stdout on Windows uses the ANSI code page (e.g. cp936),
-    which cannot encode the emoji harness icons — `loci harness --json > x.json`
-    then dies mid-print with UnicodeEncodeError. Degrade unencodable
-    characters to backslash escapes instead of crashing; CJK and ASCII still
-    pass through in the console's own encoding."""
+    """Piped/redirected stdout uses the console's legacy encoding: the ANSI
+    code page on Windows (cp936…), or plain ASCII in a C-locale container
+    (docker without LANG) — and loci prints CJK and emoji harness icons as a
+    matter of course, so `loci harness --json > x.json` would die mid-print
+    with UnicodeEncodeError. Degrade unencodable characters to backslash
+    escapes instead of crashing; UTF-8 streams pass through untouched."""
     for stream in (sys.stdout, sys.stderr):
         enc = (getattr(stream, "encoding", "") or "").lower().replace("-", "")
-        if enc and enc not in ("utf8", "ascii") \
-                and hasattr(stream, "reconfigure"):
+        if enc and enc != "utf8" and hasattr(stream, "reconfigure"):
             try:
                 stream.reconfigure(errors="backslashreplace")
             except (OSError, ValueError):
