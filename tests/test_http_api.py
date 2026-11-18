@@ -11,6 +11,21 @@ import pytest
 from loci.http_api import Audit, _make_handler
 
 
+def _link_or_skip(source, target):
+    """Creating a symlink on Windows needs Developer Mode or the
+    SeCreateSymbolicLinkPrivilege; without it every test in this module
+    died at setup with WinError 1314 (observed on a non-admin Windows box).
+    Skip with a stated reason instead — POSIX and Dev-Mode Windows still
+    run the full set."""
+    try:
+        source.symlink_to(target)
+    except OSError as e:
+        if getattr(e, "winerror", None) == 1314:
+            pytest.skip("symlinks need Developer Mode or admin on Windows "
+                        "(run the suite elevated or enable Developer Mode)")
+        raise
+
+
 @pytest.fixture
 def api(tmp_path, monkeypatch):
     memories = tmp_path / "memories"
@@ -19,7 +34,7 @@ def api(tmp_path, monkeypatch):
     outside = tmp_path / "memories-private"
     outside.mkdir()
     (outside / "secret.md").write_text("private", encoding="utf-8")
-    (memories / "escape.md").symlink_to(outside / "secret.md")
+    _link_or_skip(memories / "escape.md", outside / "secret.md")
     cfg = SimpleNamespace(memories={"path": str(memories)},
                           http={"icons": str(memories), "local_admin": False})
     monkeypatch.setattr("loci.harness.load_harnesses", lambda _: [])
@@ -101,3 +116,22 @@ def test_source_file_decodes_url_exactly_once(api):
     note.write_text("literal percent", encoding="utf-8")
     status, body = request("GET", "/source-file?" + urlencode({"path": str(note)}))
     assert status == 200 and body["text"] == "literal percent"
+
+
+def test_link_or_skip_translates_privilege_error(tmp_path, monkeypatch):
+    """The WinError 1314 path skips with a reason, everything else still raises."""
+    def denied(self, target):
+        e = OSError("A required privilege is not held by the client")
+        e.winerror = 1314
+        raise e
+
+    monkeypatch.setattr("pathlib.Path.symlink_to", denied)
+    with pytest.raises(pytest.skip.Exception, match="Developer Mode"):
+        _link_or_skip(tmp_path / "a", tmp_path / "b")
+
+    def broken(self, target):
+        raise OSError("disk full")
+
+    monkeypatch.setattr("pathlib.Path.symlink_to", broken)
+    with pytest.raises(OSError, match="disk full"):
+        _link_or_skip(tmp_path / "a", tmp_path / "b")
