@@ -73,7 +73,12 @@ def evaluate(retriever, vault, cases):
 
 def main():
     cases = [json.loads(line) for line in CASES.read_text(encoding="utf-8").splitlines() if line.strip()]
-    with tempfile.TemporaryDirectory(prefix="loci-obsidian-eval-") as tmp:
+    # ignore_cleanup_errors: chromadb's PersistentClient keeps the HNSW index
+    # mmapped (and its client registry pins the object), so on Windows the
+    # tempdir cleaner dies with WinError 32 on data_level0.bin after the
+    # scores are already computed — taking the whole eval's exit code with it.
+    with tempfile.TemporaryDirectory(prefix="loci-obsidian-eval-",
+                                     ignore_cleanup_errors=True) as tmp:
         rows = evaluate(make_index(VAULT, Path(tmp) / "index"), VAULT, cases)
     for row in rows:
         print(f"rank={row['rank'] or 'miss'}  {row['query']}")

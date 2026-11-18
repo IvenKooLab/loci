@@ -49,7 +49,12 @@ def load_cases() -> list[dict]:
 
 def score(k: int = 5) -> dict[str, float]:
     cases = load_cases()
-    with tempfile.TemporaryDirectory(prefix="loci-retrieval-eval-") as tmp:
+    # ignore_cleanup_errors: on Windows the tempdir cleaner cannot delete
+    # data_level0.bin while chromadb's PersistentClient still maps it
+    # (WinError 32) — the crash happened after scoring, so it broke the
+    # script's exit code (and any wrapper gate) without changing a number.
+    with tempfile.TemporaryDirectory(prefix="loci-retrieval-eval-",
+                                     ignore_cleanup_errors=True) as tmp:
         retriever = _obsidian_eval.make_index(CORPUS, Path(tmp) / "index")
         ranks = []
         for case in cases:
