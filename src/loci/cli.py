@@ -599,7 +599,24 @@ def cmd_doctor(cfg) -> int:
     return 1 if failed else 0
 
 
+def _tolerant_output() -> None:
+    """Piped/redirected stdout on Windows uses the ANSI code page (e.g. cp936),
+    which cannot encode the emoji harness icons — `loci harness --json > x.json`
+    then dies mid-print with UnicodeEncodeError. Degrade unencodable
+    characters to backslash escapes instead of crashing; CJK and ASCII still
+    pass through in the console's own encoding."""
+    for stream in (sys.stdout, sys.stderr):
+        enc = (getattr(stream, "encoding", "") or "").lower().replace("-", "")
+        if enc and enc not in ("utf8", "ascii") \
+                and hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(errors="backslashreplace")
+            except (OSError, ValueError):
+                pass
+
+
 def main() -> None:
+    _tolerant_output()
     parser = argparse.ArgumentParser(
         description="loci — Q&A over your personal knowledge base")
     parser.add_argument("--version", action="version",
