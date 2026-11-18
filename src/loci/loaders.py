@@ -5,8 +5,10 @@ exports (ChatGPT / Claude `conversations.json`) into per-conversation docs.
 .html/.htm files are read with the stdlib html.parser — no extra dependency."""
 from __future__ import annotations
 
+import contextlib as _contextlib
 import hashlib
 import re
+import threading
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -285,8 +287,11 @@ def _read_text(p: Path) -> str | None:
     if suffix == ".pdf":
         if HAS_PDF_TABLES:
             try:
-                # markdown output: headings, lists, and tables as pipe rows
-                return pymupdf4llm.to_markdown(str(p))
+                # markdown output: headings, lists, and tables as pipe rows;
+                # pymupdf4llm OCRs near-empty pages through rapidocr, whose
+                # tesseract probe is what _tolerant_child_output guards
+                with _tolerant_child_output():
+                    return pymupdf4llm.to_markdown(str(p))
             except Exception as e:
                 print(f"[warn] pdf table extraction failed, falling back: {p.name} ({e})")
         if HAS_PDF:
@@ -451,11 +456,36 @@ def scan_sources(sources: list[dict]) -> list[dict]:
     return docs
 
 
+@_contextlib.contextmanager
+def _tolerant_child_output():
+    """Swallow the one third-party failure we cannot fix at its source:
+    rapidocr probes for tesseract with subprocess(text=True); on a Chinese
+    Windows host running in UTF-8 mode, `where tesseract` / `tesseract
+    --list-langs` answer in cp936 and the subprocess reader thread dies with
+    UnicodeDecodeError (surfacing in pytest as an unhandled-thread-exception
+    warning on every OCR-tinged run). The probe's conclusion — 'no tesseract'
+    — is a state we already handle; only that exact failure shape is muted,
+    and only while we are inside an OCR call. Everything else stays loud."""
+    default = threading.excepthook
+
+    def quieter(args):
+        if args.exc_type is UnicodeDecodeError and "readerthread" in (args.thread.name or ""):
+            return
+        default(args)
+
+    threading.excepthook = quieter
+    try:
+        yield
+    finally:
+        threading.excepthook = default
+
+
 def _get_ocr():
     global _ocr_engine
     if _ocr_engine is None:
-        from rapidocr_onnxruntime import RapidOCR
-        _ocr_engine = RapidOCR()
+        with _tolerant_child_output():
+            from rapidocr_onnxruntime import RapidOCR
+            _ocr_engine = RapidOCR()
     return _ocr_engine
 
 
