@@ -3,6 +3,8 @@ installed; CI installs `.[pdf]` and `.[docx]` so they run there too."""
 
 import pytest
 
+from pathlib import Path
+
 from loci import loaders
 
 pytestmark_table = pytest.mark.skipif(not loaders.HAS_PDF_TABLES,
@@ -107,3 +109,18 @@ def test_docx_salvage_when_python_docx_rejects(tmp_path):
     text = loaders._read_text(p)
     assert "第一章 & 概述" in text              # entities unescaped, CJK intact
     assert "Revenue grew in every region." in text
+
+
+def test_windows_office_lock_files_and_shell_metadata_are_skipped(tmp_path):
+    """`~$foo.docx` is Word's owner lock file (exists while the document is
+    open); desktop.ini / Thumbs.db are Explorer metadata. All three used to
+    reach the docx/binary readers on every ingest and warn-spam the log."""
+    import json
+    from loci import loaders
+    (tmp_path / "note.md").write_text("# Real\nbody", encoding="utf-8")
+    (tmp_path / "~$note.docx").write_bytes(b"owner-lock-blob")
+    (tmp_path / "~$open.pdf").write_bytes(b"%PDF-lock")
+    (tmp_path / "desktop.ini").write_text("[Shell]", encoding="utf-8")
+    (tmp_path / "Thumbs.db").write_bytes(b"thumbs")
+    docs = loaders.scan_sources([{"path": str(tmp_path)}])
+    assert [Path(d["path"]).name for d in docs] == ["note.md"]
