@@ -2,6 +2,7 @@
 everywhere): pathlib globs happily match dotfiles, so without an explicit cut
 `scan_sources` indexed `.trash/` — resurrecting every note `brain_forget` ever
 soft-deleted — plus `.git` and `.obsidian` internals."""
+import os
 import sys
 from pathlib import Path
 
@@ -66,3 +67,22 @@ def test_find_memories_skips_sidecars(tmp_path):
     (tmp_path / "._keep.md").write_bytes(b"\x00needle\x00")
     hits = find_memories(str(tmp_path), "needle")
     assert [p.name for p in hits] == ["keep.md"]
+
+
+def test_tcc_denied_source_warns_instead_of_silent_empty(tmp_path, monkeypatch, capsys):
+    """macOS TCC (~/Documents without Full Disk Access) makes os.listdir raise
+    PermissionError while pathlib rglob stays silent — an empty-looking source.
+    The probe must turn that into an actionable warning."""
+    (tmp_path / "real.md").write_text("note", encoding="utf-8")
+    real_listdir = os.listdir
+
+    def denied(path):
+        if str(path) == str(tmp_path):
+            raise PermissionError(1, "Operation not permitted")
+        return real_listdir(path)
+
+    monkeypatch.setattr(loaders.os, "listdir", denied)
+    docs = loaders.scan_sources([{"path": str(tmp_path)}])
+    out = capsys.readouterr().out
+    assert docs == []
+    assert "permission denied" in out and "Full Disk Access" in out
