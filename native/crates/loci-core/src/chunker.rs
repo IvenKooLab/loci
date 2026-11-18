@@ -26,11 +26,56 @@ impl Default for ChunkParams {
     }
 }
 
-/// A heading snapshot becomes the breadcrumb: "Install > Prerequisites".
-fn is_fence(line: &str) -> bool {
-    line.trim_start().starts_with("```")
+/// A fence opening: delimiter character and run length (e.g. '`' × 4).
+#[derive(Clone, Copy, PartialEq)]
+struct Fence {
+    ch: char,
+    len: usize,
 }
 
+/// The fence state after this line, per CommonMark — the same rules as the
+/// Python chunker (loci #25/#26). A fence opens on 3+ backticks (info string
+/// without backticks) or 3+ tildes, indented at most three spaces; it closes
+/// only on a run of the same character, at least as long, with nothing but
+/// trailing spaces or tabs after it. A naive toggle on any ``` line lets an
+/// inner triple-backtick example close an outer four-backtick fence, and the
+/// example's literal '# heading' lines then hijack the breadcrumb.
+fn fence_after(line: &str, fence: Option<Fence>) -> Option<Fence> {
+    let indent = line.chars().take_while(|&c| c == ' ').count();
+    let marker = if indent <= 3 {
+        let rest = &line[indent..];
+        match rest.chars().next() {
+            Some(c) if c == '`' || c == '~' => {
+                let len = rest.chars().take_while(|&x| x == c).count();
+                if len >= 3 {
+                    Some((Fence { ch: c, len }, &rest[len..]))
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    } else {
+        None
+    };
+    match (fence, marker) {
+        // a matching, long-enough run with an empty info string closes
+        (Some(open), Some((m, info)))
+            if m.ch == open.ch
+                && m.len >= open.len
+                && info.trim_matches(|c| c == ' ' || c == '\t').is_empty() =>
+        {
+            None
+        }
+        // inside a fence, any other fence-like line is just content
+        (Some(open), _) => Some(open),
+        // outside, a backtick fence must not carry backticks in its info string
+        (None, Some((m, info))) if m.ch == '~' || !info.contains('`') => Some(m),
+        (None, _) => None,
+    }
+}
+
+/// A heading snapshot becomes the breadcrumb: "Install > Prerequisites".
 fn heading(line: &str) -> Option<(usize, String)> {
     let hashes = line.chars().take_while(|c| *c == '#').count();
     if !(1..=6).contains(&hashes) {
@@ -48,7 +93,7 @@ fn blocks_with_breadcrumbs(text: &str) -> Vec<(String, String)> {
     let mut out = Vec::new();
     let mut stack: Vec<(usize, String)> = Vec::new();
     let mut lines: Vec<&str> = Vec::new();
-    let mut in_fence = false;
+    let mut fence: Option<Fence> = None;
 
     let crumb = |stack: &Vec<(usize, String)>| -> String {
         let mut levels: Vec<usize> = stack.iter().map(|(l, _)| *l).collect();
@@ -71,12 +116,13 @@ fn blocks_with_breadcrumbs(text: &str) -> Vec<(String, String)> {
     };
 
     for line in text.lines() {
-        if is_fence(line) {
-            in_fence = !in_fence;
+        let next = fence_after(line, fence);
+        if next != fence {
+            fence = next;
             lines.push(line);
             continue;
         }
-        match (!in_fence).then(|| heading(line)).flatten() {
+        match fence.is_none().then(|| heading(line)).flatten() {
             None => lines.push(line),
             Some((level, title)) => {
                 flush(&mut lines, &mut out, &crumb(&stack));
@@ -96,30 +142,31 @@ fn split_around_code(block: &str) -> Vec<(String, bool)> {
     let mut segments = Vec::new();
     let mut prose: Vec<&str> = Vec::new();
     let mut code: Vec<&str> = Vec::new();
-    let mut in_code = false;
+    let mut fence: Option<Fence> = None;
 
     for line in block.lines() {
-        if is_fence(line) {
-            if in_code {
+        let next = fence_after(line, fence);
+        if next != fence {
+            if fence.is_some() {
                 code.push(line);
                 segments.push((code.join("\n"), true));
                 code.clear();
-                in_code = false;
+                fence = None;
             } else {
                 if !prose.join("\n").trim().is_empty() {
                     segments.push((prose.join("\n"), false));
                 }
                 prose.clear();
-                in_code = true;
+                fence = next;
                 code.push(line);
             }
-        } else if in_code {
+        } else if fence.is_some() {
             code.push(line);
         } else {
             prose.push(line);
         }
     }
-    if in_code {
+    if fence.is_some() {
         segments.push((code.join("\n"), true));
     } else if !prose.join("\n").trim().is_empty() {
         segments.push((prose.join("\n"), false));
@@ -198,6 +245,52 @@ mod tests {
         let md = "# Real\n\n```\n# not a heading\n```\n";
         let chunks = split_markdown(md, ChunkParams::default());
         assert!(chunks.iter().all(|c| c.section == "Real"));
+    }
+
+    #[test]
+    fn nested_example_keeps_its_literal_heading_as_code() {
+        let md = "# Guide\n\n````markdown\n```python\n# literal heading\n```\npayload\n````\n\n## Next\nfinish\n";
+        let chunks = split_markdown(md, ChunkParams::default());
+        let sections: Vec<&str> = chunks.iter().map(|c| c.section.as_str()).collect();
+        assert!(sections.contains(&"Guide"));
+        assert!(sections.contains(&"Guide > Next"));
+        assert!(!sections.iter().any(|s| s.contains("literal heading")));
+    }
+
+    #[test]
+    fn tilde_fence_wraps_inner_backtick_example() {
+        let md = "# Guide\n\n~~~markdown\n```python\n# literal heading\n```\npayload\n~~~\n\n## Next\nfinish\n";
+        let chunks = split_markdown(md, ChunkParams::default());
+        let sections: Vec<&str> = chunks.iter().map(|c| c.section.as_str()).collect();
+        assert!(sections.contains(&"Guide"));
+        assert!(sections.contains(&"Guide > Next"));
+        assert!(!sections.iter().any(|s| s.contains("literal heading")));
+    }
+
+    #[test]
+    fn unclosed_fence_treats_rest_as_code() {
+        let md = "# Guide\n\n````markdown\n```\n# literal heading\npayload\n";
+        let chunks = split_markdown(md, ChunkParams::default());
+        assert!(chunks.iter().all(|c| c.section == "Guide"));
+    }
+
+    #[test]
+    fn backticks_in_info_string_do_not_open_a_fence() {
+        let md = "# Guide\n```invalid`info\n## Real\nbody\n";
+        let chunks = split_markdown(md, ChunkParams::default());
+        let sections: Vec<&str> = chunks.iter().map(|c| c.section.as_str()).collect();
+        assert!(sections.contains(&"Guide"));
+        assert!(sections.contains(&"Guide > Real"));
+    }
+
+    #[test]
+    fn short_close_run_does_not_end_longer_fence() {
+        let md = "# Guide\n\n````\n~~~\n# literal heading\n````\n\n## Next\nfinish\n";
+        let chunks = split_markdown(md, ChunkParams::default());
+        let sections: Vec<&str> = chunks.iter().map(|c| c.section.as_str()).collect();
+        assert!(sections.contains(&"Guide"));
+        assert!(sections.contains(&"Guide > Next"));
+        assert!(!sections.iter().any(|s| s.contains("literal heading")));
     }
 
     #[test]
