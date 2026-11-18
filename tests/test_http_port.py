@@ -3,11 +3,16 @@
 Two instances (different `LOCI_HOME`) on one machine used to die with a bare
 `OSError: Address already in use` traceback. These pin the operator-facing
 message, and that `--port 0` reports the port it actually got.
+
+On Windows the squat server holds the port with SO_REUSEADDR while loci's
+`Server` binds without it (see http_api.Server) — without that asymmetry the
+second bind silently *succeeds* on Windows and `serve_forever` hangs the test.
 """
 from __future__ import annotations
 
 import errno
 import socket
+import sys
 from http.server import ThreadingHTTPServer
 
 import pytest
@@ -34,7 +39,10 @@ def test_bind_conflict_is_named_not_traced(monkeypatch):
         message = str(exit_info.value)
         assert f"127.0.0.1:{port}" in message
         assert "already in use" in message
-        assert "lsof -i" in message
+        if sys.platform == "win32":
+            assert "netstat -ano" in message
+        else:
+            assert "lsof -i" in message
         assert "--port 0" in message
         assert f"--port {port + 1}" in message
     finally:
@@ -57,7 +65,7 @@ def test_unrelated_oserror_still_raises(monkeypatch):
     def boom(*a, **k):
         raise OSError(errno.ENOMEM, "out of memory")
 
-    monkeypatch.setattr(http_api, "ThreadingHTTPServer", boom)
+    monkeypatch.setattr(http_api, "Server", boom)
     monkeypatch.setattr(http_api, "Brain", lambda: type(
         "B", (), {"_ensure": lambda self: None})())
     monkeypatch.setattr(http_api, "Audit", lambda: None)
