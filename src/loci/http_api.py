@@ -212,7 +212,8 @@ def run_server(cfg, host: str, port: int) -> None:
                   if e.errno == errno.EADDRINUSE
                   else "needs privileges the current user does not have")
         find = (f"netstat -ano | findstr :{port}"
-                if sys.platform == "win32" else f"lsof -i :{port}")
+                if sys.platform == "win32"
+                else f"lsof -i :{port}   (or: ss -tlnp | grep :{port})")
         raise SystemExit(
             f"loci: cannot listen on {host}:{port} ({reason}).\n"
             f"  find it:      {find}\n"

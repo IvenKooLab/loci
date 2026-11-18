@@ -85,4 +85,25 @@ def test_tcc_denied_source_warns_instead_of_silent_empty(tmp_path, monkeypatch, 
     docs = loaders.scan_sources([{"path": str(tmp_path)}])
     out = capsys.readouterr().out
     assert docs == []
-    assert "permission denied" in out and "Full Disk Access" in out
+    assert "permission denied" in out
+    if sys.platform == "darwin":          # CI on Linux gets the chmod hint
+        assert "Full Disk Access" in out
+
+
+def test_ascii_container_output_survives_cjk_and_emoji():
+    """A C-locale container (docker without LANG) gives stdout encoding
+    'ascii' — CJK harness names and emoji icons used to crash mid-print.
+    The guard must cover ascii streams too, not just Windows code pages."""
+    import io
+    import sys as _sys
+    from loci.cli import _tolerant_output
+    buf, keep = io.BytesIO(), _sys.stdout
+    stream = io.TextIOWrapper(buf, encoding="ascii")
+    _sys.stdout = stream
+    try:
+        _tolerant_output()
+        print("harness 摘要 🧠 ⚡")           # must not raise
+        stream.flush()
+    finally:
+        _sys.stdout = keep
+    assert b"\\U0001f9e0" in buf.getvalue()   # degraded, not crashed

@@ -8,6 +8,7 @@ from __future__ import annotations
 import contextlib as _contextlib
 import hashlib
 import os
+import sys
 import re
 import threading
 from html.parser import HTMLParser
@@ -403,9 +404,13 @@ def scan_sources(sources: list[dict]) -> list[dict]:
         try:
             os.listdir(root)
         except PermissionError:
+            hint = ("on macOS: System Settings → Privacy & Security → "
+                    "Full Disk Access (or Files & Folders) for the terminal"
+                    if sys.platform == "darwin"
+                    else "check ownership/permissions (chmod, sudo -u) or "
+                         "ACLs on that directory")
             print(f"[warn] permission denied reading: {root}\n"
-                  f"      on macOS: System Settings → Privacy & Security → "
-                  f"Full Disk Access (or Files & Folders) for the terminal\n"
+                  f"      {hint}\n"
                   f"      skipping this source")
             continue
         src_chunk_size = src.get("chunk_size")
