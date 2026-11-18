@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import contextlib as _contextlib
 import hashlib
+import os
 import re
 import threading
 from html.parser import HTMLParser
@@ -395,6 +396,17 @@ def scan_sources(sources: list[dict]) -> list[dict]:
         root = Path(src["path"]).expanduser()
         if not root.exists():
             print(f"[warn] directory not found, skipping: {root}")
+            continue
+        # pathlib's rglob swallows PermissionError silently, so a macOS TCC
+        # block (~/Documents, ~/Desktop… without Full Disk Access) looks
+        # exactly like an empty source. Probe once and say it out loud.
+        try:
+            os.listdir(root)
+        except PermissionError:
+            print(f"[warn] permission denied reading: {root}\n"
+                  f"      on macOS: System Settings → Privacy & Security → "
+                  f"Full Disk Access (or Files & Folders) for the terminal\n"
+                  f"      skipping this source")
             continue
         src_chunk_size = src.get("chunk_size")
         src_chunk_overlap = src.get("chunk_overlap")
