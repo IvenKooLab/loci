@@ -86,7 +86,10 @@ def list_records(cfg, type_prefix: str = "") -> list[dict]:
             })
         except OSError:
             continue
-    out.sort(key=lambda r: r["mtime"], reverse=True)
+    # newest first; ties (Windows file-clock granularity can merge a burst of
+    # saves into one tick) break deterministically by type then key, so the
+    # same directory always lists the same way instead of in glob order.
+    out.sort(key=lambda r: (-r["mtime"], r["type"], r["key"]))
     return out
 
 
