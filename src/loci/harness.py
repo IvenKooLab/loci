@@ -267,7 +267,11 @@ def stats(cfg, store, harnesses: list[Harness]) -> list[dict]:
     """Per-harness stats: file count, total chars, last update, indexed chunks,
     summary freshness. Zero LLM cost."""
     per_source = store.per_source()
-    roots_by_h = [(h, [_root_prefix(r) for r in h.roots]) for h in harnesses]
+    # realcase: on macOS APFS a root typed with different casing than the
+    # volume's spelling would attribute 0 chunks to a live harness
+    from loci.fsutil import realcase
+    roots_by_h = [(h, [realcase(_root_prefix(r)) for r in h.roots])
+                  for h in harnesses]
     out = []
     for h, roots in roots_by_h:
         files = memory_files(h)
