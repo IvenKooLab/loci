@@ -567,12 +567,18 @@ class Brain:
             return 0
         try:
             import os
+            from loci.fsutil import realcase
             def norm(p: str) -> str:
                 # normcase: on Windows the same directory is E:\x, e:\x and
                 # e:/x to different callers — fold case and separators or the
                 # prefix join reports 0 chunks for a live source (no-op on
                 # POSIX, where case is significant)
-                return os.path.normcase(str(p)).replace("\\", "/").rstrip("/")
+                # realcase: macOS APFS is case-preserving but case-INSENSITIVE
+                # — /a/Notes and /a/notes are one directory while normcase is
+                # still a no-op there, so fold to the on-disk spelling first
+                # (inert on case-sensitive volumes).
+                return os.path.normcase(
+                    realcase(str(p))).replace("\\", "/").rstrip("/")
             prefix = norm(path)
             total = 0
             for src, n in self._store.per_source().items():
