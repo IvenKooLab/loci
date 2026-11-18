@@ -6,6 +6,7 @@ no ChromaDB needed.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -63,11 +64,30 @@ def test_list_newest_first_and_prefix_filter(tmp_path):
     state.save(cfg, "task", "a", {"i": 1})
     state.save(cfg, "task", "b", {"i": 2})
     state.save(cfg, "order", "c", {"i": 3})
+    # three saves inside one file-clock tick carry identical mtimes on
+    # Windows, which used to leave the order to glob enumeration — pin
+    # strictly increasing mtimes so this tests the newest-first semantics.
+    base = 1_700_000_000
+    for i, (type_, key) in enumerate((("task", "a"), ("task", "b"), ("order", "c"))):
+        os.utime(state._record_path(cfg, type_, key), (base + i, base + i))
     rows = state.list_records(cfg)
     assert [r["key"] for r in rows] == ["c", "b", "a"]      # newest first
     only_orders = state.list_records(cfg, "order")
     assert [r["key"] for r in only_orders] == ["c"]
     assert {r["type"] for r in only_orders} == {"order"}
+
+
+def test_tied_mtimes_list_deterministically(tmp_path):
+    cfg = FakeCfg(tmp_path)
+    for type_, key in (("task", "b"), ("order", "z"), ("task", "a")):
+        state.save(cfg, type_, key, {"i": 0})
+    # everything in one tick: order must be stable (type, then key), not the
+    # directory-enumeration accident it used to be
+    for path in (state_dir := state.state_dir(cfg)).glob("*/*.json"):
+        os.utime(path, (1_700_000_000, 1_700_000_000))
+    rows = state.list_records(cfg)
+    assert [(r["type"], r["key"]) for r in rows] == \
+        [("order", "z"), ("task", "a"), ("task", "b")]
 
 
 def test_delete_is_exact(tmp_path):
