@@ -566,8 +566,13 @@ class Brain:
         if self._guard():
             return 0
         try:
+            import os
             def norm(p: str) -> str:
-                return str(p).replace("\\", "/").rstrip("/")
+                # normcase: on Windows the same directory is E:\x, e:\x and
+                # e:/x to different callers — fold case and separators or the
+                # prefix join reports 0 chunks for a live source (no-op on
+                # POSIX, where case is significant)
+                return os.path.normcase(str(p)).replace("\\", "/").rstrip("/")
             prefix = norm(path)
             total = 0
             for src, n in self._store.per_source().items():
