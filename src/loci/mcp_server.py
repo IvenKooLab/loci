@@ -364,16 +364,20 @@ class Brain:
         """Human title of a source file for hit cards: frontmatter `title:`,
         else the first markdown heading, else frontmatter `name:` (zcode's
         native memory format). None → UI falls back to the file stem. Cached
-        by (path, mtime) so edited files re-extract without a restart."""
+        by (path, mtime_ns, size) so edited files re-extract without a
+        restart — mtime alone is not enough on Windows, where the file clock
+        ticks coarsely (~1ms) and a quick rewrite keeps the identical mtime,
+        leaving hit cards showing the old title."""
         cache = getattr(self, "_title_cache", None)
         if cache is None:
             cache = self._title_cache = {}
         try:
-            mtime = Path(path).stat().st_mtime
+            st = Path(path).stat()
         except OSError:
             return None
+        stamp = (st.st_mtime_ns, st.st_size)
         hit = cache.get(path)
-        if hit and hit[0] == mtime:
+        if hit and hit[0] == stamp:
             return hit[1]
         title = None
         try:
@@ -385,7 +389,7 @@ class Brain:
             if m:
                 title = m.group(1).strip().strip('"')[:80]
                 break
-        cache[path] = (mtime, title)
+        cache[path] = (stamp, title)
         return title
 
     def search_payload(self, query: str, k: int | None = None,
