@@ -663,7 +663,10 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
             rows = []
             for p in sorted(list(mem_dir.glob("*.md"))
                             + list(mem_dir.glob("harness/*.md"))):
-                if not self._safe_memory(str(p)) or p.parent.name == ".trash":
+                # ._ = macOS AppleDouble sidecar, not a memory
+                if p.name.startswith("._") \
+                        or not self._safe_memory(str(p)) \
+                        or p.parent.name == ".trash":
                     continue
                 rel = p.relative_to(mem_dir)
                 group = "harness" if rel.parts[0] == "harness" else "shared"

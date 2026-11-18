@@ -412,7 +412,11 @@ def scan_sources(sources: list[dict]) -> list[dict]:
             # Windows noise: `~$foo.docx` is Word/Excel's owner lock file —
             # it exists exactly while the real document is open, would fail
             # to unzip on every ingest/watch cycle, and warn-spam the log.
-            if p.name.startswith("~$") or p.name.lower() in ("desktop.ini", "thumbs.db"):
+            # macOS noise: `._foo.md` AppleDouble sidecars (resource forks
+            # materialized when a bundle crosses an exFAT/network volume) are
+            # binary, would decode into NUL-laced garbage chunks.
+            if p.name.startswith("~$") or p.name.startswith("._") \
+                    or p.name.lower() in ("desktop.ini", "thumbs.db"):
                 continue
             if p.name.lower() in CHATLOG_NAMES:
                 ap = str(p.resolve())

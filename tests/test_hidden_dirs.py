@@ -45,3 +45,24 @@ def test_hidden_file_itself_is_kept_scannable(tmp_path):
     _mk(tmp_path / ".hidden.md")
     docs = loaders.scan_sources([{"path": str(tmp_path)}])
     assert len(docs) == 1
+
+
+def test_appledouble_sidecars_are_not_scanned(tmp_path):
+    """`._foo.md` is macOS's resource-fork sidecar (appears when a bundle
+    crosses an exFAT/network volume): binary, would decode into NUL-laced
+    garbage chunks on every ingest."""
+    (tmp_path / "real.md").write_text("real note", encoding="utf-8")
+    (tmp_path / "._real.md").write_bytes(b"\x00\x05\x16AppleDouble\x00binary")
+    (tmp_path / "._side.md").write_bytes(b"\x00junk")
+
+    docs = loaders.scan_sources([{"path": str(tmp_path)}])
+    names = {Path(d["path"]).name for d in docs}
+    assert names == {"real.md"}
+
+
+def test_find_memories_skips_sidecars(tmp_path):
+    from loci.memories import find_memories
+    (tmp_path / "keep.md").write_text("has needle", encoding="utf-8")
+    (tmp_path / "._keep.md").write_bytes(b"\x00needle\x00")
+    hits = find_memories(str(tmp_path), "needle")
+    assert [p.name for p in hits] == ["keep.md"]
