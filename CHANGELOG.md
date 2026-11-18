@@ -1,34 +1,45 @@
 # Changelog
 
-## v0.9.1 (unreleased) — macOS hardening + Linux container fix
+## v0.10.0 — 2026-11-18
 
-Found in a macOS-focused bug hunt that mirrored the Windows batch; the first
-two are cross-platform by nature.
+A hardening release around the v0.9.0 console/graph foundation: one
+community chunker fix, a ten-fix Windows pass, a five-fix macOS pass and a
+Linux container fix — plus the wire-compatible capture endpoint and a
+retrieval regression gate.
+
+### Added
+- **`POST /remember`** — wire-compatible memory capture for native clients
+- **Exact-key state, memory health and a retrieval regression gate**
+  (`scripts/eval_retrieval.py` baseline refused without a committed one;
+  CI lands the gate)
+- Hit cards in the console lead with **human-readable note titles**
+  (frontmatter `title:` → first heading → `name:`), extracted server-side
+  with an mtime cache; the tools strip returns to the board page
+- `llms.txt` for AI assistants, lifecycle governance docs, share landing
+  page refresh
 
 ### Fixed
-- **`forget` resurrection**: pathlib globs happily match dotfiles, so
-  `scan_sources` indexed `.trash/` — every note ever soft-deleted came back on
-  the next ingest — plus `.git`/`.obsidian` internals. Hidden directories are
-  now an explicit cut (hidden files stay the user's call)
-- **AppleDouble sidecars** (`._foo.md`, Finder artifacts on exFAT/network
-  copies) were decoded into NUL-laced garbage chunks; now filtered at the
-  scanner, memory listing and find/forget layers
-- **Case-insensitive volumes**: on macOS default APFS a differently-cased
-  source path is still the same directory, yet `normcase` is a POSIX no-op —
-  Sources and harness cards reported 0 chunks for live directories. New
-  `loci.fsutil.realcase` folds each path to the volume's on-disk spelling
-  (inert on case-sensitive volumes)
-- **`.MD` uppercase extensions** skipped by harness presets (pathlib globs
-  match case-sensitively); markdown-ness is now decided by a folded suffix
-  check everywhere
-- **macOS TCC blocks looked like empty sources**: `rglob` swallows
-  `PermissionError`, so `~/Documents` without Full Disk Access silently
-  indexed nothing — each source is now probed once with an actionable hint
-  (Linux gets chmod/ACL wording)
-- **C-locale containers** (docker without `LANG`) crash on the first CJK/emoji
-  print: the tolerant-output guard exempted ASCII streams, which is exactly
-  what those containers give stdout. Covered now; `lsof` port hints gain an
-  `ss` alternative
+- **Chunker ate fenced examples and citations** — restored by
+  **@curforever** in [#26](https://github.com/IvenKooLab/loci/pull/26)
+  (first-time contributor — thank you!), with the CommonMark fence rules
+  then ported to the native Rust chunker
+- **Windows (10 fixes)**: a second `serve-http` could silently share a live
+  port; cp936 consoles crashed on piped emoji output; HTTP-boundary tests
+  broke on symlink privileges; eval scripts crashed after scoring
+  (WinError 32); tie-order listings were glob-order accidents; hit-card
+  titles went stale on in-place rewrites; Word owner-lock files and
+  Explorer metadata warn-spammed every ingest; rapidocr's tesseract probe
+  killed a reader thread on Chinese Windows; drive-letter case zeroed a
+  live source's chunk count
+- **macOS (5 fixes, mirroring the Windows pass)**: hidden directories
+  (`.trash`!) were indexed — **soft-deleted memories came back to life**;
+  AppleDouble `._*.md` sidecars became garbage chunks; case-insensitive
+  APFS volumes reported 0 chunks for differently-cased (live) source paths
+  — new `loci.fsutil.realcase`; `.MD` uppercase extensions were skipped by
+  harness presets; a TCC privacy block looked exactly like an empty source
+- **Linux**: C-locale containers (docker without `LANG`) crashed on the
+  first CJK/emoji print — the tolerant-output guard exempted ASCII streams;
+  port-occupied hints gained an `ss` alternative
 
 ## v0.9.0 — 2026-09-26
 
