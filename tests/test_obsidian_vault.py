@@ -23,9 +23,9 @@ def test_vault_loading_preserves_headings_tags_links_and_embeds():
     assert "日记/2025-03-12" in doc["links"]
     assert "测试照片" not in doc["links"]
     assert "![[附件/测试照片.png]]" in doc["content"]
-    # Current scanner indexes Markdown inside .obsidian; keep this visible to
-    # users instead of claiming Obsidian's configuration directory is excluded.
-    assert any(Path(d["path"]).name == "fixture.md" for d in docs)
+    # Hidden dirs are machinery, not notes (2026-11: the .trash-resurrection
+    # bug made the cut explicit) — Obsidian's own config md stays out too.
+    assert not any(Path(d["path"]).name == "fixture.md" for d in docs)
 
 
 def test_offline_retrieval_baseline_has_the_exact_source_section_and_passage(tmp_path):

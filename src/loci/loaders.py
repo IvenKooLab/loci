@@ -401,6 +401,14 @@ def scan_sources(sources: list[dict]) -> list[dict]:
         for p in sorted(root.rglob("*")):
             if not p.is_file():
                 continue
+            # Hidden directories are machinery, not notes: `.trash` is where
+            # forget_memory parks soft-deleted notes (indexing them back in
+            # would resurrect everything ever forgotten), `.git`/`.obsidian`
+            # are repo/app state. pathlib globs do match dotfiles, so this
+            # must be an explicit cut.
+            rel = p.relative_to(root)
+            if any(part.startswith(".") for part in rel.parts[:-1]):
+                continue
             # Windows noise: `~$foo.docx` is Word/Excel's owner lock file —
             # it exists exactly while the real document is open, would fail
             # to unzip on every ingest/watch cycle, and warn-spam the log.
