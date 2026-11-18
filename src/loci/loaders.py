@@ -396,6 +396,11 @@ def scan_sources(sources: list[dict]) -> list[dict]:
         for p in sorted(root.rglob("*")):
             if not p.is_file():
                 continue
+            # Windows noise: `~$foo.docx` is Word/Excel's owner lock file —
+            # it exists exactly while the real document is open, would fail
+            # to unzip on every ingest/watch cycle, and warn-spam the log.
+            if p.name.startswith("~$") or p.name.lower() in ("desktop.ini", "thumbs.db"):
+                continue
             if p.name.lower() in CHATLOG_NAMES:
                 ap = str(p.resolve())
                 if ap in seen:
