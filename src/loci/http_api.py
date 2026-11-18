@@ -44,6 +44,15 @@ WEB_DIR = Path(__file__).resolve().parent / "web"
 ROLES = {"viewer": 0, "editor": 1, "admin": 2}
 
 
+class Server(ThreadingHTTPServer):
+    """On Windows, SO_REUSEADDR lets a second bind silently share a live
+    port instead of failing — exactly the two-instances case the friendly
+    EADDRINUSE message below exists for (a second `serve-http` "succeeds"
+    and then both sockets fight over the port). POSIX keeps reuse so a
+    quick restart after shutdown does not wait out TIME_WAIT."""
+    allow_reuse_address = sys.platform != "win32"
+
+
 def _within(path: Path, root: Path) -> bool:
     """Compare resolved path components, not similarly named directory prefixes."""
     try:
@@ -192,7 +201,7 @@ def run_server(cfg, host: str, port: int) -> None:
     handler = _make_handler(brain, cfg, entries, Audit(),
                             QueryLog(path=cfg.http.get("query_log")))
     try:
-        server = ThreadingHTTPServer((host, port), handler)
+        server = Server((host, port), handler)
     except OSError as e:
         # two loci instances (different LOCI_HOME) on one host is a normal
         # thing to do, and the traceback Chrome/uvicorn users see says nothing
@@ -202,9 +211,11 @@ def run_server(cfg, host: str, port: int) -> None:
         reason = ("already in use — another loci instance is probably running"
                   if e.errno == errno.EADDRINUSE
                   else "needs privileges the current user does not have")
+        find = (f"netstat -ano | findstr :{port}"
+                if sys.platform == "win32" else f"lsof -i :{port}")
         raise SystemExit(
             f"loci: cannot listen on {host}:{port} ({reason}).\n"
-            f"  find it:      lsof -i :{port}\n"
+            f"  find it:      {find}\n"
             f"  another port: loci serve-http --port {port + 1}\n"
             f"  or pick one:  loci serve-http --port 0   "
             f"(prints the port it got)\n"
