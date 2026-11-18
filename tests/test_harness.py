@@ -188,3 +188,29 @@ def test_stats_table_renders_and_hints_config(tmp_path):
            "last_updated": "2026-10-17 12:00",
            "summary": {"status": "fresh", "path": "/x"}}
     assert "z" in hm.stats_table([row]) and "fresh" in hm.stats_table([row])
+
+
+def test_uppercase_extension_is_a_note_everywhere(tmp_path):
+    """pathlib globs match case-sensitively while macOS volumes don't —
+    `NOTE.MD` is a visible markdown note to the user, so presets must not
+    depend on the glob's case behaviour."""
+    _write(tmp_path / "projects/p/memory/NOTE.MD", "upper zcode")
+    h = hm.Harness("z", "zcode", "⚡", [tmp_path])
+    assert [p.name for p in hm.memory_files(h)] == ["NOTE.MD"]
+
+    flat = tmp_path / "flat"
+    _write(flat / "UPPER.MD", "upper codex")
+    _write(flat / "lower.md", "lower")
+    h2 = hm.Harness("c", "codex", "🐙", [flat])
+    assert {p.name for p in hm.memory_files(h2)} == {"UPPER.MD", "lower.md"}
+
+    h3 = hm.Harness("g", "generic", "🗂️", [flat])
+    assert {p.name for p in hm.memory_files(h3)} == {"UPPER.MD", "lower.md"}
+
+
+def test_harness_scan_skips_sidecars_and_hidden_dirs(tmp_path):
+    _write(tmp_path / "real.md", "keep")
+    (tmp_path / "._real.md").write_bytes(b"\x00junk")
+    _write(tmp_path / ".trash/deleted.md", "gone")
+    h = hm.Harness("g", "generic", "🗂️", [tmp_path])
+    assert [p.name for p in hm.memory_files(h)] == ["real.md"]

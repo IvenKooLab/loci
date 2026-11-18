@@ -151,10 +151,14 @@ def load_harnesses(cfg) -> list[Harness]:
 
 
 # Markdown files each type preset looks for, relative to a root directory.
+# Patterns match by NAME only; markdown-ness is decided by a folded suffix
+# check afterwards — pathlib globs are case-sensitive matchers while macOS
+# volumes are not, and `NOTE.MD` (a Windows/email-era artifact) is a perfectly
+# good note there that `*.md` would silently skip.
 _TYPE_GLOBS = {
-    "zcode": ["projects/*/memory/*.md"],
-    "codex": ["*.md"],
-    "generic": ["**/*.md"],
+    "zcode": ["projects/*/memory/*"],
+    "codex": ["*"],
+    "generic": ["**/*"],
 }
 
 
@@ -208,12 +212,31 @@ def _scan_root(root: Path, htype: str) -> set[Path]:
     if root.is_file():
         return {root} if root.suffix.lower() == ".md" else set()
     for pattern in _TYPE_GLOBS.get(htype, _TYPE_GLOBS["generic"]):
-        found = {p for p in root.glob(pattern) if p.is_file()}
+        found = _markdown_under(root, root.glob(pattern))
         if found:
             return found
     if htype in _RECURSIVE_FALLBACK:         # e.g. zcode without projects/
-        return {p for p in root.rglob("*.md") if p.is_file()}
+        return _markdown_under(root, root.rglob("*"))
     return set()                            # preset matched nothing here
+
+
+def _markdown_under(root: Path, entries) -> set[Path]:
+    """The shared keep-rule: folded .md suffix, no macOS `._` AppleDouble
+    sidecars, nothing inside hidden directories (same cut as scan_sources)."""
+    keep = set()
+    for p in entries:
+        if not p.is_file() or p.suffix.lower() != ".md":
+            continue
+        if p.name.startswith("._") or p.name.startswith("~$"):
+            continue
+        try:
+            rel = p.relative_to(root)
+        except ValueError:
+            rel = None
+        if rel is not None and any(part.startswith(".") for part in rel.parts[:-1]):
+            continue
+        keep.add(p)
+    return keep
 
 
 def memory_files(h: Harness) -> list[Path]:
