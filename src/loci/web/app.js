@@ -49,6 +49,7 @@ const I18N = {
     btnRefresh: "Refresh", noQueries: "No queries yet — search or ask something first.",
     queryTotal: (n) => `${n} recent`, ms: "ms",
     qViewSessions: "Sessions", qViewTable: "Table", qSearchPh: "Search queries and results…",
+    harnessUnavailable: (why) => `Harness file browsing is not available in this build: ${why}. The harness summary on the dashboard still works.`,
     qSelect: "Select", qDone: "Done", qExport: "Export JSONL", qAll: "all",
     qNoSource: "no result", qRoot: "root", qLive: "live", qSlow: "slow",
     qMore: (n) => `Show ${n} more`, qGroups: "BY RESULT LOCATION",
@@ -130,6 +131,7 @@ const I18N = {
     btnRefresh: "刷新", noQueries: "还没有查询——先去搜一下或提个问题。",
     queryTotal: (n) => `最近 ${n} 条`, ms: "毫秒",
     qViewSessions: "会话", qViewTable: "表格", qSearchPh: "搜索查询与结果位置…",
+    harnessUnavailable: (why) => `此版本不支持查看 harness 文件：${why}。看板上的 harness 摘要仍然可用。`,
     qSelect: "选择", qDone: "完成", qExport: "导出 JSONL", qAll: "全部",
     qNoSource: "无结果", qRoot: "根目录", qLive: "进行中", qSlow: "慢",
     qMore: (n) => `再显示 ${n} 条`, qGroups: "按结果位置",
@@ -524,7 +526,15 @@ async function openDrilldown(name) {
       $("#dd-view").textContent = t("pickFile");
     }
     $("#drilldown").scrollIntoView({ behavior: "smooth", block: "nearest" });
-  } catch (e) { alert(e.message); }
+  } catch (e) {
+    // The native build has no harness-file browsing: its endpoint returns 404
+    // on purpose. An alert() here blocks the Tauri window and conveys nothing;
+    // show the reason where the user was already looking.
+    $("#drilldown").classList.remove("hidden");
+    $("#dd-title").textContent = name;
+    $("#dd-tree").replaceChildren();
+    $("#dd-view").textContent = t("harnessUnavailable", e.message);
+  }
 }
 
 function buildTree(files) {
