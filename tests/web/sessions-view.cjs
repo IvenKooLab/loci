@@ -130,3 +130,12 @@ assert.ok(!mainRs.includes('drop(listener)'),
           'dropping the listener before serve rebinds is a TOCTOU race');
 assert.ok(mainRs.includes('current_exe()'),
           'demo notes must be anchored to the executable, not the launch cwd');
+
+// ---------- 7. no blocking alert() on the harness drilldown path ----------
+const drillSrc = js.slice(js.indexOf('async function openDrilldown'), js.indexOf('function buildTree'));
+// strip comments before checking — the fix explains why alert() was removed
+const drillCode = drillSrc.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+assert.ok(!drillCode.includes('alert('), 'harness drilldown must not use a blocking alert');
+assert.ok(drillSrc.includes('harnessUnavailable'), 'inline fallback message missing');
+assert.ok(js.includes('harnessUnavailable:') && js.includes('此版本不支持查看'),
+          'harness fallback must be translated');
