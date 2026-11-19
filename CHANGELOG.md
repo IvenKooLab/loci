@@ -67,6 +67,16 @@ retrieval regression gate.
 ## Unreleased
 
 ### Added
+- **Session-style query history in the console** (the same frontend is shared
+  by the Python console, the native console and the Tauri desktop shell, so
+  all three get it at once). The Queries tab now has a Sessions view inspired
+  by magpie's session browser: the same query log reshaped into a segmented
+  source list with counts, a debounced search across question *and* result
+  location, groups by the directory the answer came from, per-group paging,
+  one-row-at-a-time details, and hover-revealed "run again" / copy actions.
+  Select mode exports the picked queries as JSONL — directly reusable as an
+  eval set. The original seven-column table is kept as a switchable view, so
+  nothing familiar disappeared.
 - **`loci governance`** (MCP `brain_governance`): a read-only lifecycle scan of
   the configured sources. Reports notes whose frontmatter marks them
   superseded but which are still indexed, two active notes sharing one title
