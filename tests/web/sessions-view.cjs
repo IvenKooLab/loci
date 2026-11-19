@@ -112,3 +112,13 @@ const detail = h.api.qDetailOf({ ts: 't', label: 'l', role: 'r', kind: 'ask',
 assert.equal(detail.children[1].children.length, 14, '7 dt + 7 dd after the summary line');
 
 console.log('sessions-view: structure, i18n, grouping, filtering and escaping OK');
+
+// ---------- 5. desktop shell: default-deny CSP ----------
+const conf = JSON.parse(fs.readFileSync('native/desktop/src-tauri/tauri.conf.json', 'utf8'));
+const csp = conf.app.security.csp;
+assert.ok(csp && csp !== null, 'Tauri CSP must not be disabled');
+for (const directive of ["default-src 'self'", "script-src 'self'", "object-src 'none'",
+                         "base-uri 'none'", "frame-ancestors 'none'"]) {
+  assert.ok(csp.includes(directive), `CSP missing: ${directive}`);
+}
+assert.ok(csp.includes('data:'), 'inline SVG favicon needs data: images');
