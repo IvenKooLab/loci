@@ -500,3 +500,92 @@ h2 { font-size: 16px; letter-spacing: -.15px; }
 .graph-intro .info-title { font-size: 14px; }
 .graph-wrap { min-height: 160px; }
 .content { min-height: 0; }
+
+/* ---- query sessions: magpie-style history, by source and result location ----
+   Hairlines between groups, never a card each. Operation buttons wait for a
+   hover so the list stays quiet; on touch they are always shown. */
+.q-toolbar { gap: 8px; }
+.q-toolbar .segs { display: inline-flex; background: var(--panel2);
+  border-radius: 9px; padding: 2px; gap: 2px; }
+.q-toolbar .segs button { background: none; color: var(--muted);
+  font-size: 12px; font-weight: 500; padding: 5px 10px; border-radius: 7px; }
+.q-toolbar .segs button.on { background: var(--panel); color: var(--fg);
+  box-shadow: var(--card-shadow); }
+.q-toolbar .segs button:hover:not(.on) { color: var(--fg); }
+.q-toolbar .segs em { font-style: normal; font-size: 10.5px; color: var(--muted);
+  margin-left: 5px; font-variant-numeric: tabular-nums; }
+.q-toolbar button.text { background: none; color: var(--acc); font-weight: 500;
+  padding: 7px 9px; }
+.q-toolbar button.text:hover { background: var(--panel2); }
+.q-toolbar button.text.on { background: var(--panel2); }
+.q-filter { flex: 0 1 230px; min-width: 130px; margin-left: auto; }
+.q-agent-pick { max-width: 190px; }
+
+.q-sessions { min-height: 40px; }
+.q-tree { display: flex; flex-direction: column; border: 1px solid var(--line);
+  border-radius: 12px; overflow: hidden; background: var(--panel); }
+.q-group + .q-group { border-top: 1px solid var(--line); }
+.q-folder { display: flex; align-items: center; gap: 8px; min-height: 42px;
+  padding: 6px 12px; }
+.q-folder:hover { background: var(--panel2); }
+.q-folder .fold { background: none; color: var(--muted); padding: 3px 6px;
+  font-size: 12px; min-width: 26px; }
+.q-fwords { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.q-fline { display: flex; align-items: baseline; gap: 8px; }
+.q-fline .name { font-size: 13px; font-weight: 600; color: var(--fg);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 65%; }
+.q-latest { font-size: 11.5px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.q-when { flex: none; font-size: 11.5px; color: var(--muted);
+  font-variant-numeric: tabular-nums; }
+.q-folder .note { flex: none; font-size: 11px; color: var(--muted);
+  font-variant-numeric: tabular-nums; }
+.q-item { border-top: 0.5px solid var(--line); }
+.q-row { display: flex; align-items: center; gap: 10px; min-height: 46px;
+  padding: 6px 12px 6px 38px; cursor: pointer; }
+.q-row:hover, .q-item.open > .q-row { background: var(--panel2); }
+.q-who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.q-name { font-size: 13px; color: var(--fg);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.q-sub { font-size: 11.5px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.q-live { align-self: flex-start; font-size: 10px; color: var(--ok);
+  border: 1px solid var(--ok); border-radius: 980px; padding: 0 6px; }
+.q-spent { flex: none; font-size: 11.5px; color: var(--muted);
+  font-variant-numeric: tabular-nums; white-space: nowrap; }
+.q-spent.slow { color: var(--warn); }
+.q-act { flex: none; display: flex; gap: 4px; }
+.q-act button { font-size: 11px; padding: 4px 9px; border-radius: 7px;
+  background: none; color: var(--acc); font-weight: 500; }
+.q-act button:hover { background: var(--panel); }
+@media (hover: hover) and (pointer: fine) {
+  .q-act { visibility: hidden; }
+  .q-row:hover .q-act, .q-item.open .q-act, .q-act:focus-within { visibility: visible; }
+}
+.q-check { flex: none; width: 14px; height: 14px; accent-color: var(--acc); }
+.q-more { display: block; width: calc(100% - 38px); margin: 4px 12px 8px 38px;
+  background: none; color: var(--acc); font-weight: 500; font-size: 12px;
+  padding: 6px; }
+.q-more:hover { background: var(--panel2); }
+.q-detail { padding: 10px 12px 14px 38px; background: var(--panel2); }
+.q-summary { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+.q-detail dl { display: grid; grid-template-columns: max-content 1fr;
+  gap: 4px 12px; margin: 0; font-size: 12px; }
+.q-detail dt { color: var(--muted); }
+.q-detail dd { margin: 0; color: var(--fg); overflow-wrap: anywhere; }
+.q-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--panel);
+  margin-bottom: 8px; }
+.q-bar .grow { flex: 1; }
+.q-bar .q-count { font-size: 12px; color: var(--muted); }
+.q-bar button.text { background: none; color: var(--acc); font-weight: 500; }
+@media (max-width: 760px) {
+  /* One source picker must survive: JS hides the dropdown when there are few
+     sources, but this media query hides the segmented list regardless. The
+     !important pair keeps exactly the dropdown visible on narrow screens. */
+  .q-toolbar .q-agents { display: none !important; }
+  .q-toolbar .q-agent-pick { display: inline-block !important; }
+  .q-filter { flex: 1 1 100%; margin-left: 0; }
+  .q-row { flex-wrap: wrap; padding-left: 12px; }
+  .q-who { flex-basis: 100%; }
+}

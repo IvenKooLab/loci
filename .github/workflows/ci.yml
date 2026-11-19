@@ -17,6 +17,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
       - name: Install dependencies (with file-format extras so their tests run)
         run: |
           pip install -e ".[pdf,docx]"
@@ -27,6 +30,10 @@ jobs:
         run: |
           loci --help
           echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}' | loci-mcp | grep serverInfo
+      - name: Console UI checks (no browser; source-level)
+        run: |
+          node tests/web/graph-layout.cjs
+          node tests/web/sessions-view.cjs
 
   eval:
     name: retrieval regression gate

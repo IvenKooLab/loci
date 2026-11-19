@@ -230,12 +230,24 @@
       <p data-i18n="qP1"><b>Why it exists:</b> when several agents share one instance, "Codex got nothing" is usually a query that hit an empty or different index. Write auditing cannot see that; this can.</p>
       <p data-i18n="qP2"><b>What is stored:</b> time, who, kind, the query text, hit count, the top result's location, and how long it took. The returned text is never stored.</p>
       <p data-i18n="qP3"><b>Retention:</b> newest 500 in memory. Set <code>[http] query_log</code> to also append them to a JSONL file.</p>
+      <p data-i18n="qP4"><b>Sessions view:</b> the same log, grouped by where the answer came from and split by who asked.</p>
     </div>
-    <div class="row">
+    <div class="row q-toolbar">
+      <div class="segs q-views">
+        <button type="button" data-qview="sessions" class="on" data-i18n="qViewSessions">Sessions</button>
+        <button type="button" data-qview="table" data-i18n="qViewTable">Table</button>
+      </div>
+      <div class="segs q-agents" id="q-agents"></div>
+      <select class="q-agent-pick hidden" id="q-agent-pick" aria-label="source"></select>
+      <input id="q-filter" class="q-filter" type="search" spellcheck="false"
+             autocomplete="off" data-i18n-ph="qSearchPh" placeholder="Search queries…">
+      <button id="q-select" class="text" type="button" data-i18n="qSelect">Select</button>
+      <button id="q-export" class="text hidden" type="button" data-i18n="qExport">Export</button>
       <button id="queries-refresh" data-i18n="btnRefresh">Refresh</button>
       <span id="queries-count" class="muted"></span>
     </div>
-    <div class="tablewrap">
+    <div id="q-sessions" class="q-sessions"></div>
+    <div id="q-table-view" class="tablewrap hidden">
       <table id="queries-table"><thead>
       <tr>
         <th data-i18n="thTime">time</th>

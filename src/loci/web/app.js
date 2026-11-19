@@ -28,6 +28,7 @@ const I18N = {
     qP1: "<b>Why it exists:</b> when several agents share one instance, «Codex got nothing» is usually a query that hit an empty or different index. Write auditing cannot see that; this can.",
     qP2: "<b>What is stored:</b> time, who, kind, the query text, hit count, the top result's location, and how long it took. The returned text is never stored.",
     qP3: "<b>Retention:</b> newest 500 in memory. Set <code>[http] query_log</code> to also append them to a JSONL file.",
+    qP4: "<b>Sessions view:</b> the same log, grouped by where the answer came from and split by who asked. A row opens its full record; Select exports the picked ones as JSONL for an eval set.",
     auditIntro: "Who changed the knowledge base?",
     auditP1: "Records supported changes made through this service, such as editing or deleting memories, uploading files and starting indexing.",
     auditP2: "Use this to investigate unexpected changes. Search and Q&A history is on Queries. This is not undo or a complete file history; external file edits and other entry points may not be recorded.",
@@ -47,6 +48,15 @@ const I18N = {
     noSources: "No [[sources]] directories — uploads still work.",
     btnRefresh: "Refresh", noQueries: "No queries yet — search or ask something first.",
     queryTotal: (n) => `${n} recent`, ms: "ms",
+    qViewSessions: "Sessions", qViewTable: "Table", qSearchPh: "Search queries and results…",
+    qSelect: "Select", qDone: "Done", qExport: "Export JSONL", qAll: "all",
+    qNoSource: "no result", qRoot: "root", qLive: "live", qSlow: "slow",
+    qMore: (n) => `Show ${n} more`, qGroups: "BY RESULT LOCATION",
+    qExportNone: "Pick at least one query first.",
+    qRetry: "Run this query again", qCopy: "Copy query text",
+    qEmptySearch: "No queries match that search.",
+    qDetail: (o) => `${o.kind} · ${o.label}${o.role ? " (" + o.role + ")" : ""} · ${o.hits} hit(s) · ${Math.round(o.ms)} ms`,
+    qSelected: (n) => `${n} selected`, qRepeat: (n) => `${n}× asked`,
     noEvents: "No events yet — create or edit a memory in the Memories tab, then come back and watch it appear here.",
     loginTitle: "loci console",
     loginHint: "This instance requires a token. Paste one from [[auth.tokens]] in config.toml.",
@@ -99,6 +109,7 @@ const I18N = {
     qP1: "<b>为什么要有：</b>多个 agent 共用一个实例时，「Codex 搜不到」往往是因为它查的是空索引或另一个索引。写入审计看不到这件事，这里能看到。",
     qP2: "<b>记录什么：</b>时间、操作者、类型、查询原文、命中数、首条结果位置、耗时。不记录返回的正文。",
     qP3: "<b>保留多久：</b>内存中最近 500 条。设置 <code>[http] query_log</code> 可另外追加写入 JSONL 文件。",
+    qP4: "<b>会话视图：</b>同一份日志，按回答来源位置分组、按提问者拆分。点开一行看完整记录；「选择」可把选中的查询导出为 JSONL，用作评测集。",
     auditIntro: "谁修改了知识库？",
     auditP1: "记录通过本服务进行的记忆编辑、删除、上传和索引等受支持的操作。",
     auditP2: "用于排查意外改动；搜索和问答历史请看「查询」。这里不能撤销操作，也不是完整的文件历史，外部编辑或其他入口的操作可能不会被记录。",
@@ -118,6 +129,15 @@ const I18N = {
     noSources: "没有配置 [[sources]] 目录——上传照样可用。",
     btnRefresh: "刷新", noQueries: "还没有查询——先去搜一下或提个问题。",
     queryTotal: (n) => `最近 ${n} 条`, ms: "毫秒",
+    qViewSessions: "会话", qViewTable: "表格", qSearchPh: "搜索查询与结果位置…",
+    qSelect: "选择", qDone: "完成", qExport: "导出 JSONL", qAll: "全部",
+    qNoSource: "无结果", qRoot: "根目录", qLive: "进行中", qSlow: "慢",
+    qMore: (n) => `再显示 ${n} 条`, qGroups: "按结果位置",
+    qExportNone: "请先选中至少一条查询。",
+    qRetry: "重新执行这条查询", qCopy: "复制查询文本",
+    qEmptySearch: "没有匹配的查询。",
+    qDetail: (o) => `${o.kind} · ${o.label}${o.role ? "（" + o.role + "）" : ""} · ${o.hits} 条命中 · ${Math.round(o.ms)} 毫秒`,
+    qSelected: (n) => `已选 ${n} 条`, qRepeat: (n) => `提问 ${n} 次`,
     noEvents: "暂无事件——去「记忆」页新建或编辑一条，然后回来看它出现在这里。",
     loginTitle: "loci 管理台",
     loginHint: "本实例要求鉴权。请粘贴 config.toml 中 [[auth.tokens]] 里的 token。",
@@ -1231,41 +1251,339 @@ $("#board-range").addEventListener("click", (ev) => {
   loadBoard();
 });
 
-async function loadQueries() {
-  const { queries } = await api("/queries?limit=200");
-  const rows = queries || [];
-  $("#queries-count").textContent = rows.length ? t("queryTotal", rows.length) : "";
-  $("#queries-hint").classList.toggle("hidden", rows.length > 0);
-  $("#queries-hint").textContent = t("noQueries");
-  const cell = (v) => {
-    const td = document.createElement("td");
-    td.textContent = v;                       // query text is user input
-    return td;
+/* ---------- queries: session browser (magpie-style) + classic table ----------
+   The table is kept as a view so nobody's muscle memory breaks. The session
+   view is the same rows, reshaped the way magpie reshapes agent sessions:
+   segmented by who asked, searchable across what was asked, grouped by where
+   the answer came from, paged per group, expanded one row at a time.
+
+   Nothing here trusts query text as HTML — every user string goes through
+   textContent. That matters more than usual: this is the page that records
+   what people typed into an LLM.
+*/
+const Q_PAGE = 50;
+let queryRows = [];
+let qAgent = "";
+let qNeedle = "";
+let qMode = "sessions";
+let qOpen = new Set();          // groups unfolded, by name
+let qDetail = "";               // row index opened to its detail
+let qDrawn = new Map();         // group name -> rows drawn
+let qSelecting = false;
+let qPicked = new Set();        // row indexes, stable within one fetch
+let qSearchTimer = 0;
+
+const qEl = (tag, cls, text) => {
+  const el = document.createElement(tag);
+  if (cls) el.className = cls;
+  if (text !== undefined && text !== null) el.textContent = String(text);
+  return el;
+};
+const qNum = (v) => Math.round(Number(v) || 0);
+const qAgo = (ts) => {
+  const d = Date.now() - Date.parse(ts);
+  if (!Number.isFinite(d)) return String(ts || "").slice(11, 19);
+  if (d < 60e3) return "now";
+  if (d < 3600e3) return `${Math.floor(d / 60e3)}m`;
+  if (d < 86400e3) return `${Math.floor(d / 3600e3)}h`;
+  return `${Math.floor(d / 86400e3)}d`;
+};
+const qLive = (ts) => Date.now() - Date.parse(ts) < 60e3;
+
+// The top citation is "path > heading > chunk" on both backends. Grouping by
+// its directory gives loci what magpie gets from a session's cwd: "what was I
+// working on here?" — without adding any field to the log.
+function qGroupOf(r) {
+  const top = String(r.top || "").split(" > ")[0].trim();
+  if (!top) return t("qNoSource");
+  const i = Math.max(top.lastIndexOf("/"), top.lastIndexOf("\\"));
+  return i > 0 ? top.slice(0, i) : t("qRoot");
+}
+
+function qFiltered() {
+  const needle = qNeedle.trim().toLowerCase();
+  return queryRows.filter((r) => {
+    if (qAgent && String(r.label || "") !== qAgent) return false;
+    if (!needle) return true;
+    return [r.query, r.top, r.label, r.kind, r.role]
+      .some((v) => String(v || "").toLowerCase().includes(needle));
+  });
+}
+
+function qAgents() {
+  const counts = new Map();
+  for (const r of queryRows) {
+    const name = String(r.label || "local");
+    counts.set(name, (counts.get(name) || 0) + 1);
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+}
+
+function qDrawAgents() {
+  const segs = $("#q-agents");
+  const pick = $("#q-agent-pick");
+  const agents = qAgents();
+  const make = (name, count) => {
+    const on = qAgent === name;
+    const b = qEl("button", "opt" + (on ? " on" : ""));
+    b.type = "button";
+    b.setAttribute("aria-pressed", String(on));
+    b.append(qEl("span", "", name), qEl("em", "", String(count)));
+    b.onclick = () => { qAgent = name; qOpen.clear(); qDetail = ""; drawSessions(); };
+    return b;
   };
+  segs.replaceChildren(make("", queryRows.length),
+    ...agents.map(([name, count]) => make(name, count)));
+  pick.replaceChildren(...[["", t("qAll") + " (" + queryRows.length + ")"],
+    ...agents.map(([name, count]) => [name, `${name} (${count})`])]
+    .map(([v, label]) => {
+      const o = qEl("option", "", label);
+      o.value = v;
+      return o;
+    }));
+  pick.value = qAgent;
+  // one list, two shapes: the segmented control where there is room
+  segs.classList.toggle("hidden", agents.length > 5);
+  pick.classList.toggle("hidden", agents.length <= 5);
+}
+
+function qRow(r, depth = 0) {
+  const i = r._i;
+  const wrap = qEl("div", "q-item" + (qDetail === String(i) ? " open" : ""));
+  const row = qEl("div", "q-row");
+  row.dataset.i = String(i);
+
+  if (qSelecting) {
+    const box = qEl("input", "q-check");
+    box.type = "checkbox";
+    box.checked = qPicked.has(String(i));
+    box.setAttribute("aria-label", t("qSelect"));
+    box.onclick = (e) => e.stopPropagation();
+    box.onchange = () => {
+      box.checked ? qPicked.add(String(i)) : qPicked.delete(String(i));
+      qDrawBar();
+    };
+    row.append(box);
+  }
+
+  const who = qEl("div", "q-who");
+  const title = qEl("div", "q-name", r.query || t("qNoSource"));
+  title.title = String(r.query || "");
+  who.append(title);
+  const bits = [qAgo(r.ts), r.kind || "search", String(r.label || "local")];
+  if (r.hits !== undefined) bits.push(`${r.hits} hit${Number(r.hits) === 1 ? "" : "s"}`);
+  if (r.top) bits.push(String(r.top).split(" > ")[0]);
+  const sub = qEl("div", "q-sub", bits.join(" · "));
+  who.append(sub);
+  if (qLive(r.ts)) who.append(qEl("span", "q-live", t("qLive")));
+  row.append(who);
+
+  const ms = qNum(r.ms);
+  const spent = qEl("div", "q-spent" + (ms >= 1000 ? " slow" : ""),
+                    ms >= 1000 ? `${ms} ${t("ms")} · ${t("qSlow")}` : `${ms} ${t("ms")}`);
+  row.append(spent);
+
+  const act = qEl("div", "q-act");
+  const retry = qEl("button", "q-go", t("qRetry"));
+  retry.type = "button";
+  retry.title = String(r.query || "");
+  retry.onclick = (e) => {
+    e.stopPropagation();
+    const box = $("#q");
+    if (box) { box.value = String(r.query || ""); box.focus(); }
+    document.querySelector('nav button[data-tab="dash"]')?.click();
+  };
+  const copy = qEl("button", "q-copy", t("qCopy"));
+  copy.type = "button";
+  copy.onclick = async (e) => {
+    e.stopPropagation();
+    try { await navigator.clipboard.writeText(String(r.query || "")); } catch {}
+    copy.textContent = "✓";
+    setTimeout(() => { copy.textContent = t("qCopy"); }, 1200);
+  };
+  act.append(retry, copy);
+  row.append(act);
+
+  row.onclick = () => {
+    if (window.getSelection()?.toString()) return;
+    qDetail = qDetail === String(i) ? "" : String(i);
+    drawSessions();
+  };
+  wrap.append(row);
+  if (qDetail === String(i)) wrap.append(qDetailOf(r));
+  return wrap;
+}
+
+function qDetailOf(r) {
+  const box = qEl("div", "q-detail");
+  box.append(qEl("p", "q-summary", t("qDetail", r)));
+  const dl = qEl("dl");
+  for (const [k, v] of [
+    [t("thTime"), r.ts], [t("thWho"), r.label], [t("thRole"), r.role],
+    [t("thKind"), r.kind], [t("thHits"), r.hits],
+    [t("thMs"), `${qNum(r.ms)} ${t("ms")}`], [t("thTop"), r.top || "—"],
+  ]) {
+    dl.append(qEl("dt", "", k), qEl("dd", "", v === undefined || v === "" ? "—" : v));
+  }
+  box.append(dl);
+  return box;
+}
+
+function qDrawBar() {
+  document.querySelector(".q-bar")?.remove();
+  if (!qSelecting) return;
+  const bar = qEl("div", "q-bar");
+  bar.append(qEl("span", "q-count", t("qSelected", qPicked.size)));
+  const grow = qEl("span", "grow");
+  const done = qEl("button", "text", t("qDone"));
+  done.onclick = () => { qSelecting = false; qPicked.clear(); drawSessions(); };
+  const exp = qEl("button", "", t("qExport"));
+  exp.disabled = !qPicked.size;
+  exp.onclick = () => {
+    const rows = queryRows.filter((r) => qPicked.has(String(r._i)));
+    const body = rows.map((r) => JSON.stringify({
+      ts: r.ts, label: r.label, role: r.role, kind: r.kind,
+      query: r.query, hits: r.hits, top: r.top, ms: r.ms,
+    })).join("\n") + "\n";
+    const url = URL.createObjectURL(new Blob([body], { type: "application/jsonl" }));
+    const a = qEl("a");
+    a.href = url;
+    a.download = "loci-queries.jsonl";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  bar.append(grow, done, exp);
+  $("#q-sessions").prepend(bar);
+}
+
+function drawSessions() {
+  const host = $("#q-sessions");
+  qDrawAgents();
+  $("#q-select").textContent = qSelecting ? t("qDone") : t("qSelect");
+  $("#q-select").classList.toggle("on", qSelecting);
+  $("#q-export").classList.toggle("hidden", !qSelecting);
+
+  const rows = qFiltered();
+  if (!rows.length) {
+    host.replaceChildren(qEl("p", "muted", queryRows.length ? t("qEmptySearch") : t("noQueries")));
+    qDrawBar();
+    return;
+  }
+
+  const groups = new Map();
+  for (const r of rows) {
+    const key = qGroupOf(r);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  }
+  const order = [...groups.entries()].sort(
+    (a, b) => String(b[1][0].ts).localeCompare(String(a[1][0].ts)));
+
+  const tree = qEl("div", "q-tree");
+  for (const [key, items] of order) {
+    const g = qEl("div", "q-group");
+    const head = qEl("div", "q-folder");
+    const open = qOpen.has(key);
+    const fold = qEl("button", "fold", open ? "▾" : "▸");
+    fold.type = "button";
+    fold.onclick = () => {
+      open ? qOpen.delete(key) : qOpen.add(key);
+      drawSessions();
+    };
+    const words = qEl("div", "q-fwords");
+    const line = qEl("div", "q-fline");
+    line.append(qEl("span", "name", key));
+    const latest = qEl("span", "q-latest", String(items[0].query || "").slice(0, 80));
+    const when = qEl("span", "q-when", qAgo(items[0].ts));
+    words.append(line, latest);
+    head.append(fold, words, qEl("span", "note", String(items.length)), when);
+    g.append(head);
+
+    if (open) {
+      const shown = qDrawn.get(key) || Q_PAGE;
+      for (const r of items.slice(0, shown)) g.append(qRow(r));
+      if (items.length > shown) {
+        const more = qEl("button", "q-more", t("qMore", items.length - shown));
+        more.onclick = () => { qDrawn.set(key, shown + Q_PAGE); drawSessions(); };
+        g.append(more);
+      }
+    }
+    tree.append(g);
+  }
+  host.replaceChildren(tree);
+  qDrawBar();
+}
+
+async function loadQueries() {
+  const { queries } = await api("/queries?limit=500");
+  queryRows = (queries || []).map((r, i) => ({ ...r, _i: i }));
+  qPicked.clear();
+  qDetail = "";
+  // a new fetch renumbers rows; keep groups the user unfolded
+  $("#queries-count").textContent = queryRows.length ? t("queryTotal", queryRows.length) : "";
+  $("#queries-hint").classList.toggle("hidden", queryRows.length > 0);
+  $("#queries-hint").textContent = t("noQueries");
+
+  const cell = (v) => qEl("td", "", v === undefined || v === null ? "" : v);
   const tbody = $("#queries-table tbody");
-  tbody.replaceChildren(...rows.map((r) => {
-    const tr = document.createElement("tr");
+  tbody.replaceChildren(...queryRows.map((r) => {
+    const tr = qEl("tr");
     tr.append(cell(r.ts), cell(r.label), cell(r.kind), cell(r.query));
-    const hits = document.createElement("td");
-    hits.textContent = String(r.hits);
+    const hits = cell(String(r.hits));
     hits.className = r.hits ? "" : "danger";
-    tr.append(hits, cell(r.top || "—"),
-              cell(`${r.ms} ${t("ms")}`));
+    tr.append(hits, cell(r.top || "—"), cell(`${qNum(r.ms)} ${t("ms")}`));
     return tr;
   }));
-  if (!rows.length) {
-    const tr = document.createElement("tr");
-    const td = document.createElement("td");
+  if (!queryRows.length) {
+    const tr = qEl("tr");
+    const td = cell(t("noQueries"));
     td.colSpan = 7;
     td.className = "muted";
-    td.textContent = t("noQueries");
     tr.append(td);
     tbody.replaceChildren(tr);
   }
+  drawSessions();
 }
 
-$("#queries-refresh").addEventListener("click", loadQueries);
+document.querySelectorAll("[data-qview]").forEach((b) =>
+  b.addEventListener("click", () => {
+    document.querySelectorAll("[data-qview]").forEach((x) => x.classList.remove("on"));
+    b.classList.add("on");
+    qMode = b.dataset.qview;
+    $("#q-sessions").classList.toggle("hidden", qMode !== "sessions");
+    $("#q-table-view").classList.toggle("hidden", qMode !== "table");
+  }));
 
+$("#q-filter").addEventListener("input", (e) => {
+  clearTimeout(qSearchTimer);
+  const value = e.target.value;
+  qSearchTimer = setTimeout(() => {
+    qNeedle = value;
+    qDrawn.clear();
+    drawSessions();
+  }, 200);
+});
+$("#q-filter").addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && e.target.value) {
+    e.stopPropagation();
+    e.target.value = "";
+    qNeedle = "";
+    qDrawn.clear();
+    drawSessions();
+  }
+});
+$("#q-agent-pick").addEventListener("change", (e) => {
+  qAgent = e.target.value;
+  qOpen.clear();
+  drawSessions();
+});
+$("#q-select").addEventListener("click", () => {
+  qSelecting = !qSelecting;
+  if (!qSelecting) qPicked.clear();
+  drawSessions();
+});
+
+$("#queries-refresh").addEventListener("click", loadQueries);
 /* ---------- boot ---------- */
 $("#login-btn").addEventListener("click", trySignIn);
 $("#token").addEventListener("keydown", (e) => e.key === "Enter" && trySignIn());
