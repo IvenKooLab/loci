@@ -18,6 +18,8 @@ for (const view of ['sessions', 'table']) {
 }
 assert.ok(css.includes('.q-tree'), 'session view CSS not loaded');
 assert.ok(css.includes('.q-row:hover .q-act'), 'no hover-revealed actions');
+assert.ok(html.includes('rel="icon"') && html.includes('data:image/svg+xml'),
+          'inline favicon missing — every page load logs a 404');
 
 // ---------- 2. i18n: every new key in both languages ----------
 const i18nSrc = js.slice(js.indexOf('const I18N = {'), js.indexOf('\n};', js.indexOf('const I18N = {')) + 3);
