@@ -9,16 +9,22 @@ fn main() {
     // window must know it synchronously
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind ephemeral port");
     let port = listener.local_addr().expect("local addr").port();
-    drop(listener);
 
-    let root = std::env::current_dir()
-        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+    // Anchor the demo notes to the executable, not the caller's cwd. Launching
+    // the .app from Finder/Dock gives an arbitrary cwd (often /), and relative
+    // paths silently pointed at the wrong place — or nowhere.
+    let root = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|p| p.to_path_buf()))
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
         .join("loci-demo-notes");
 
-    // console server in a background thread: same code as `loci gui`
+    // Keep the listener we bound: dropping it before the server binds again is
+    // a TOCTOU race that can lose the port to another process. serve_bound owns
+    // the already-reserved socket.
     std::thread::spawn(move || {
         let cfg = loci_core::config::Config::default();
-        let _ = loci_cli::console::serve(root, port, cfg, true);
+        let _ = loci_cli::console::serve_bound(root, listener, cfg, true);
     });
 
     tauri::Builder::default()

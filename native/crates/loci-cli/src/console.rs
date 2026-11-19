@@ -126,7 +126,23 @@ impl ConsoleState {
 
 // ---- public entry -+
 
-pub fn serve(root: PathBuf, port: u16, mut cfg: Config, offline: bool) -> Result<()> {
+/// Bind a port and serve the console. Kept for the CLI (`loci gui`), which
+/// owns the port from start to finish. Callers that need to know the bound
+/// port *before* the server starts (the desktop shell) must use `serve_bound`
+/// with their own listener — binding, dropping it, then binding again is a
+/// TOCTOU race that can hand the port to another process.
+pub fn serve(root: PathBuf, port: u16, cfg: Config, offline: bool) -> Result<()> {
+    let listener = TcpListener::bind(("127.0.0.1", port)).with_context(|| {
+        format!("cannot listen on 127.0.0.1:{port} — another instance may be running")
+    })?;
+    serve_bound(root, listener, cfg, offline)
+}
+
+/// Serve on an already-bound listener. The port stays reserved across the
+/// handoff, so there is no window for another process to steal it.
+pub fn serve_bound(root: PathBuf, listener: TcpListener, mut cfg: Config,
+                   offline: bool) -> Result<()> {
+    let port = listener.local_addr()?.port();
     std::fs::create_dir_all(&root)?;
     let memories = root.join("memories");
     let uploads = root.join("uploads");
@@ -176,9 +192,6 @@ pub fn serve(root: PathBuf, port: u16, mut cfg: Config, offline: bool) -> Result
         }
     );
     println!("  Ctrl-C 退出");
-
-    let listener = TcpListener::bind(("127.0.0.1", port))
-        .with_context(|| format!("cannot listen on 127.0.0.1:{port} — another instance may be running"))?;
 
     let state = Arc::new(ConsoleState {
         root,
