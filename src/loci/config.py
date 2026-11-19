@@ -104,9 +104,15 @@ def load(path: str = "config.toml") -> Config:
             v = getattr(cfg, section).get("path")
             if v and not Path(v).expanduser().is_absolute():
                 getattr(cfg, section)["path"] = str((base / v).resolve())
-        v = cfg.http.get("icons")
-        if v and not Path(v).expanduser().is_absolute():
-            cfg.http["icons"] = str((base / v).resolve())
+        # `icons` and `query_log` are also runtime files: without anchoring,
+        # a relative query_log follows the *process cwd* instead of the
+        # instance, so two instances launched from different shells silently
+        # write their query history into different places — the exact bug the
+        # "which LOCI_HOME did Codex hit?" query log exists to diagnose.
+        for key in ("icons", "query_log"):
+            v = cfg.http.get(key)
+            if v and not Path(v).expanduser().is_absolute():
+                cfg.http[key] = str((base / v).resolve())
         for s in cfg.sources:
             v = s.get("path")
             if v and not Path(v).expanduser().is_absolute():
