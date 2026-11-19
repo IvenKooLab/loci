@@ -160,7 +160,29 @@ class QueryLog:
         self._lock = threading.Lock()
         self._path = Path(path).expanduser() if path else None
         if self._path:
-            self._path.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                self._path.parent.mkdir(parents=True, exist_ok=True)
+                # A restart must not erase the history: without this, the
+                # docstring's promise ("a restart keeps the recent past") is
+                # false and a service restart looks like a week of zero-hit
+                # queries in the quality dashboard. Corrupt/truncated trailing
+                # lines are skipped; logging must never prevent a startup.
+                for line in self._path.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        row = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if isinstance(row, dict):
+                        self._buf.appendleft(row)
+            except OSError:
+                pass                     # unreadable log: start empty, keep serving
+            else:
+                # the deque drops the oldest when maxlen is exceeded
+                while len(self._buf) > maxlen:
+                    self._buf.pop()
 
     def add(self, entry: dict, kind: str, query: str, hits: list[dict],
             ms: float, n: int | None = None) -> None:

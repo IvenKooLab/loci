@@ -130,3 +130,33 @@ def test_limit_is_clamped(server):
         call(srv, "POST", "/search", {"query": f"q{i}"})
     _, data = call(srv, "GET", "/queries?limit=2")
     assert len(data["queries"]) == 2
+
+
+def test_restart_restores_recent_history(tmp_path):
+    """The JSONL file is the durable half of the ring buffer."""
+    import json as _json
+    from loci.http_api import QueryLog
+    path = tmp_path / "queries.jsonl"
+    rows = [{"ts": f"2026-01-01 00:00:0{i}", "label": "codex", "role": "editor",
+             "kind": "search", "query": f"q{i}", "hits": 1, "top": "a.md", "ms": 1.0}
+            for i in range(3)]
+    path.write_text("\n".join(_json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    log = QueryLog(path=str(path))
+    # newest first, like the live buffer
+    assert [r["query"] for r in log.recent()] == ["q2", "q1", "q0"]
+
+
+def test_restart_skips_corrupt_tail(tmp_path):
+    from loci.http_api import QueryLog
+    path = tmp_path / "queries.jsonl"
+    path.write_text('{"query":"ok"}\n{broken\n{"query":"also ok"}\n', encoding="utf-8")
+    assert [r["query"] for r in QueryLog(path=str(path)).recent()] == ["also ok", "ok"]
+
+
+def test_restart_honors_maxlen(tmp_path):
+    import json as _json
+    from loci.http_api import QueryLog
+    path = tmp_path / "queries.jsonl"
+    path.write_text("\n".join(_json.dumps({"query": f"q{i}"}) for i in range(10)) + "\n",
+                    encoding="utf-8")
+    assert len(QueryLog(maxlen=3, path=str(path)).recent()) == 3
