@@ -122,3 +122,11 @@ for (const directive of ["default-src 'self'", "script-src 'self'", "object-src 
   assert.ok(csp.includes(directive), `CSP missing: ${directive}`);
 }
 assert.ok(csp.includes('data:'), 'inline SVG favicon needs data: images');
+
+// ---------- 6. desktop shell: no port TOCTOU, no cwd-dependent root ----------
+const mainRs = fs.readFileSync('native/desktop/src-tauri/src/main.rs', 'utf8');
+assert.ok(mainRs.includes('serve_bound'), 'desktop shell must hand over a bound listener');
+assert.ok(!mainRs.includes('drop(listener)'),
+          'dropping the listener before serve rebinds is a TOCTOU race');
+assert.ok(mainRs.includes('current_exe()'),
+          'demo notes must be anchored to the executable, not the launch cwd');
