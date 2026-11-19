@@ -168,3 +168,17 @@ def test_no_baseline_means_no_false_alarms(tmp_path):
     cfg.http["query_log"] = str(qlog)
     _write_queries(qlog, [{"hits": 0, "ms": 10, "query": f"q{i}"} for i in range(30)])
     assert quality.compare(cfg)["alerts"] == []
+
+
+def test_query_log_path_is_anchored_at_loci_home(tmp_path, monkeypatch):
+    """A relative query_log must follow LOCI_HOME, not the process cwd."""
+    from loci import config
+    (tmp_path / "config.toml").write_text('[http]\nquery_log = "./queries.jsonl"\n',
+                                          encoding="utf-8")
+    monkeypatch.setenv("LOCI_HOME", str(tmp_path))
+    cfg = config.load()
+    assert cfg.http["query_log"] == str(tmp_path / "queries.jsonl")
+    # and an absolute path must be left alone
+    (tmp_path / "config.toml").write_text(
+        '[http]\nquery_log = "/tmp/somewhere/queries.jsonl"\n', encoding="utf-8")
+    assert config.load().http["query_log"] == "/tmp/somewhere/queries.jsonl"
