@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
+import time
 from functools import lru_cache
 from pathlib import Path, PurePath
 
@@ -42,3 +44,28 @@ def realcase(path: str) -> str:
         candidates = [n for n in names if n.casefold() == low]
         built = built / (candidates[0] if len(candidates) == 1 else part)
     return str(built)
+
+
+def atomic_write(target: Path, text: str, *, encoding: str = "utf-8") -> None:
+    """Stage through a unique tmp name, then replace in one atomic step.
+
+    The tmp name is unique per writer (pid + thread id): two agents saving
+    the same key used to stomp each other's staging file. The replace itself
+    retries briefly on Windows, where renaming over a file another thread is
+    *reading* fails with WinError 5 — POSIX rename is immune, so there the
+    first attempt always succeeds. Raises the last PermissionError if the
+    collision outlasts the backoff."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_suffix(f"{target.suffix}.{os.getpid()}.{threading.get_ident()}.tmp")
+    tmp.write_text(text, encoding=encoding)
+    try:
+        for attempt in range(12):
+            try:
+                tmp.replace(target)
+                return
+            except PermissionError:
+                if attempt == 11:
+                    raise
+                time.sleep(min(0.005 * 1.6 ** attempt, 0.05))
+    finally:
+        tmp.unlink(missing_ok=True)

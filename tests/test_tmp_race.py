@@ -61,3 +61,45 @@ def test_concurrent_graph_saves_all_succeed(tmp_path, monkeypatch):
     [t.start() for t in threads]
     [t.join() for t in threads]
     assert errors == [], errors[:3]
+
+
+def test_concurrent_readers_and_writers_on_windows(tmp_path):
+    """On Windows, Path.replace over a file another thread is READING fails
+    with WinError 5 (no FILE_SHARE_DELETE) — and the reader's open() fails
+    the same instant. A reader/writer mix on one key used to raise out of
+    state.save; the writer now backs off and retries while the collision
+    lasts, and reads tolerate the same instant via their OSError guard."""
+    from loci import state
+
+    class Cfg:
+        state = {"path": str(tmp_path / "state")}
+    cfg = Cfg()
+    state.save(cfg, "task", "8f3c", {"v": 0})
+    errors: list[str] = []
+    reads = {"ok": 0}
+
+    def reader():
+        while not stop.is_set():
+            try:
+                if state.get(cfg, "task", "8f3c") is not None:
+                    reads["ok"] += 1
+            except OSError as e:               # the guard must make this unreachable
+                errors.append(f"read {type(e).__name__}: {e}")
+
+    def writer(i):
+        try:
+            for n in range(40):
+                state.save(cfg, "task", "8f3c", {"writer": i, "n": n})
+        except Exception as e:                 # noqa: BLE001 — the point
+            errors.append(f"write {type(e).__name__}: {e}")
+
+    stop = threading.Event()
+    r1 = threading.Thread(target=reader)
+    r1.start()
+    ws = [threading.Thread(target=writer, args=(i,)) for i in range(6)]
+    [t.start() for t in ws]
+    [t.join() for t in ws]
+    stop.set()
+    r1.join()
+    assert errors == [], errors[:3]
+    assert reads["ok"] > 0
