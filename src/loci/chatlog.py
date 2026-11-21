@@ -37,7 +37,7 @@ def _parse_chatgpt(data: list) -> list[dict]:
         title = str(conv.get("title") or "untitled conversation")
         mapping = conv.get("mapping") or {}
         turns = []
-        for node in mapping.values():
+        for i, node in enumerate(mapping.values()):
             msg = node.get("message") or {}
             author = (msg.get("author") or {}).get("role", "")
             if author not in ("user", "assistant"):
@@ -49,11 +49,16 @@ def _parse_chatgpt(data: list) -> list[dict]:
                      if isinstance(p, str) and p.strip()]
             if not parts:
                 continue
-            turns.append((msg.get("create_time") or 0, _turn(author, "\n".join(parts))))
-        turns.sort(key=lambda t: t[0])
+            # secondary key = mapping insertion order: messages without a
+            # create_time (some tool calls, legacy exports) used to all
+            # become 0 and pile up at the top in dict order, scrambling the
+            # conversation
+            turns.append((msg.get("create_time"), i,
+                          _turn(author, "\n".join(parts))))
+        turns.sort(key=lambda t: (0 if t[0] is None else t[0], t[1]))
         if turns:
             out.append({"title": title,
-                        "text": f"# {title}\n\n" + "\n\n".join(t[1] for t in turns)})
+                        "text": f"# {title}\n\n" + "\n\n".join(t[2] for t in turns)})
     return out
 
 
