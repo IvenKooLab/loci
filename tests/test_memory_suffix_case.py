@@ -45,7 +45,14 @@ def test_safe_memory_folds_suffix(tmp_path):
     (tmp_path / "UPPER.MD").write_text("---\ntitle: Upper\n---\nbody", encoding="utf-8")
     p = handler._safe_memory(None, "UPPER.MD")
     assert p is not None and p.name == "UPPER.MD"
-    assert handler._safe_memory(None, "UPPER.md") is not None  # same file, any casing
+    # "same file, any casing" holds on case-insensitive volumes only. On
+    # Linux ext4 UPPER.MD and UPPER.md are different files and UPPER.md does
+    # not exist — answering None there is correct, not the bug being fixed.
+    import sys as _sys
+    if _sys.platform in ("win32", "darwin"):
+        assert handler._safe_memory(None, "UPPER.md") is not None
+    else:
+        assert handler._safe_memory(None, "UPPER.md") is None
     assert handler._safe_memory(None, "nope.md") is None
 
 
