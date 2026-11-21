@@ -33,7 +33,21 @@ def params_for(doc: dict, defaults: dict) -> tuple[int, int]:
 
 def split_markdown(text: str, size: int, overlap: int) -> list[dict]:
     """Return [{"text", "section"}] where section is a heading breadcrumb like
-    "Install > Prerequisites" ("" for text before any heading)."""
+    "Install > Prerequisites" ("" for text before any heading).
+
+    Defensive clamps here rather than only in config.load: per-source
+    [[sources]] overrides, the demo and the harness digests call this
+    directly, and `overlap >= size` (or a size below 1) means a step of <1
+    char — near-identical chunks indexed over and over (an overlap=99/size=100
+    corpus of 80k chars used to produce ~80k chunks)."""
+    try:
+        size = max(int(size), 1)
+    except (TypeError, ValueError):
+        size = 800
+    try:
+        overlap = max(min(int(overlap), size // 2), 0)
+    except (TypeError, ValueError):
+        overlap = 100
     out: list[dict] = []
     for crumb, block in _blocks_with_breadcrumbs(text):
         block = block.strip()
