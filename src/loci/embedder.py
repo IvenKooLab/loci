@@ -17,5 +17,14 @@ class Embedder:
         for i in range(0, len(texts), batch):
             part = [t.replace("\n", " ")[:4000] for t in texts[i:i + batch]]
             resp = self.client.embeddings.create(model=self.model, input=part)
-            vectors.extend(d.embedding for d in resp.data)
+            # the response carries the input index of every vector: some
+            # OpenAI-compatible endpoints return data out of order (reproduced
+            # with a shuffled mock — vectors silently landed on the wrong
+            # chunks), so reassemble by index instead of trusting the order
+            data = sorted(resp.data, key=lambda d: d.index)
+            if [d.index for d in data] != list(range(len(part))):
+                raise ValueError(
+                    f"embedding endpoint returned bad indices "
+                    f"{[d.index for d in data]} for {len(part)} inputs")
+            vectors.extend(d.embedding for d in data)
         return vectors
