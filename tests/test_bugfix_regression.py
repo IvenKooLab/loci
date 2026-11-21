@@ -193,7 +193,7 @@ def test_config_clamps_runaway_overlap(tmp_path, capsys):
     p = tmp_path / "c.toml"
     p.write_text("[chunk]\nsize = 100\noverlap = 800", encoding="utf-8")
     cfg = config.load(str(p))
-    assert cfg.chunk["overlap"] == 99
+    assert cfg.chunk["overlap"] == 50          # size // 2, not the old size-1
     assert "clamping" in capsys.readouterr().err
 
 
