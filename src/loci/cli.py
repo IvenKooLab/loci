@@ -108,6 +108,10 @@ def cmd_ingest(cfg, force: bool = False) -> None:
 def cmd_search(cfg, query: str, tag: str | None = None, rerank: bool | None = None,
                path_contains: str | None = None, since: float | None = None,
                exact: str | None = None, rerank_with: str | None = None) -> None:
+    # blank queries reach the embedding endpoint as "" and come back as a raw
+    # provider 400 — the MCP layer rejects them, the CLI entry did not
+    if not (query or "").strip():
+        sys.exit("loci: empty query — pass the text to search for")
     embedder, store = build(cfg)
     hits = make_retriever(cfg, embedder, store).search(
         query, tag=tag, rerank=rerank, path_contains=path_contains,
@@ -126,6 +130,8 @@ def cmd_ask(cfg, question: str, rerank: bool | None = None,
             path_contains: str | None = None, since: float | None = None,
             verify: bool = False, rerank_with: str | None = None,
             rewrite: bool | None = None) -> None:
+    if not (question or "").strip():       # same blank-query guard as search
+        sys.exit("loci: empty question — pass the text to ask about")
     from loci.retriever import Retriever, answer, verify_answer
     embedder, store = build(cfg)
     retriever = make_retriever(cfg, embedder, store)
