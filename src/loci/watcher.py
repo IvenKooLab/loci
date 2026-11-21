@@ -15,6 +15,17 @@ def ingest_once(cfg) -> int:
     embedder, store = build(cfg)
     docs = loaders.scan_sources(cfg.sources)
     store.prune(keep={d["path"] for d in docs})
+    # Same vector-space guard `cmd_ingest` has: without it a watch loop keeps
+    # upserting new-model vectors into the old collection after an [embed]
+    # change, failing with a raw chroma error every cycle, forever.
+    if any(store.indexed_hash(d["path"]) != d["hash"] for d in docs):
+        probe = embedder.embed(["dimension probe"])
+        try:
+            store.ensure_embed(cfg.embed["model"], len(probe[0]), rebuild=False)
+        except SystemExit as e:
+            # cmd_watch catches Exception; SystemExit (BaseException) would
+            # kill the loop outright — surface the guidance as a runtime error
+            raise RuntimeError(str(e)) from e
     changed = 0
     for doc in docs:
         if store.indexed_hash(doc["path"]) == doc["hash"]:
