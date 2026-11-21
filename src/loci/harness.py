@@ -141,7 +141,13 @@ def load_harnesses(cfg) -> list[Harness]:
         htype = str(h.get("type", "generic")).strip().lower() or "generic"
         icon = str(h.get("icon", "") or "").strip()
         raw = h.get("paths") or ([h["path"]] if h.get("path") else [])
-        roots = [_root(str(p)) for p in raw if str(p).strip()]
+        # paths = "~/notes" is a common typo for a list — a bare string must
+        # be ONE root, not iterated per character (that used to register "/"
+        # and every first-letter directory as harness roots)
+        if isinstance(raw, str):
+            raw = [raw]
+        roots = [_root(str(p)) for p in raw
+                 if isinstance(p, str) and p.strip()]
         prev = out.get(name)
         out[name] = Harness(name, htype, icon or (prev.icon if prev else "🗂️"),
                             roots,

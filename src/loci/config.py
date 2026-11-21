@@ -91,7 +91,22 @@ def load(path: str = "config.toml") -> Config:
         for section in DEFAULTS:
             if isinstance(getattr(cfg, section), dict):
                 getattr(cfg, section).update(raw.get(section, {}))
-        cfg.sources = raw.get("sources", [])
+        raw_sources = raw.get("sources", [])
+        # one malformed [[sources]] entry used to kill every command with a
+        # TypeError/KeyError deep in the scan — skip it with a pointer instead
+        if isinstance(raw_sources, list):
+            kept = []
+            for item in raw_sources:
+                if isinstance(item, dict) and isinstance(item.get("path"), str) \
+                        and item["path"].strip():
+                    kept.append(item)
+                else:
+                    print(f"[warn] [[sources]] entry without a valid path "
+                          f"skipped: {item!r}", file=sys.stderr)
+            cfg.sources = kept
+        else:
+            print("[warn] [[sources]] is not a table array — none loaded",
+                  file=sys.stderr)
         cfg.harnesses = raw.get("harness", [])
         cfg.auth = raw.get("auth", {}).get("tokens", [])
     else:
@@ -116,7 +131,7 @@ def load(path: str = "config.toml") -> Config:
                 cfg.http[key] = str((base / v).resolve())
         for s in cfg.sources:
             v = s.get("path")
-            if v and not Path(v).expanduser().is_absolute():
+            if isinstance(v, str) and v and not Path(v).expanduser().is_absolute():
                 s["path"] = str((base / v).expanduser().resolve())
 
     # generated/curated directories (memories, wiki) are always part of the
