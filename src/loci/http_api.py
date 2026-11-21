@@ -49,8 +49,39 @@ class Server(ThreadingHTTPServer):
     port instead of failing — exactly the two-instances case the friendly
     EADDRINUSE message below exists for (a second `serve-http` "succeeds"
     and then both sockets fight over the port). POSIX keeps reuse so a
-    quick restart after shutdown does not wait out TIME_WAIT."""
+    quick restart after shutdown does not wait out TIME_WAIT.
+
+    Backpressure: each request gets a thread; a burst of slow LLM calls
+    (a concurrent crawl, a stuck upstream) used to pile up unbounded threads
+    until the listener stopped answering at all. Beyond MAX_CONCURRENT the
+    connection gets an immediate 503 instead of queueing."""
     allow_reuse_address = sys.platform != "win32"
+    max_concurrent = 16
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.gate = threading.BoundedSemaphore(self.max_concurrent)
+
+    def process_request(self, request, client_address):
+        if not self.gate.acquire(blocking=False):
+            body = '{"error": "server busy — retry shortly"}'.encode()
+            try:
+                request.sendall(
+                    b"HTTP/1.1 503 Service Unavailable\r\n"
+                    b"Content-Type: application/json\r\n"
+                    b"Connection: close\r\n"
+                    b"Content-Length: " + str(len(body)).encode() + b"\r\n\r\n"
+                    + body)
+            finally:
+                self.shutdown_request(request)
+            return
+        super().process_request(request, client_address)
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self.gate.release()
 
 
 def _within(path: Path, root: Path) -> bool:
