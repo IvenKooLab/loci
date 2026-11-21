@@ -78,3 +78,20 @@ def test_list_memories_sees_uppercase(tmp_path, monkeypatch):
     rows = handler._list_memories(stub)
     names = {r["name"] for r in rows}
     assert "UPPER.MD" in names and "lower.md" in names
+
+
+def test_list_memories_survives_long_frontmatter(tmp_path):
+    """The title line sits beyond the old 400-char head cap when long
+    description/tags lines precede it — the card then fell back to the
+    filename. Parse the full frontmatter instead."""
+    stub_fm = ( "---\ntitle: 真标题在这里\n"
+                "description: " + "很长的描述 " * 60 + "\n"
+                "tags: [memory, a, b, c]\n---\n\nbody\n")
+    (tmp_path / "long.md").write_text(stub_fm, encoding="utf-8")
+    assert len(stub_fm) > 400                        # precondition: cap bites
+    handler, _ = _handler_for(tmp_path)
+    stub = type("S", (), {"_safe_memory": staticmethod(
+        lambda name: handler._safe_memory(None, name))})()
+    rows = handler._list_memories(stub)
+    row = next(r for r in rows if r["name"] == "long.md")
+    assert row["title"] == "真标题在这里"

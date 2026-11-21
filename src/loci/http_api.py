@@ -709,12 +709,15 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
                 rel = p.relative_to(mem_dir)
                 group = "harness" if rel.parts[0] == "harness" else "shared"
                 # harness: which tool owns this note (harness/<name>.md);
-                # title: frontmatter title:, else the file stem — never the
-                # raw '---' fence a title-less frontmatter would yield
-                head = p.read_text(encoding="utf-8", errors="ignore")[:400]
+                # title: frontmatter title:, else the file stem — parsed
+                # from the FULL frontmatter (a 400-char cap silently dropped
+                # the title: line whenever long description/tags lines
+                # preceded it)
+                raw = p.read_text(encoding="utf-8", errors="ignore")
                 title = ""
-                if head.startswith("---"):
-                    m = re.search(r"^title:\s*(.+)$", head, re.M)
+                if raw.startswith("---"):
+                    m = re.search(r"^title:\s*(.+)$",
+                                  raw.split("---")[1] or "", re.M)
                     if m:
                         title = m.group(1).strip().strip('"')[:80]
                 rows.append({
