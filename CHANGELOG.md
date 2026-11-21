@@ -53,6 +53,19 @@ froze it) plus a read-through of the v0.9.x feature modules.
   without a `create_time` all piled up at the top in dict order — untimed
   turns now keep the export's insertion order
 
+### Fixed (more from the same sweep)
+- **An identifier-shaped query with an explicit `k` was silently truncated
+  to `top_k*4`** by the literal-match channel (`k=50` on a 30-doc corpus
+  returned 20) — the cap now follows `fetch`
+- **`expand_queries` turned a bare-string LLM reply into junk single-
+  character "variants"** that went into retrieval — non-list replies now
+  abort the rewrite
+- **`/search` / `/ask` parameters arrived as user JSON**: an array in
+  `tag`/`query`/`in`/`question` pierced `.lower()` as a bare 500 — string
+  params are now coerced
+- **`remember` tags crashed on non-string items** (`tags: ["a", 123]` →
+  AttributeError, the note never written) — items are coerced now
+
 ## v0.10.0 — 2026-11-18
 
 A hardening release around the v0.9.0 console/graph foundation: one
