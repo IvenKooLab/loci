@@ -304,6 +304,15 @@ def _safe_upload_name(name: str) -> str | None:
 
 
 def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None):
+    def _string_param(body, key):
+        """Query/filter parameters are user JSON: an array or object used
+        to sail into `.lower()` / slicing and blow up as a bare 500."""
+        value = body.get(key, "")
+        if value is None:
+            return ""
+        return value if isinstance(value, str) else json.dumps(
+            value, ensure_ascii=False)
+
     mem_dir = Path(cfg.memories["path"]).expanduser().resolve()
     upload_dir = mem_dir / "uploads"
     from loci import loaders as loaders_mod
@@ -325,6 +334,7 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
                         n=None if hits is not None else 0)
         except Exception:
             pass
+
 
     class Handler(BaseHTTPRequestHandler):
         entry: dict | None = None
@@ -556,14 +566,15 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
                     # render an evidence pane, and text-only clients ignore it
                     started = time.perf_counter()
                     payload = brain.search_payload(**{
-                        "query": body.get("query", ""), "k": body.get("k"),
-                        "tag": body.get("tag"),
-                        "path_contains": body.get("in")})
+                        "query": _string_param(body, "query"),
+                        "k": body.get("k"),
+                        "tag": _string_param(body, "tag"),
+                        "path_contains": _string_param(body, "in")})
                     _log_query(self.entry, "search", body.get("query", ""),
                                payload, (time.perf_counter() - started) * 1000)
                     return self._json(200, payload)
                 started = time.perf_counter()
-                text = brain.ask(body.get("question", ""),
+                text = brain.ask(_string_param(body, "question"),
                                  verify=body.get("verify", False))
                 _log_query(self.entry, "ask", body.get("question", ""),
                            None, (time.perf_counter() - started) * 1000)
