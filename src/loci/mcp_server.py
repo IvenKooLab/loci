@@ -22,6 +22,7 @@ import io
 import json
 import re
 import sys
+import threading
 import time
 from pathlib import Path
 from urllib.parse import quote, unquote
@@ -295,6 +296,19 @@ class Brain:
         self._retriever = None
         self._store = None
         self._config_error: str | None = None
+        # serve-http serves every request in its own thread against ONE Brain;
+        # a 50-thread burst used to freeze the whole process to connection
+        # resets (unsynchronized _reset + concurrent chroma queries). Pipeline
+        # work is serialized under this lock — queries queue instead of
+        # corrupting shared state.
+        self._lock = threading.RLock()
+
+    def _pipeline_lock(self):
+        # lazy fallback for instances built via __new__ in tests
+        lock = getattr(self, "_lock", None)
+        if lock is None:
+            lock = self._lock = threading.RLock()
+        return lock
 
     def _ensure(self):
         # never raises: an unconfigured environment leaves the server alive,
@@ -338,20 +352,23 @@ class Brain:
 
     def _retryable(self, fn):
         """Run fn(); on a transient API failure rebuild the pipeline once and
-        retry — also picks up config.toml edits without a process restart."""
-        if err := self._guard():
-            return err
-        try:
-            return fn()
-        except Exception as e:
-            if not self._transient(e):
-                raise
-            print(f"loci: transient API failure ({type(e).__name__}: {e}) — "
-                  "rebuilding pipeline and retrying once", file=sys.stderr)
-            self._reset()
+        retry — also picks up config.toml edits without a process restart.
+        Serialized: a concurrent burst used to interleave _reset/rebuild with
+        in-flight queries and freeze the process."""
+        with self._pipeline_lock():
             if err := self._guard():
                 return err
-            return fn()
+            try:
+                return fn()
+            except Exception as e:
+                if not self._transient(e):
+                    raise
+                print(f"loci: transient API failure ({type(e).__name__}: {e}) — "
+                      "rebuilding pipeline and retrying once", file=sys.stderr)
+                self._reset()
+                if err := self._guard():
+                    return err
+                return fn()
 
     @staticmethod
     def _slim_hit(h: dict, title: str | None = None) -> dict:
@@ -415,6 +432,7 @@ class Brain:
         if not (query or "").strip():
             return {"result": "(empty query — pass `query` in the request body)",
                     "hits": []}
+        query = query[:2000]
         try:
             k = int(k) if k is not None else None
         except (TypeError, ValueError):
@@ -548,6 +566,7 @@ class Brain:
     def ask(self, question: str, verify: bool = False) -> str:
         if err := self._guard():
             return err
+        question = question[:8000]   # whole thing lands in the LLM prompt
 
         def _do() -> str:
             hits = self._retriever.search(question)
@@ -566,6 +585,10 @@ class Brain:
     def ingest(self, force: bool = False) -> str:
         if err := self._guard():
             return err
+        with self._pipeline_lock():
+            return self._ingest_locked(force)
+
+    def _ingest_locked(self, force: bool = False) -> str:
         cfg = self._cfg
         from loci.cli import cmd_ingest
         buf = io.StringIO()
@@ -674,18 +697,23 @@ class Brain:
             return (f"stored: {path}\n"
                     "not indexed yet (no working embedder in this environment) — "
                     "run brain_ingest or `loci ingest` where loci is configured")
-        try:
-            n = index_memory_file(self._cfg, path)
-        except SystemExit as e:       # embedding model changed — file is safe
-            return (f"stored: {path}\nnot indexed: {e}")
-        except Exception as e:        # transient embedder/API failure
-            return (f"stored: {path}\nnot indexed yet ({type(e).__name__}: {e}) — "
-                    "the note is on disk and the next `loci ingest` picks it up")
+        with self._pipeline_lock():
+            try:
+                n = index_memory_file(self._cfg, path)
+            except SystemExit as e:   # embedding model changed — file is safe
+                return (f"stored: {path}\nnot indexed: {e}")
+            except Exception as e:    # transient embedder/API failure
+                return (f"stored: {path}\nnot indexed yet ({type(e).__name__}: {e}) — "
+                        "the note is on disk and the next `loci ingest` picks it up")
         return f"remembered: {path} ({n} chunks, searchable now)"
 
     def forget(self, query: str) -> str:
         if err := self._guard():
             return err
+        with self._pipeline_lock():
+            return self._forget_locked(query)
+
+    def _forget_locked(self, query: str) -> str:
         from loci.memories import forget_memory
         mem_dir = self._cfg.memories.get("path", "./memories")
         moved = forget_memory(mem_dir, query)
