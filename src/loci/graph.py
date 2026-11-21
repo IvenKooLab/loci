@@ -89,8 +89,31 @@ def build_graph(cfg, dirs: list[str] | None = None, force: bool = False) -> dict
     files = []
     for d in dirs:
         root = Path(d).expanduser()
-        if root.exists():
-            files.extend(sorted(root.rglob("*.md")))
+        if not root.exists():
+            continue
+        for f in sorted(root.rglob("*")):
+            if not f.is_file() or f.suffix.lower() != ".md":
+                continue
+            if f.name.startswith("._") or f.name.startswith("~$"):
+                continue
+            try:
+                rel_parts = f.relative_to(root)
+            except ValueError:
+                continue
+            # hidden directories are machinery: a .trash note's edges must
+            # not keep steering the graph after the note was retired
+            if any(part.startswith(".") for part in rel_parts.parts[:-1]):
+                continue
+            files.append(f)
+    # files that vanished since the last run: drop their edges AND their
+    # processed marks, or a retired decision keeps steering graph answers
+    live = {str(f) for f in files}
+    vanished = [rel for rel in graph["processed"] if rel not in live]
+    for rel in vanished:
+        graph["edges"] = [e for e in graph["edges"] if e.get("source") != rel]
+        del graph["processed"][rel]
+    if vanished:
+        print(f"  graph: dropped edges of {len(vanished)} vanished file(s)")
     changed_files, new_edge_count = [], 0
     for f in files:
         try:
