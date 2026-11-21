@@ -95,3 +95,16 @@ def test_list_memories_survives_long_frontmatter(tmp_path):
     rows = handler._list_memories(stub)
     row = next(r for r in rows if r["name"] == "long.md")
     assert row["title"] == "真标题在这里"
+
+
+def test_safe_upload_name_blocks_windows_device_names():
+    """CON/PRN/AUX/NUL/COM1-9/LPT1-9 are device names on Windows even with
+    an extension (CON.md opens the console) — refuse them wherever the
+    file lands, since uploads may sit on a share served to Windows."""
+    from loci.http_api import _safe_upload_name
+    for bad in ("CON", "con.md", "Con.txt", "NUL", "nul.pdf",
+                "COM1", "lpt3", "aux.json"):
+        assert _safe_upload_name(bad) is None, bad
+    for ok in ("constants.md", "console-notes.md", "nullary.md",
+               "report-2026.pdf", "普通文档.docx"):
+        assert _safe_upload_name(ok) == ok, ok
