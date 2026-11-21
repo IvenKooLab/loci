@@ -15,12 +15,9 @@ written back: the files stay the source of truth.
 """
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 from loci.loaders import parse_frontmatter
-
-_FENCES = re.compile(r"^---\n(.*?)\n---\n", re.S)
 
 # frontmatter keys, and the wording each one points
 _FORWARD = ("supersedes", "superseded", "replaces")
