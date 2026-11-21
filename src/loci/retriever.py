@@ -175,7 +175,9 @@ class Retriever:
                     # themselves
                     scores[cid] = scores.get(cid, 0.0) + float(hits)
 
-        ordered = sorted(scores.items(), key=lambda kv: -kv[1])[: self.top_k * 4]
+        # cap by `fetch`, not top_k*4: an explicit k=50 used to be silently
+        # cut to top_k*4 (20) on identifier-shaped queries
+        ordered = sorted(scores.items(), key=lambda kv: -kv[1])[:fetch]
         missing = [cid for cid, _ in ordered if cid not in by_id]
         if missing:
             by_id.update({h["id"]: h for h in self.store.get_many(missing)})
@@ -203,7 +205,10 @@ def expand_queries(llm_cfg: dict, query: str) -> list[str]:
         )
         import json
         variants = json.loads(resp.choices[0].message.content or "[]")
-        valid = [v.strip() for v in variants if isinstance(v, str) and v.strip()]
+        if not isinstance(variants, list):
+            return [query]                 # a bare string/number iterates as
+        valid = [v.strip() for v in variants   # junk single-char "variants"
+                 if isinstance(v, str) and v.strip()]
         return [query] + valid if valid else [query]
     except Exception:
         return [query]
