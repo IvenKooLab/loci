@@ -178,7 +178,12 @@ def test_query_log_path_is_anchored_at_loci_home(tmp_path, monkeypatch):
     monkeypatch.setenv("LOCI_HOME", str(tmp_path))
     cfg = config.load()
     assert cfg.http["query_log"] == str(tmp_path / "queries.jsonl")
-    # and an absolute path must be left alone
+    # and an absolute path must be left alone (an absolute Windows path has a
+    # drive letter — on POSIX "/tmp/..." is already absolute, on Windows it is
+    # not, and anchoring it is exactly what the feature promises)
+    import sys as _sys
+    absolute = ("C:/somewhere/queries.jsonl" if _sys.platform == "win32"
+                else "/tmp/somewhere/queries.jsonl")
     (tmp_path / "config.toml").write_text(
-        '[http]\nquery_log = "/tmp/somewhere/queries.jsonl"\n', encoding="utf-8")
-    assert config.load().http["query_log"] == "/tmp/somewhere/queries.jsonl"
+        f'[http]\nquery_log = "{absolute}"\n', encoding="utf-8")
+    assert config.load().http["query_log"] == absolute
