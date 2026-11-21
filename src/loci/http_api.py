@@ -25,6 +25,7 @@ import base64
 import binascii
 import errno
 import json
+import os
 import re
 import secrets
 import sys
@@ -673,14 +674,32 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
             if len(blob) > UPLOAD_MAX_BYTES:
                 return self._json(413, {"error": "file too large"})
             upload_dir.mkdir(parents=True, exist_ok=True)
+            # never clobber silently — INCLUDING under concurrency: two
+            # simultaneous uploads of the same name used to both pass the
+            # exists() check and the second replace() silently overwrote the
+            # first. O_EXCL claims the name atomically (a 0-byte placeholder
+            # racers see via exists()), then the full content atomically
+            # replaces the placeholder; the .part name is per-upload unique
+            # so two writers can't stomp each other's staging file either.
             dest = upload_dir / name
-            if dest.exists():                    # never clobber silently
+            if dest.exists():
                 stem, suf = dest.stem, dest.suffix
                 n = 2
                 while dest.exists():
                     dest = upload_dir / f"{stem}-{n}{suf}"
                     n += 1
-            tmp = dest.with_suffix(dest.suffix + ".part")
+            while True:
+                try:
+                    fd = os.open(dest, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                    os.close(fd)
+                    break
+                except FileExistsError:
+                    stem, suf = dest.stem, dest.suffix
+                    n = 2
+                    while dest.exists():
+                        dest = upload_dir / f"{stem}-{n}{suf}"
+                        n += 1
+            tmp = upload_dir / f".{dest.name}.{secrets.token_hex(4)}.part"
             tmp.write_bytes(blob)
             tmp.replace(dest)
             try:
