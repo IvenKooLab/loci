@@ -147,23 +147,41 @@ def table_for(sources: list[dict], memories: str = "") -> dict[str, dict]:
     roots = [Path(s["path"]).expanduser() for s in sources if s.get("path")]
     if memories:
         roots.append(Path(memories).expanduser())
-    newest = 0.0
+    # cache key = newest (mtime_ns, size) under the roots: mtime ALONE misses
+    # an edit whose coarse clock tick didn't move (Windows ~1ms / macOS 1s),
+    # and a DELETED note never lowers the newest mtime at all — a stale table
+    # then kept recommending a note the user had already retired.
+    stamp = (0.0, 0)
     files: list[Path] = []
     for root in roots:
         try:
             if root.is_file():
-                files.append(root)
-                newest = max(newest, root.stat().st_mtime)
+                if root.suffix.lower() in (".md", ".markdown"):
+                    files.append(root)
+                    st = root.stat()
+                    stamp = max(stamp, (st.st_mtime_ns, st.st_size))
                 continue
-            for path in root.rglob("*.md"):
-                files.append(path)
+            for path in root.rglob("*"):
                 try:
-                    newest = max(newest, path.stat().st_mtime)
+                    if not path.is_file() or path.suffix.lower() not in (
+                            ".md", ".markdown"):
+                        continue
+                    if path.name.startswith("._") or path.name.startswith("~$"):
+                        continue
+                    try:
+                        rel = path.relative_to(root)
+                    except ValueError:
+                        continue
+                    if any(part.startswith(".") for part in rel.parts[:-1]):
+                        continue
+                    files.append(path)
+                    st = path.stat()
+                    stamp = max(stamp, (st.st_mtime_ns, st.st_size))
                 except OSError:
                     pass
         except OSError:
             continue
-    key = (tuple(str(r) for r in roots), round(newest, 3))
+    key = (tuple(str(r) for r in roots), stamp)
     if key not in _CACHE:
         _CACHE.clear()                       # one instance's table at a time
         _CACHE[key] = collect(files)
