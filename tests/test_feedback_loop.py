@@ -68,3 +68,32 @@ def test_no_hits_ask_does_not_clobber_last_ask(tmp_path, monkeypatch):
     data = json.loads((Path(cfg.store["path"]) / ".last_ask.json")
                       .read_text(encoding="utf-8"))
     assert data["chunk_ids"] == ["a.md::0"]        # still the rateable answer
+
+
+def test_cli_ask_also_persists_last_ask(tmp_path, monkeypatch, capsys):
+    """`loci ask` bypasses Brain.ask (retriever.answer direct) — it used to
+    never write .last_ask.json either, so the CLI feedback loop stayed dead
+    even after the MCP/HTTP fix."""
+    cfg = make_cfg(tmp_path, write_corpus(tmp_path, {"a.md": "# A\nsensor data"}))
+    from loci.store import Store
+    store = Store(cfg.store["path"])
+    hits = [{"id": "a.md::0", "source": str(tmp_path / "notes" / "a.md"),
+             "section": "", "text": "sensor data", "tags": "",
+             "mtime": 0.0, "distance": None}]
+    monkeypatch.setattr("loci.cli.build",
+                        lambda c: (FakeEmbedder(), store))
+    monkeypatch.setattr("loci.cli.make_retriever",
+                        lambda c, e, s: type("R", (), {"search": staticmethod(
+                            lambda q, **k: hits)})())
+    monkeypatch.setattr("loci.retriever.answer",
+                        lambda llm, q, h, history=None: "cli answer")
+    # table_for hits the real filesystem — keep it empty to stay offline
+    import loci.supersede as sup
+    monkeypatch.setattr(sup, "table_for", lambda sources, mem="": {})
+
+    from loci.cli import cmd_ask
+    cmd_ask(cfg, "sensor question")
+    last = Path(cfg.store["path"]) / ".last_ask.json"
+    assert last.exists()
+    data = json.loads(last.read_text(encoding="utf-8"))
+    assert data["chunk_ids"] == ["a.md::0"]
