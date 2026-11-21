@@ -129,3 +129,23 @@ def test_file_title_fallback_chain(tmp_path):
     assert brain._file_title(paths["title.md"]) == "显式标题"
     (tmp_path / "title.md").write_text("---\ntitle: 新标题\n---\n", encoding="utf-8")
     assert brain._file_title(paths["title.md"]) == "新标题"
+
+
+def test_file_title_ignores_quoted_yaml_in_body(tmp_path):
+    """A body quoting a yaml example (line starting `title: …`) used to win
+    over the real first heading; title/name keys now only match inside the
+    frontmatter block, headings only in the body."""
+    brain = Brain()
+    p = tmp_path / "essay.md"
+    p.write_text("# 论文\n\nbody\n\n---\n示例：\ntitle: 这是一个假标题\n", encoding="utf-8")
+    assert brain._file_title(str(p)) == "论文"
+
+    # title in frontmatter still wins over the heading
+    p2 = tmp_path / "both.md"
+    p2.write_text("---\ntitle: 正式标题\n---\n# 正文标题\n", encoding="utf-8")
+    assert brain._file_title(str(p2)) == "正式标题"
+
+    # name: still the fallback for zcode-style memories (no heading at all)
+    p3 = tmp_path / "slug.md"
+    p3.write_text("---\nname: zcode-slug\n---\nplain prose", encoding="utf-8")
+    assert brain._file_title(str(p3)) == "zcode-slug"

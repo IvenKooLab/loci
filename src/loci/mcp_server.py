@@ -381,14 +381,23 @@ class Brain:
             return hit[1]
         title = None
         try:
-            head = Path(path).read_text(encoding="utf-8", errors="ignore")[:2000]
+            head = Path(path).read_text(encoding="utf-8", errors="ignore")[:4000]
         except OSError:
             head = ""
-        for pattern in (r"^title:\s*(.+)$", r"^#\s+(.+)$", r"^name:\s*(.+)$"):
-            m = re.search(pattern, head, re.M)
-            if m:
-                title = m.group(1).strip().strip('"')[:80]
-                break
+        # scope the metadata keys to a real frontmatter block (a body that
+        # QUOTES a yaml example — any prose line starting "title: …" — used
+        # to win over the real first heading); headings scan the body only
+        fm_title = fm_name = None
+        body_zone = head
+        if head.startswith("---"):
+            end = head.find("\n---", 3)
+            if end != -1:
+                fm_zone, body_zone = head[:end], head[end:]
+                fm_title = re.search(r"^title:\s*(.+)$", fm_zone, re.M)
+                fm_name = re.search(r"^name:\s*(.+)$", fm_zone, re.M)
+        heading = re.search(r"^#\s+(.+)$", body_zone, re.M)
+        title = next((m.group(1).strip().strip('"')[:80]
+                      for m in (fm_title, heading, fm_name) if m), None)
         cache[path] = (stamp, title)
         return title
 
