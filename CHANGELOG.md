@@ -66,6 +66,25 @@ froze it) plus a read-through of the v0.9.x feature modules.
 - **`remember` tags crashed on non-string items** (`tags: ["a", 123]` →
   AttributeError, the note never written) — items are coerced now
 
+### Fixed (still the same sweep)
+- **`loci ask` still bypassed the feedback loop**: the last-ask writer went
+  into Brain.ask (MCP/HTTP) only — the CLI's own ask path never wrote
+  `.last_ask.json`. Both entries now share `citations.save_last_ask`, and
+  `Brain.ask` gained the supersession annotation the CLI already had
+- **One malformed `[[sources]]` entry crashed every command**: `path = 123`,
+  a missing path, or a list-typed path threw at config load — bad entries are
+  skipped with a pointer instead
+- **harness `paths = "~/notes"` (bare string) was iterated per character**,
+  registering `/` among the harness roots and poisoning chunk attribution —
+  a bare string is one root
+- **The overlap clamp was the bug it claimed to prevent**: "clamping to
+  size-1 to avoid 1-char steps" IS a 1-char step (~len(text) near-identical
+  chunks); anything past half the size now clamps to size // 2
+- **graph.json kept the edges of deleted files forever** — retired decisions'
+  triples kept steering `brain_graph` and wiki context; vanished files now
+  lose their edges and processed marks, and the scan follows the pruned
+  discovery rules
+
 ## v0.10.0 — 2026-11-18
 
 A hardening release around the v0.9.0 console/graph foundation: one
