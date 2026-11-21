@@ -32,6 +32,27 @@ Ten more bugs found in a focused audit, each with its own regression test.
 - **`loci doctor` reported a healthy LOCI_HOME deployment as "config.toml
   missing"** (it checked the process cwd, not the resolved config path)
 
+## v0.10.2 (unreleased) — third hardening pass
+
+Black-box probing against a live instance (including a 50-thread burst that
+froze it) plus a read-through of the v0.9.x feature modules.
+
+### Fixed
+- **A concurrent burst could freeze serve-http to connection resets**:
+  `_retryable`'s reset/rebuild raced with in-flight queries and
+  ThreadingHTTPServer had no load ceiling. Pipeline work is now serialized
+  under a lock, the server sheds load past 16 concurrent handlers (immediate
+  503), and search queries / questions are length-capped (2000/8000 chars)
+- **`loci governance` scanned machine state**: `.trash` notes reported as
+  live candidates, AppleDouble sidecars as duplicate-truth evidence, and
+  uppercase `.MD` notes skipped — discovery rules now match `scan_sources`
+- **The supersession cache never expired on deletion** and missed coarse-
+  clock edits: the key was newest-mtime alone, now `(mtime_ns, size)` with
+  the same pruned scan
+- **ChatGPT chat-log imports scrambled conversation order**: messages
+  without a `create_time` all piled up at the top in dict order — untimed
+  turns now keep the export's insertion order
+
 ## v0.10.0 — 2026-11-18
 
 A hardening release around the v0.9.0 console/graph foundation: one
