@@ -33,7 +33,13 @@ def write_memory(mem_dir: str, text: str, title: str | None = None,
     while path.exists():                       # two IDEs writing in the same second
         path = d / f"{base}-{n}.md"
         n += 1
-    tag_list = [_MEMORY_TAG] + [t.strip() for t in (tags or []) if t.strip()]
+    # callers (HTTP/MCP) pass user JSON: coerce each tag, an int/None item
+    # used to crash the whole write with AttributeError after the file… no —
+    # before it, leaving the note unwritten and the caller with a raw 500
+    tag_list = [_MEMORY_TAG] + [t2 for t2 in (str(t).strip()
+                                              for t in (tags or []) if t
+                                              is not None and str(t).strip())
+                                if t2]
     iso = ts.strftime("%Y-%m-%d %H:%M")
     front = ("---\n"
              f"tags: [{', '.join(tag_list)}]\n"
