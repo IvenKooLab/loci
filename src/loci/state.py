@@ -15,7 +15,9 @@ these are for state worth persisting across sessions.
 from __future__ import annotations
 
 import json
+import os
 import re
+import threading
 import time
 from pathlib import Path
 
@@ -49,7 +51,9 @@ def save(cfg, type_: str, key: str, data) -> str:
                          "store blobs elsewhere and keep a reference here")
     path = _record_path(cfg, type_, key)
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".json.tmp")
+    # unique tmp per writer: two agents saving the same task concurrently
+    # used to stomp each other's tmp file and 7/8 writes died FileNotFoundError
+    tmp = path.with_suffix(f".json.{os.getpid()}.{threading.get_ident()}.tmp")
     tmp.write_text(blob, encoding="utf-8")
     tmp.replace(path)                      # atomic; overwrites on Windows too
     return str(path)

@@ -8,6 +8,8 @@ wiki directory -> immediate indexing. Regenerating a topic overwrites its page
 (wikis are curated, one page per slug)."""
 from __future__ import annotations
 
+import os
+import threading
 from pathlib import Path
 
 from openai import OpenAI
@@ -128,7 +130,7 @@ def write_wiki_page(cfg, topic: str, body: str, hits: list[dict]) -> Path:
              f"generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
              f"sources: {len(hits)}\n"
              "---\n")
-    tmp = page.with_suffix(".md.tmp")
+    tmp = page.with_suffix(f".md.{os.getpid()}.{threading.get_ident()}.tmp")
     tmp.write_text(f"{front}{body}\n\n## Sources\n\n{sources}\n", encoding="utf-8")
     tmp.replace(page)                    # atomic + overwrites on regeneration
     return page
