@@ -311,20 +311,46 @@ def cmd_sync(cfg, direction: str) -> None:
     if not remote:
         print("set [sync] remote = 'git@...' in config.toml first")
         return
+
+    failures = 0
+
+    def git(dp, *args, ok_when_nothing_to_commit=False):
+        """Returns "ok" | "nothing" (clean tree on commit) | "fail"."""
+        r = _sp.run(["git", *args], cwd=str(dp), capture_output=True, text=True)
+        if r.returncode == 0:
+            return "ok"
+        out = (r.stdout or "") + (r.stderr or "")
+        if ok_when_nothing_to_commit and "nothing to commit" in out:
+            return "nothing"
+        tail = out.strip().splitlines()[-1][:140] if out.strip() else f"exit {r.returncode}"
+        print(f"    git {args[0]} failed: {tail}")
+        return "fail"
+
     for key, name in [("memories", "memories"), ("wiki", "wiki")]:
         dp = Path(str(getattr(cfg, key)["path"])).expanduser().resolve()
         dp.mkdir(parents=True, exist_ok=True)
         if not (dp / ".git").exists():
-            _sp.run(["git", "init", "-b", "main"], cwd=str(dp), capture_output=True)
-            _sp.run(["git", "remote", "add", "origin", f"{remote}-{name}"],
-                    cwd=str(dp), capture_output=True)
+            git(dp, "init", "-b", "main")
+            git(dp, "remote", "add", "origin", f"{remote}-{name}")
         if direction == "push":
-            _sp.run(["git", "add", "-A"], cwd=str(dp), capture_output=True)
-            _sp.run(["git", "commit", "-m", "loci sync"], cwd=str(dp), capture_output=True)
-            _sp.run(["git", "push", "-u", "origin", "main"], cwd=str(dp), capture_output=True)
+            git(dp, "add", "-A")
+            status = git(dp, "commit", "-m", "loci sync",
+                         ok_when_nothing_to_commit=True)
+            if status == "nothing":
+                print(f"  {name}: nothing to commit")   # clean tree: fine
+            elif status == "ok" and git(dp, "push", "-u", "origin", "main") == "ok":
+                print(f"  {name}: pushed")
+            else:
+                print(f"  {name}: push failed")
+                failures += 1
         else:
-            _sp.run(["git", "pull", "origin", "main"], cwd=str(dp), capture_output=True)
-        print(f"  {name}: {direction} done")
+            if git(dp, "pull", "origin", "main") == "ok":
+                print(f"  {name}: pulled")
+            else:
+                failures += 1
+    if failures:
+        print(f"sync finished with {failures} error(s)")
+        sys.exit(1)
 
 
 def cmd_bench(cfg, cases_file: str, k: int = 5, tokenizer: str | None = None) -> None:
