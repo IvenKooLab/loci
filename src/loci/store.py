@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import threading
+from pathlib import Path
 
 # chromadb's first init posts telemetry and can hang for minutes behind
 # firewalls — off by default, this is a local-first tool
@@ -14,10 +16,30 @@ import chromadb
 from loci import bm25_cache
 
 
+# One PersistentClient per chroma directory, process-wide. Every write path
+# (remember, upload, ingest, harness summaries) used to build a fresh client;
+# two concurrent writes then raced chroma's Rust-backed initialization of the
+# same directory (RustBindingsAPI errors) on top of wasting resources.
+_CLIENTS: dict[str, chromadb.PersistentClient] = {}
+_CLIENTS_LOCK = threading.Lock()
+
+
+def _client_for(path: str) -> chromadb.PersistentClient:
+    key = str(Path(path).expanduser().resolve())
+    client = _CLIENTS.get(key)
+    if client is None:
+        with _CLIENTS_LOCK:
+            client = _CLIENTS.get(key)
+            if client is None:
+                client = chromadb.PersistentClient(path=key)
+                _CLIENTS[key] = client
+    return client
+
+
 class Store:
     def __init__(self, path: str):
         self.path = path
-        self.client = chromadb.PersistentClient(path=path)
+        self.client = _client_for(path)
         self.collection = self._open_collection()
 
     def _open_collection(self):
