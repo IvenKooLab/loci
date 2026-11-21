@@ -211,7 +211,14 @@ def cmd_feedback(cfg, verdict: str) -> None:
     if not last.exists():
         print("(no recent ask to rate — run `loci ask` first)")
         return
-    data = json.loads(last.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(last.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        print("(last-ask record is corrupted — ask again, then rate)")
+        return
+    if not data.get("chunk_ids"):
+        print("(last ask had no chunks to rate — ask again with hits)")
+        return
     with fb.open("a", encoding="utf-8") as f:
         for cid in data.get("chunk_ids", []):
             f.write(json.dumps({"chunk_id": cid, "query": data.get("query", ""),
