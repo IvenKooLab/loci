@@ -85,6 +85,25 @@ froze it) plus a read-through of the v0.9.x feature modules.
   lose their edges and processed marks, and the scan follows the pruned
   discovery rules
 
+### Fixed (final sweep)
+- **`split_markdown` had no defensive clamps**: per-source [[sources]]
+  overrides, the demo and harness digests bypassed config.load's clamps —
+  `overlap >= size` meant a <1-char step and near-identical chunks indexed
+  over and over
+- **Concurrent same-name uploads silently overwrote each other** (violating
+  the endpoint's own "never clobber silently"), and every write path built a
+  fresh chroma PersistentClient — concurrent initialization of the same
+  directory raced chroma's Rust bindings. O_EXCL name claiming + one shared
+  client per directory
+- **state/graph/wiki writes staged through a SHARED tmp file name**: two
+  agents saving the same task concurrently stomped each other's staging file
+  and 7/8 writes died FileNotFoundError — tmp names are now per-writer
+- **`loci bench` died on the first malformed cases line** — bad lines are
+  skipped with a pointer, cases without query/expect too
+- **`loci ask` still bypassed the feedback loop** (the CLI path never wrote
+  `.last_ask.json`) and Brain.ask lacked the supersession annotation the CLI
+  had — both ask entry points now behave identically
+
 ## v0.10.0 — 2026-11-18
 
 A hardening release around the v0.9.0 console/graph foundation: one
