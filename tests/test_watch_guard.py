@@ -105,3 +105,38 @@ def test_index_document_file_refuses_on_model_change(tmp_path, monkeypatch):
     monkeypatch.setattr("loci.cli.build", lambda c: (FakeEmbedder(), store))
     with pytest.raises(SystemExit, match="--force"):
         index_document_file(cfg, str(doc))
+
+
+def test_brain_remember_survives_index_failure(tmp_path, monkeypatch):
+    """write_memory lands the file BEFORE indexing; an index failure must
+    answer with the stored path and a hint, never raise (the old code let
+    the exception pierce the MCP tool after the file was already saved)."""
+    from loci.mcp_server import Brain
+    import loci.memories as memories_mod
+
+    b = Brain.__new__(Brain)
+    b._config_error = None
+
+    class Cfg:
+        memories = {"path": str(tmp_path / "memories")}
+        store = {"path": str(tmp_path / "chroma")}
+    b._cfg = Cfg()
+    b._retriever = object()
+
+    (tmp_path / "memories").mkdir()
+    monkeypatch.setattr(memories_mod, "write_memory",
+                        lambda *a, **k: str(tmp_path / "memories" / "n.md"))
+
+    # model change: SystemExit guidance
+    monkeypatch.setattr(memories_mod, "index_memory_file",
+                        lambda *a, **k: (_ for _ in ()).throw(
+                            SystemExit("embedding model changed: ... --force")))
+    out1 = b.remember("hello")
+    assert out1.startswith("stored:") and "--force" in out1
+
+    # transient API failure: same shape, ingest picks it up later
+    monkeypatch.setattr(memories_mod, "index_memory_file",
+                        lambda *a, **k: (_ for _ in ()).throw(
+                            RuntimeError("connection error")))
+    out2 = b.remember("hello again")
+    assert out2.startswith("stored:") and "loci ingest" in out2
