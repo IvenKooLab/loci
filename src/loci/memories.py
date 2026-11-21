@@ -130,6 +130,7 @@ def index_document_file(cfg, path: str) -> int:
     if not chunks:
         raise ValueError(f"no indexable text in {p.name}")
     embedder, store = build(cfg)
+    _ensure_vector_space(embedder, store, cfg)
     texts = [c["text"] for c in chunks]
     chashes, reuse = store.reuse_map(doc["path"], texts)
     missing = [i for i, h in enumerate(chashes) if h not in reuse]
@@ -145,6 +146,17 @@ def index_document_file(cfg, path: str) -> int:
     return len(chunks)
 
 
+def _ensure_vector_space(embedder, store, cfg) -> None:
+    """One cheap embed call before any write: refuse (SystemExit with the
+    standard --force guidance) when the configured embedding model no longer
+    matches the collection. Every immediate-index write path goes through
+    this — remember, chat auto-extract, harness summaries, uploads — so a
+    model switch surfaces as actionable guidance instead of a raw chroma
+    dimension error (uploads used to *delete the user's file* on it)."""
+    probe = embedder.embed(["dimension probe"])
+    store.ensure_embed(cfg.embed["model"], len(probe[0]), rebuild=False)
+
+
 def index_memory_file(cfg, path: str) -> int:
     """Embed + upsert one memory file into the index immediately.
     Returns chunk count; raises on embedder/store errors (caller decides)."""
@@ -152,6 +164,7 @@ def index_memory_file(cfg, path: str) -> int:
     from loci.cli import build
 
     embedder, store = build(cfg)
+    _ensure_vector_space(embedder, store, cfg)
     raw = Path(path).read_text(encoding="utf-8")
     meta, body = loaders.parse_frontmatter(raw)
     chunks = chunker.split_markdown(body, cfg.chunk["size"], cfg.chunk["overlap"])

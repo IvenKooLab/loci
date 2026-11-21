@@ -258,6 +258,8 @@ def cmd_chat(cfg) -> None:
                     mp = write_memory(mem_dir, item["text"], title=item.get("title"), tags=["auto"])
                     index_memory_file(cfg, mp)
                     print(f"  \u2713 remembered: {item.get('title', '')}")
+            except SystemExit as e:        # embedding model changed — say so, keep chatting
+                print(f"  (not indexed: {e})")
             except Exception:
                 pass
 
