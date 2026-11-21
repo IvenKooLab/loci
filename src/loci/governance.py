@@ -30,13 +30,30 @@ _SUPERSEDED = ("superseded_by", "superseded-by", "replaced_by")
 
 
 def _paths(cfg) -> list[Path]:
+    """Same discovery rules as scan_sources: folded .md/.markdown suffixes,
+    no AppleDouble sidecars, nothing inside hidden directories — a `.trash`
+    note must not show up in a governance report as if it were still live."""
     out: list[Path] = []
     for src in cfg.sources:
         p = Path(str(src.get("path", ""))).expanduser()
-        if p.is_file() and p.suffix in (".md", ".markdown"):
-            out.append(p)
-        elif p.is_dir():
-            out.extend(sorted(p.rglob("*.md")))
+        if p.is_file():
+            if p.suffix.lower() in (".md", ".markdown"):
+                out.append(p)
+            continue
+        if not p.is_dir():
+            continue
+        for f in sorted(p.rglob("*")):
+            if not f.is_file() or f.suffix.lower() not in (".md", ".markdown"):
+                continue
+            if f.name.startswith("._") or f.name.startswith("~$"):
+                continue
+            try:
+                rel = f.relative_to(p)
+            except ValueError:
+                continue
+            if any(part.startswith(".") for part in rel.parts[:-1]):
+                continue
+            out.append(f)
     return out
 
 
