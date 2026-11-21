@@ -103,3 +103,33 @@ def test_concurrent_readers_and_writers_on_windows(tmp_path):
     r1.join()
     assert errors == [], errors[:3]
     assert reads["ok"] > 0
+
+
+def test_concurrent_write_memory_all_succeed(tmp_path):
+    """write_memory staged through a SHARED path.with_suffix('.md.tmp') — the
+    fourth copy of the same race (state/graph/wiki were fixed earlier): 8
+    agents remembering at once stomped each other's staging file. Also, an
+    empty body used to die on splitlines()[0] before anything hit disk."""
+    from loci import memories
+
+    errors: list[str] = []
+
+    def worker(i):
+        try:
+            for n in range(10):
+                p = memories.write_memory(
+                    str(tmp_path / "mem"),
+                    f"note from {i}/{n}" if (i + n) % 7 else "",   # 1 in 7: blank body
+                    title=None if (i + n) % 7 else "blank-body-note")
+                assert Path(p).exists()
+        except Exception as e:                  # noqa: BLE001 — the point
+            errors.append(f"{type(e).__name__}: {e}")
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(8)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    assert errors == [], errors[:3]
+    written = list((tmp_path / "mem").glob("*.md"))
+    assert len(written) == 80                   # every write landed, none lost
+    leftovers = list((tmp_path / "mem").glob("*.tmp"))
+    assert leftovers == []                      # staging files all replaced

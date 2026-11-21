@@ -7,8 +7,10 @@ Write path is always safe (plain markdown, atomic); embedding/indexing is
 best-effort and can be replayed with `loci ingest` at any time."""
 from __future__ import annotations
 
+import os
 import re
 import shutil
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -25,14 +27,25 @@ def write_memory(mem_dir: str, text: str, title: str | None = None,
     """Write one memory note; returns the absolute file path."""
     d = Path(mem_dir).expanduser()
     d.mkdir(parents=True, exist_ok=True)
-    title = (title or text.strip().splitlines()[0] or "memory").strip()[:80]
+    # a blank body has no first line to title itself from (agent callers do
+    # send one — an empty remember used to die on splitlines()[0])
+    first_line = text.strip().splitlines()[0] if text.strip() else ""
+    title = (title or first_line or "memory").strip()[:80]
     ts = datetime.now()
     base = f"{ts.strftime('%Y%m%d-%H%M%S')}-{slugify(title)}"
+    # claim the name atomically (O_CREAT|O_EXCL): a check-then-create window
+    # let two writers in the same second pick the same path and one overwrite
+    # the other — 80 concurrent remembers used to leave 79 notes
     path = d / f"{base}.md"
     n = 2
-    while path.exists():                       # two IDEs writing in the same second
-        path = d / f"{base}-{n}.md"
-        n += 1
+    while True:
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            break
+        except FileExistsError:                # two IDEs writing in the same second
+            path = d / f"{base}-{n}.md"
+            n += 1
+    os.close(fd)
     # callers (HTTP/MCP) pass user JSON: coerce each tag, an int/None item
     # used to crash the whole write with AttributeError after the file… no —
     # before it, leaving the note unwritten and the caller with a raw 500
@@ -46,7 +59,7 @@ def write_memory(mem_dir: str, text: str, title: str | None = None,
              f"created: {iso}\n"
              f"title: {title}\n"
              "---\n")
-    tmp = path.with_suffix(".md.tmp")
+    tmp = path.with_suffix(f".md.{os.getpid()}.{threading.get_ident()}.tmp")
     tmp.write_text(f"{front}# {title}\n\n{text.strip()}\n", encoding="utf-8")
     tmp.replace(path)                          # atomic + overwrites on Windows
     return str(path.resolve())
