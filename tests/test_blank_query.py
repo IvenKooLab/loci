@@ -29,15 +29,23 @@ def test_blank_query_is_rejected_before_any_api_call(cmd, monkeypatch):
             cli.cmd_ask(Cfg(), "")
 
 
+class _Sentinel(Exception):
+    pass
+
+
 @pytest.mark.parametrize("cmd", ["search", "ask"])
 def test_nonblank_query_passes_the_guard(cmd, monkeypatch):
     from loci import cli
 
     calls = []
     monkeypatch.setattr(cli, "build", lambda cfg: calls.append(1) or (None, None))
-    monkeypatch.setattr(cli, "make_retriever", lambda cfg, e, s: (
-        (_ for _ in ()).throw(StopIteration)))  # not reached further
-    with pytest.raises(StopIteration):
+    monkeypatch.setattr(cli, "make_retriever",
+                        lambda cfg, e, s: (_ for _ in ()).throw(_Sentinel()))
+    # a generator's throw() is the handiest way to make a lambda "raise" —
+    # a plain raise inside the lambda body is not an expression. StopIteration
+    # itself would trip PEP 479 (generator-raised StopIteration becomes
+    # RuntimeError), so a dedicated sentinel rides instead
+    with pytest.raises(_Sentinel):
         if cmd == "search":
             cli.cmd_search(Cfg(), "T8 加速")
         else:
