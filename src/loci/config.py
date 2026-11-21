@@ -146,11 +146,16 @@ def load(path: str = "config.toml") -> Config:
                   f"using {DEFAULTS['chunk'][key]}", file=sys.stderr)
             cfg.chunk[key] = DEFAULTS["chunk"][key]
     cfg.chunk["size"] = max(cfg.chunk["size"], 1)
-    if cfg.chunk["overlap"] >= cfg.chunk["size"]:
-        print(f"[warn] chunk.overlap ({cfg.chunk['overlap']}) >= chunk.size "
-              f"({cfg.chunk['size']}) — clamping to size-1 to avoid 1-char steps",
+    # anything past half the size produces more overlapping than new content
+    # (overlap=size-1 is a 1-char step: ~len(text) near-identical chunks) —
+    # the old clamp TO size-1 was exactly the bug it claimed to prevent
+    half = cfg.chunk["size"] // 2
+    if cfg.chunk["overlap"] > half:
+        print(f"[warn] chunk.overlap ({cfg.chunk['overlap']}) > chunk.size/2 "
+              f"({cfg.chunk['size']}) — clamping to {half} (steps below that "
+              "index near-duplicate chunks over and over)",
               file=sys.stderr)
-        cfg.chunk["overlap"] = cfg.chunk["size"] - 1
+        cfg.chunk["overlap"] = half
     try:
         cfg.top_k["search"] = max(int(cfg.top_k["search"]), 1)
     except (TypeError, ValueError):
