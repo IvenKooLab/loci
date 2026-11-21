@@ -132,3 +132,25 @@ def health(cfg) -> list[dict]:
     # most-worked first; dead weight sinks to the bottom
     rows.sort(key=lambda r: (-r["citations"], -r["corrections"], r["file"]))
     return rows
+
+def save_last_ask(store_path, query: str, hits: list[dict]) -> None:
+    """Persist the chunk ids of the last answer for `loci feedback` to rate.
+
+    Atomic and best-effort (a torn file must not break the rater, a write
+    failure must not break the answer). Called from every ask entry point —
+    Brain.ask (MCP/HTTP) and the CLI's cmd_ask — or the feedback loop only
+    works for whichever entry point remembered to call it."""
+    import json as _json
+    from pathlib import Path as _P
+    import time as _time
+    try:
+        d = _P(str(store_path))
+        d.mkdir(parents=True, exist_ok=True)
+        tmp = d / ".last_ask.json.tmp"
+        tmp.write_text(_json.dumps(
+            {"query": str(query)[:300], "ts": _time.time(),
+             "chunk_ids": [h["id"] for h in hits if h.get("id")]},
+            ensure_ascii=False), encoding="utf-8")
+        tmp.replace(d / ".last_ask.json")
+    except (OSError, KeyError, TypeError):
+        pass

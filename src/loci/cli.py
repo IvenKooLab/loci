@@ -144,6 +144,8 @@ def cmd_ask(cfg, question: str, rerank: bool | None = None,
     print("Answer:\n")
     reply = answer(cfg.llm, question, hits)
     print(reply)
+    from loci.citations import save_last_ask
+    save_last_ask(cfg.store["path"], question, hits)
     if verify:
         print("\n" + verify_answer(cfg.llm, question, reply, hits))
 
