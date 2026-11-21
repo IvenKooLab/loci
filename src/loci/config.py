@@ -85,6 +85,7 @@ def load(path: str = "config.toml") -> Config:
     if base is not None and path == "config.toml":
         path = str(base / "config.toml")
     p = Path(path)
+    cfg.config_path = str(p)
     if p.exists():
         raw = tomllib.loads(p.read_text(encoding="utf-8"))
         for section in DEFAULTS:
