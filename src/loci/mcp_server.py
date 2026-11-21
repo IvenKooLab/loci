@@ -529,6 +529,22 @@ class Brain:
         return self.search_payload(query, k=k, tag=tag,
                                    path_contains=path_contains)["result"]
 
+    def _save_last_ask(self, question: str, hits: list[dict]) -> None:
+        """Persist the chunk ids of the last answer so `loci feedback` can
+        rate them. Best-effort and atomic — feedback must never break the
+        answer, and a torn file must never break the rater either."""
+        try:
+            d = Path(self._cfg.store["path"])
+            d.mkdir(parents=True, exist_ok=True)
+            tmp = d / ".last_ask.json.tmp"
+            tmp.write_text(json.dumps(
+                {"query": question[:300], "ts": time.time(),
+                 "chunk_ids": [h["id"] for h in hits if h.get("id")]},
+                ensure_ascii=False), encoding="utf-8")
+            tmp.replace(d / ".last_ask.json")
+        except (OSError, KeyError, TypeError):
+            pass
+
     def ask(self, question: str, verify: bool = False) -> str:
         if err := self._guard():
             return err
@@ -542,6 +558,7 @@ class Brain:
             reply = answer(self._cfg.llm, question, hits)
             if verify:
                 reply += "\n\n" + verify_answer(self._cfg.llm, question, reply, hits)
+            self._save_last_ask(question, hits)
             return reply
 
         return self._retryable(_do)
