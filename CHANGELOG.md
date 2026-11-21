@@ -1,5 +1,37 @@
 # Changelog
 
+## v0.10.1 (unreleased) — second hardening pass
+
+Ten more bugs found in a focused audit, each with its own regression test.
+
+### Fixed
+- **The feedback loop never worked**: `loci ask` never wrote the
+  `.last_ask.json` that `loci feedback` reads — `good|bad` always answered
+  "no recent ask to rate" since v0.5.0. Brain.ask now persists chunk ids
+  atomically; the rater tolerates torn files
+- **`loci sync` lied on failure**: every git returncode was swallowed and a
+  dead remote or rejected push still printed "push done". Failures now print
+  the git error tail and exit non-zero ("nothing to commit" stays a success)
+- **Watch loops broke forever after an embedding model change**:
+  `ingest_once` lacked the vector-space guard `cmd_ingest` has
+- **Immediate-index write paths lacked the guard too** — remember / chat
+  auto-extract / harness summaries hit raw chroma dimension errors, and a
+  console upload **deleted the user's file** on that same mismatch (now 409
+  with the file kept and `ingest --force` guidance)
+- **`brain_remember` crashed after saving the note** when indexing failed —
+  it now answers "stored: … not indexed: …" with the reason
+- **Memory API rejected uppercase extensions**: `.MD` memories returned 404
+  on read/delete and vanished from listings on case-insensitive volumes
+- **Hit-card titles were hijacked by quoted yaml**: a prose line starting
+  `title: …` in the body beat the real first heading (frontmatter keys are
+  now scoped to the frontmatter block)
+- **`/memories` dropped titles behind long frontmatter**: a 400-char head
+  cap cut off `title:` lines after long description/tags entries
+- **Uploads accepted Windows reserved device names** (CON.md, NUL.pdf …) —
+  now refused wherever the upload directory lives
+- **`loci doctor` reported a healthy LOCI_HOME deployment as "config.toml
+  missing"** (it checked the process cwd, not the resolved config path)
+
 ## v0.10.0 — 2026-11-18
 
 A hardening release around the v0.9.0 console/graph foundation: one
