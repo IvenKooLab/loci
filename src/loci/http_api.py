@@ -329,8 +329,10 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
         def _safe_memory(self, name: str) -> Path | None:
             try:
                 p = (mem_dir / name).resolve()
+                # folded suffix: NOTE.MD is a visible markdown file on
+                # case-insensitive volumes (same rationale as Bug 4 earlier)
                 return p if _within(p, mem_dir) and p.is_file() \
-                    and p.suffix == ".md" else None
+                    and p.suffix.lower() == ".md" else None
             except (OSError, RuntimeError, ValueError):
                 return None
 
@@ -338,7 +340,7 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
             roots = [r for h in _harnesses() for r in h.roots] + [mem_dir]
             try:
                 p = Path(path).expanduser().resolve()
-                if p.suffix not in (".md", ".txt") or not p.is_file():
+                if p.suffix.lower() not in (".md", ".txt") or not p.is_file():
                     return None
                 return p if any(_within(p, r) for r in roots) else None
             except (OSError, RuntimeError, ValueError):
@@ -690,8 +692,15 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
 
         def _list_memories(self):
             rows = []
-            for p in sorted(list(mem_dir.glob("*.md"))
-                            + list(mem_dir.glob("harness/*.md"))):
+            # name-suffix filter instead of *.md globs: pathlib matches
+            # case-sensitively, the volumes this runs on may not
+            harness_dir = mem_dir / "harness"
+            candidates = [q for q in mem_dir.iterdir()
+                          if q.is_file() and q.suffix.lower() == ".md"]
+            if harness_dir.is_dir():
+                candidates += [q for q in harness_dir.iterdir()
+                               if q.is_file() and q.suffix.lower() == ".md"]
+            for p in sorted(candidates):
                 # ._ = macOS AppleDouble sidecar, not a memory
                 if p.name.startswith("._") \
                         or not self._safe_memory(str(p)) \
