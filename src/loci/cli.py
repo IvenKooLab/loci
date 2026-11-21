@@ -556,9 +556,12 @@ def cmd_harness(cfg, summarize: bool = False, force: bool = False,
 
 def cmd_doctor(cfg) -> int:
     checks: list[tuple[str, bool, str]] = []
-    checks.append(("config file", Path("config.toml").exists(),
-                   "config.toml found" if Path("config.toml").exists()
-                   else "config.toml missing (cp config.example.toml config.toml)"))
+    # the path config.load() actually used — with LOCI_HOME set, a cwd-based
+    # check would report "missing" while everything else clearly works
+    used = getattr(cfg, "config_path", "config.toml")
+    checks.append(("config file", Path(used).exists(),
+                   f"{used} found" if Path(used).exists()
+                   else f"{used} missing (cp config.example.toml config.toml)"))
     for name, section in (("llm key", cfg.llm), ("embed key", cfg.embed)):
         checks.append((name, bool(section.get("api_key")),
                        "configured" if section.get("api_key") else "missing"))
