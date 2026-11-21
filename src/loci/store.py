@@ -158,7 +158,11 @@ class Store:
         docs = got.get("documents") or []
         metas = got.get("metadatas") or []
         embs = got.get("embeddings")
-        tmp = out.with_suffix(out.suffix + ".part")
+        # staging name is unique per writer: two concurrent exports of the same
+        # target used to interleave in one shared .part file (the same race the
+        # state/graph/wiki tmp fix covered)
+        tmp = out.with_suffix(
+            f"{out.suffix}.{os.getpid()}.{threading.get_ident()}.part")
         n = 0
         with tmp.open("w", encoding="utf-8") as f:
             for i, cid in enumerate(ids):

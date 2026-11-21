@@ -150,10 +150,11 @@ def baseline_path(cfg) -> Path:
 
 
 def pin(cfg, window: int = DEFAULT_WINDOW) -> dict:
+    from loci import fsutil
     snap = snapshot(cfg, window)
-    path = baseline_path(cfg)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(snap, ensure_ascii=False, indent=2), encoding="utf-8")
+    # atomic: a torn baseline reads as {} and every later compare screams drift
+    fsutil.atomic_write(baseline_path(cfg),
+                        json.dumps(snap, ensure_ascii=False, indent=2))
     return snap
 
 
