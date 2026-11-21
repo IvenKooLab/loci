@@ -648,7 +648,13 @@ class Brain:
             return (f"stored: {path}\n"
                     "not indexed yet (no working embedder in this environment) — "
                     "run brain_ingest or `loci ingest` where loci is configured")
-        n = index_memory_file(self._cfg, path)
+        try:
+            n = index_memory_file(self._cfg, path)
+        except SystemExit as e:       # embedding model changed — file is safe
+            return (f"stored: {path}\nnot indexed: {e}")
+        except Exception as e:        # transient embedder/API failure
+            return (f"stored: {path}\nnot indexed yet ({type(e).__name__}: {e}) — "
+                    "the note is on disk and the next `loci ingest` picks it up")
         return f"remembered: {path} ({n} chunks, searchable now)"
 
     def forget(self, query: str) -> str:
