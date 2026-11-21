@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import threading
 import time
 from pathlib import Path
 
@@ -41,7 +43,7 @@ def load_graph(cfg) -> dict:
 def save_graph(cfg, graph: dict) -> None:
     p = graph_path(cfg)
     p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_suffix(".json.tmp")
+    tmp = p.with_suffix(f".json.{os.getpid()}.{threading.get_ident()}.tmp")
     tmp.write_text(json.dumps(graph, ensure_ascii=False, indent=1), encoding="utf-8")
     tmp.replace(p)
 
