@@ -261,6 +261,14 @@ def _safe_upload_name(name: str) -> str | None:
         return None
     if any(c in base for c in ("\x00", "\n", "\r")):
         return None
+    # Windows reserved device names are special even with an extension
+    # (CON.md → the console) and on any share served to Windows clients;
+    # keep such uploads from landing on disk at all.
+    stem = base.split(".", 1)[0].lower()
+    if stem in {"con", "prn", "aux", "nul",
+                *(f"com{i}" for i in range(1, 10)),
+                *(f"lpt{i}" for i in range(1, 10))}:
+        return None
     return base[:120]
 
 
