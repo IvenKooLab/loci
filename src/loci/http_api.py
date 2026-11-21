@@ -634,6 +634,12 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
             try:
                 from loci.memories import index_document_file
                 chunks = index_document_file(cfg, str(dest))
+            except SystemExit as e:
+                # embedding model changed: the file is fine, only the index
+                # lags — keep it (deleting user data over a config mismatch
+                # was the old behaviour) and point at `loci ingest --force`
+                return self._json(409, {"error": str(e), "file": dest.name,
+                                        "stored": True})
             except Exception as e:
                 dest.unlink(missing_ok=True)
                 return self._json(400, {"error": f"{type(e).__name__}: {e}"})

@@ -70,3 +70,38 @@ def test_ingest_once_skips_probe_when_nothing_changed(tmp_path, monkeypatch):
 
     assert watcher.ingest_once(cfg) == 0
     assert probe_calls == []                    # unchanged corpus: zero cost
+
+
+def test_index_memory_file_refuses_on_model_change(tmp_path, monkeypatch):
+    """The write paths (remember / chat auto-extract / harness summaries) go
+    through index_memory_file: a model switch must surface actionable
+    guidance, not a raw chroma dimension error."""
+    from loci.memories import index_memory_file
+    from conftest import FakeEmbedder
+
+    cfg = make_cfg(tmp_path, [])
+    cfg.embed["model"] = "embedding-2"
+    store = GuardedStore(tmp_path)
+    note = tmp_path / "note.md"
+    note.write_text("hello memory", encoding="utf-8")
+
+    monkeypatch.setattr("loci.cli.build", lambda c: (FakeEmbedder(), store))
+    with pytest.raises(SystemExit, match="--force"):
+        index_memory_file(cfg, str(note))
+
+
+def test_index_document_file_refuses_on_model_change(tmp_path, monkeypatch):
+    """Uploads used to embed new-dimension vectors, hit the chroma error and
+    then *delete the user's file*. The guard now refuses before any embed."""
+    from loci.memories import index_document_file
+    from conftest import FakeEmbedder
+
+    cfg = make_cfg(tmp_path, [])
+    cfg.embed["model"] = "embedding-2"
+    store = GuardedStore(tmp_path)
+    doc = tmp_path / "doc.md"
+    doc.write_text("# Doc\nbody text", encoding="utf-8")
+
+    monkeypatch.setattr("loci.cli.build", lambda c: (FakeEmbedder(), store))
+    with pytest.raises(SystemExit, match="--force"):
+        index_document_file(cfg, str(doc))
