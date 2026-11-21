@@ -361,7 +361,19 @@ def cmd_bench(cfg, cases_file: str, k: int = 5, tokenizer: str | None = None) ->
     if not p.exists():
         print(f"cases file not found: {cases_file}")
         return
-    cases = [_json.loads(l) for l in p.read_text(encoding="utf-8").splitlines() if l.strip()]
+    cases = []
+    for l in p.read_text(encoding="utf-8").splitlines():
+        if not l.strip():
+            continue
+        try:
+            row = _json.loads(l)
+        except _json.JSONDecodeError:
+            print(f"  [warn] skipping malformed case line: {l[:60]}")
+            continue
+        if isinstance(row, dict) and row.get("query") and row.get("expect"):
+            cases.append(row)
+        else:
+            print(f"  [warn] skipping case without query/expect: {str(row)[:60]}")
     embedder, store = build(cfg)
     retriever = make_retriever(cfg, embedder, store)
     if tokenizer:   # per-run override for A/B comparisons
