@@ -1,14 +1,17 @@
 # Changelog
 
-## v0.10.1 (unreleased) — second hardening pass
+## v0.10.2 — 2026-11-22
 
-Ten more bugs found in a focused audit, each with its own regression test.
+Two full hardening passes (black-box probing against a live instance, a
+50-thread burst that froze it, a read-through of the v0.9.x feature modules)
+plus a Windows-side audit round — every entry with its own regression test.
 
 ### Fixed
 - **The feedback loop never worked**: `loci ask` never wrote the
   `.last_ask.json` that `loci feedback` reads — `good|bad` always answered
-  "no recent ask to rate" since v0.5.0. Brain.ask now persists chunk ids
-  atomically; the rater tolerates torn files
+  "no recent ask to rate" since v0.5.0. Both ask entry points (CLI and
+  MCP/HTTP) now share `citations.save_last_ask`, and `Brain.ask` gained the
+  supersession annotation the CLI already had; the rater tolerates torn files
 - **`loci sync` lied on failure**: every git returncode was swallowed and a
   dead remote or rejected push still printed "push done". Failures now print
   the git error tail and exit non-zero ("nothing to commit" stays a success)
@@ -31,13 +34,6 @@ Ten more bugs found in a focused audit, each with its own regression test.
   now refused wherever the upload directory lives
 - **`loci doctor` reported a healthy LOCI_HOME deployment as "config.toml
   missing"** (it checked the process cwd, not the resolved config path)
-
-## v0.10.2 (unreleased) — third hardening pass
-
-Black-box probing against a live instance (including a 50-thread burst that
-froze it) plus a read-through of the v0.9.x feature modules.
-
-### Fixed
 - **A concurrent burst could freeze serve-http to connection resets**:
   `_retryable`'s reset/rebuild raced with in-flight queries and
   ThreadingHTTPServer had no load ceiling. Pipeline work is now serialized
@@ -52,8 +48,6 @@ froze it) plus a read-through of the v0.9.x feature modules.
 - **ChatGPT chat-log imports scrambled conversation order**: messages
   without a `create_time` all piled up at the top in dict order — untimed
   turns now keep the export's insertion order
-
-### Fixed (more from the same sweep)
 - **An identifier-shaped query with an explicit `k` was silently truncated
   to `top_k*4`** by the literal-match channel (`k=50` on a 30-doc corpus
   returned 20) — the cap now follows `fetch`
@@ -65,12 +59,6 @@ froze it) plus a read-through of the v0.9.x feature modules.
   params are now coerced
 - **`remember` tags crashed on non-string items** (`tags: ["a", 123]` →
   AttributeError, the note never written) — items are coerced now
-
-### Fixed (still the same sweep)
-- **`loci ask` still bypassed the feedback loop**: the last-ask writer went
-  into Brain.ask (MCP/HTTP) only — the CLI's own ask path never wrote
-  `.last_ask.json`. Both entries now share `citations.save_last_ask`, and
-  `Brain.ask` gained the supersession annotation the CLI already had
 - **One malformed `[[sources]]` entry crashed every command**: `path = 123`,
   a missing path, or a list-typed path threw at config load — bad entries are
   skipped with a pointer instead
@@ -84,8 +72,6 @@ froze it) plus a read-through of the v0.9.x feature modules.
   triples kept steering `brain_graph` and wiki context; vanished files now
   lose their edges and processed marks, and the scan follows the pruned
   discovery rules
-
-### Fixed (final sweep)
 - **`split_markdown` had no defensive clamps**: per-source [[sources]]
   overrides, the demo and harness digests bypassed config.load's clamps —
   `overlap >= size` meant a <1-char step and near-identical chunks indexed
@@ -95,15 +81,32 @@ froze it) plus a read-through of the v0.9.x feature modules.
   fresh chroma PersistentClient — concurrent initialization of the same
   directory raced chroma's Rust bindings. O_EXCL name claiming + one shared
   client per directory
-- **state/graph/wiki writes staged through a SHARED tmp file name**: two
-  agents saving the same task concurrently stomped each other's staging file
-  and 7/8 writes died FileNotFoundError — tmp names are now per-writer
+- **state/graph/wiki writes staged through a SHARED tmp file name**, and on
+  Windows the atomic replace still failed with WinError 5 whenever another
+  thread held the target open for reading — all write paths now share
+  `fsutil.atomic_write`: a unique per-writer tmp name plus a retry backoff
+  across the collision window (POSIX rename is immune, so the first attempt
+  wins there)
 - **`loci bench` died on the first malformed cases line** — bad lines are
   skipped with a pointer, cases without query/expect too
-- **`loci ask` still bypassed the feedback loop** (the CLI path never wrote
-  `.last_ask.json`) and Brain.ask lacked the supersession annotation the CLI
-  had — both ask entry points now behave identically
-
+- **Embedding vectors were assigned by response order, not input index**:
+  some OpenAI-compatible endpoints return `data` out of order and chunk B's
+  vector silently landed on chunk A (retrieval degraded with no error
+  anywhere) — responses are reassembled by `index`, and a gapped or
+  duplicated index list is refused instead of guessed
+- **A blank `loci search ""` / `loci ask ""` reached the embedding endpoint**
+  and came back as a raw provider 400 traceback — the CLI entry now rejects
+  blank queries before any index or network work (the MCP layer already did)
+- **`quality pin` wrote the baseline non-atomically** (a torn file reads as
+  `{}` and every later compare screams drift) and `store export` staged
+  through one shared `.part` name that concurrent exports interleaved —
+  both go through the shared atomic-write helper now
+- **`write_memory` lost one note in eight when agents remembered
+  concurrently**: a shared `.md.tmp` staging name, a check-then-create
+  window that let two writers pick the same path (80 writes left 79 notes),
+  and an empty body dying on `splitlines()[0]` — the name is now claimed
+  with `O_CREAT|O_EXCL`, the staging name is per-writer, and blank bodies
+  write as "memory" notes
 ## v0.10.0 — 2026-11-18
 
 A hardening release around the v0.9.0 console/graph foundation: one
