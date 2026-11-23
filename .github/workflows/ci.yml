@@ -34,6 +34,7 @@ jobs:
         run: |
           node tests/web/graph-layout.cjs
           node tests/web/sessions-view.cjs
+          node tests/web/escape.cjs
 
   eval:
     name: retrieval regression gate

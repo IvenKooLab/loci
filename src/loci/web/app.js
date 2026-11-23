@@ -194,6 +194,10 @@ const t = (k, ...a) => {
   const v = (I18N[lang] ?? I18N.en)[k] ?? I18N.en[k] ?? k;
   return typeof v === "function" ? v(...a) : v;
 };
+function esc(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (ch) =>
+    ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[ch]));
+}
 function applyI18n() {
   document.documentElement.lang = lang;
   document.title = t("title");
@@ -305,7 +309,7 @@ function linkifyWiki(text) {
 function iconHtml(h) {
   return /\.(png|svg|jpe?g|gif|webp)$/i.test(h.icon)
     ? `<img src="/icons/${encodeURIComponent(h.icon)}" alt="">`
-    : `<span class="icon">${h.icon}</span>`;
+    : `<span class="icon">${esc(h.icon)}</span>`;
 }
 
 async function loadHarnessCards() {
@@ -314,13 +318,13 @@ async function loadHarnessCards() {
   cards.innerHTML = harness.map((h) => {
     const stale = h.summary.status === "stale" && isAdmin();
     return `
-    <div class="card" data-name="${h.name}">
+    <div class="card" data-name="${esc(h.name)}">
       <div class="head">${iconHtml(h)}
-        <span class="name">${h.display || h.name}</span>
-        <span class="badge ${h.summary.status}${stale ? " actionable" : ""}"
-              ${stale ? `data-h="${h.name}" title="${t("badgeTip")}"` : ""}>${t(h.summary.status)}</span>
+        <span class="name">${esc(h.display || h.name)}</span>
+        <span class="badge ${esc(h.summary.status)}${stale ? " actionable" : ""}"
+              ${stale ? `data-h="${esc(h.name)}" title="${esc(t("badgeTip"))}"` : ""}>${esc(t(h.summary.status))}</span>
       </div>
-      <div class="meta">${h.files} ${t("files")} · ${h.chunks} ${t("chunks")}<br>${t("updated")} ${h.last_updated || "—"}</div>
+      <div class="meta">${Number(h.files) || 0} ${t("files")} · ${Number(h.chunks) || 0} ${t("chunks")}<br>${t("updated")} ${esc(h.last_updated || "—")}</div>
     </div>`;
   }).join("")
     || `<p class="muted">${t("noHarness")}</p>`;
@@ -560,7 +564,11 @@ function renderTree() {
   const fileLi = (f) => {
     const li = document.createElement("li");
     li.className = "file";
-    li.innerHTML = `${ICO.memory}<span class="fname">${f.name}</span>`;
+    li.innerHTML = ICO.memory;                  // static glyph; the name is data
+    const name = document.createElement("span");
+    name.className = "fname";
+    name.textContent = f.name;
+    li.append(name);
     li.addEventListener("click", () => {
       tree.querySelectorAll("li.file.on").forEach((x) => x.classList.remove("on"));
       li.classList.add("on");
@@ -577,7 +585,10 @@ function renderTree() {
       li.className = "dir";
       const head = document.createElement("div");
       head.className = "dir-head";
-      head.innerHTML = `${ICO.chevron}${ICO.dir}<span>${name}</span>`;
+      head.innerHTML = ICO.chevron + ICO.dir;   // static glyphs; the name is data
+      const label = document.createElement("span");
+      label.textContent = name;
+      head.append(label);
       head.addEventListener("click", () => li.classList.toggle("closed"));
       li.appendChild(head);
       li.appendChild(dirUl(child, depth + 1));
@@ -615,18 +626,32 @@ async function loadMemories() {
   const sel = $("#mem-filter");
   const opts = ["", "shared", ...seen];
   if ([...sel.options].map((o) => o.value).join(",") !== opts.join(",")) {
-    sel.innerHTML = opts.map((v) =>
-      `<option value="${v}">${v === "" ? t("optAll") : v === "shared" ? t("optShared") : v}</option>`).join("");
+    sel.replaceChildren(...opts.map((v) => {
+      const o = document.createElement("option");
+      o.value = v;
+      o.textContent = v === "" ? t("optAll") : v === "shared" ? t("optShared") : v;
+      return o;
+    }));
     sel.value = filter && opts.includes(filter) ? filter : "";
   }
   const list = $("#mem-list");
-  list.innerHTML = memories
+  // A title is file content — any agent with write access sets one through
+  // brain_remember — so it goes in as text, never through innerHTML: a title
+  // of `<img src=x onerror=…>` used to run script in this console the moment
+  // the Memories tab opened (and loopback is admin here).
+  list.replaceChildren(...memories
     .filter((m) => !filter || m.group === filter || m.harness === filter)
-    .map((m) => `<li data-name="${m.name}" class="${memSelection?.name === m.name ? "on" : ""}">
-      ${m.title || m.name}<small>${m.harness ? m.harness : t("optShared")} · ${m.mtime} · ${m.size}B</small></li>`)
-    .join("");
-  list.querySelectorAll("li").forEach((li) =>
-    li.addEventListener("click", () => openMemory(li.dataset.name)));
+    .map((m) => {
+      const li = document.createElement("li");
+      li.dataset.name = m.name;
+      if (memSelection?.name === m.name) li.classList.add("on");
+      li.append(document.createTextNode(m.title || m.name));
+      const small = document.createElement("small");
+      small.textContent = `${m.harness ? m.harness : t("optShared")} · ${m.mtime} · ${m.size}B`;
+      li.append(small);
+      li.addEventListener("click", () => openMemory(m.name));
+      return li;
+    }));
   $("#mem-new").style.display = isEditor() ? "" : "none";
 }
 
