@@ -47,8 +47,7 @@ def make_retriever(cfg, embedder, store):
 def cmd_ingest(cfg, force: bool = False) -> None:
     # An unplugged vault is not an empty vault. Pruning after a failed scan
     # would silently erase its searchable chunks from the local index.
-    missing = [str(Path(s["path"]).expanduser()) for s in cfg.sources
-               if not Path(s["path"]).expanduser().is_dir()]
+    missing = loaders.missing_sources(cfg.sources)
     if missing:
         raise SystemExit("Source directory unavailable; index left unchanged:\n  "
                          + "\n  ".join(missing))

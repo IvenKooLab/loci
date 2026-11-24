@@ -388,34 +388,56 @@ def supported_suffixes() -> list[str]:
     return sorted(set(out))
 
 
+def missing_sources(sources: list[dict]) -> list[str]:
+    """Configured sources that are neither a directory nor a file right now.
+
+    An unplugged vault (iCloud, USB, network drive) is not an empty vault, and
+    a scan that skips it looks exactly like "every note was deleted" — which
+    is what prune would then do to its chunks. Callers refuse to touch the
+    index while any source is unavailable."""
+    missing = []
+    for src in sources:
+        try:
+            p = Path(str(src.get("path", ""))).expanduser()
+            if not (p.is_dir() or p.is_file()):
+                missing.append(str(p))
+        except (OSError, ValueError):
+            missing.append(str(src.get("path", "")))
+    return missing
+
+
 def scan_sources(sources: list[dict]) -> list[dict]:
     """Return [{path, content, hash, tags, links, mtime, chunk_size?, chunk_overlap?}].
     Each [[sources]] entry may override `chunk_size` / `chunk_overlap`; absent
-    keys mean "use the global [chunk] defaults"."""
+    keys mean "use the global [chunk] defaults". A path may name one file."""
     docs, seen = [], set()
     for src in sources:
         root = Path(src["path"]).expanduser()
         if not root.exists():
             print(f"[warn] directory not found, skipping: {root}")
             continue
+        single_file = root.is_file()
         # pathlib's rglob swallows PermissionError silently, so a macOS TCC
         # block (~/Documents, ~/Desktop… without Full Disk Access) looks
         # exactly like an empty source. Probe once and say it out loud.
-        try:
-            os.listdir(root)
-        except PermissionError:
-            hint = ("on macOS: System Settings → Privacy & Security → "
-                    "Full Disk Access (or Files & Folders) for the terminal"
-                    if sys.platform == "darwin"
-                    else "check ownership/permissions (chmod, sudo -u) or "
-                         "ACLs on that directory")
-            print(f"[warn] permission denied reading: {root}\n"
-                  f"      {hint}\n"
-                  f"      skipping this source")
-            continue
+        if not single_file:
+            try:
+                os.listdir(root)
+            except PermissionError:
+                hint = ("on macOS: System Settings → Privacy & Security → "
+                        "Full Disk Access (or Files & Folders) for the terminal"
+                        if sys.platform == "darwin"
+                        else "check ownership/permissions (chmod, sudo -u) or "
+                             "ACLs on that directory")
+                print(f"[warn] permission denied reading: {root}\n"
+                      f"      {hint}\n"
+                      f"      skipping this source")
+                continue
         src_chunk_size = src.get("chunk_size")
         src_chunk_overlap = src.get("chunk_overlap")
-        for p in sorted(root.rglob("*")):
+        # a single-file source is that one file (os.listdir/rglob on a file
+        # raise NotADirectoryError / yield nothing)
+        for p in [root] if single_file else sorted(root.rglob("*")):
             if not p.is_file():
                 continue
             # Hidden directories are machinery, not notes: `.trash` is where
