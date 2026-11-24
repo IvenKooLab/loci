@@ -13,6 +13,14 @@ def ingest_once(cfg) -> int:
     """One incremental pass. Returns the number of files re-indexed."""
     from loci.cli import build
     embedder, store = build(cfg)
+    # Same guard `cmd_ingest` has: an offline source is skipped by the scan,
+    # and the prune below would then read it as "every note was deleted" and
+    # wipe its chunks — a vault that came back had to be re-embedded from
+    # scratch (and was unsearchable meanwhile).
+    missing = loaders.missing_sources(cfg.sources)
+    if missing:
+        raise RuntimeError("Source unavailable, index left unchanged:\n  "
+                           + "\n  ".join(missing))
     docs = loaders.scan_sources(cfg.sources)
     store.prune(keep={d["path"] for d in docs})
     # Same vector-space guard `cmd_ingest` has: without it a watch loop keeps
