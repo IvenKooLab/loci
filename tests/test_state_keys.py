@@ -143,3 +143,35 @@ def test_the_legacy_search_matches_by_folded_name_on_every_platform(tmp_path):
     assert state._legacy_files(cfg, "task", "order-43") == []
     assert state._legacy_files(cfg, "other", "order-42") == []
     assert state._legacy_files(Cfg(tmp_path / "missing"), "task", "x") == []
+
+
+def test_the_newest_spelling_is_the_record_whatever_its_case(tmp_path):
+    """The choice itself, exercised on every platform: two files, the
+    differently-cased one written later. On Windows they cannot share a
+    directory under one folded name, so the picker is driven directly."""
+    import os
+    a, b = tmp_path / "task-1.json", tmp_path / "Task-1.txt"      # second name only differs: Windows allows it
+    a.write_text("older", encoding="utf-8")
+    b.write_text("newer", encoding="utf-8")
+    os.utime(a, (1_000, 1_000))
+    os.utime(b, (2_000, 2_000))
+
+    assert state._newest([a, b], prefer=a) == b          # last write wins over the preferred spelling
+    assert state._newest([b, a], prefer=a) == b          # …whichever order they are found in
+    assert state._newest([a], prefer=a) == a
+    assert state._newest([], prefer=a) is None
+
+    os.utime(b, (1_000, 1_000))                           # same instant: the current name is the record
+    assert state._newest([b, a], prefer=a) == a
+
+
+def test_delete_removes_every_spelling_of_the_key(tmp_path):
+    import os
+    cfg = Cfg(tmp_path)
+    (tmp_path / "task").mkdir()
+    old = tmp_path / "task" / "Task-1.json"               # the legacy spelling
+    old.write_text('{"v": 1}', encoding="utf-8")
+    assert state.get(cfg, "task", "task-1") == {"v": 1}
+    assert state.delete(cfg, "task", "TASK-1") is True
+    assert state.get(cfg, "task", "task-1") is None       # nothing comes back under another case
+    assert list((tmp_path / "task").iterdir()) == []

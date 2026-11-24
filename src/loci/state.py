@@ -62,23 +62,16 @@ def _record_path(cfg, type_: str, key: str) -> Path:
     return state_dir(cfg) / _segment(type_) / f"{_segment(key)}.json"
 
 
-def _legacy_path(cfg, type_: str, key: str):
-    """Where collision-prone `_slug` naming put this record; None when both
-    namings agree (a lowercase key that fits — the common case), so there is
-    nothing to migrate."""
-    old = state_dir(cfg) / _slug(str(type_)) / f"{_slug(str(key))}.json"
-    return None if old == _record_path(cfg, type_, key) else old
-
-
 def _legacy_files(cfg, type_: str, key: str) -> list[Path]:
-    """Records the old naming left for this key, newest first.
+    """Every file whose name is this key under the old, case-preserving
+    naming (any spelling; the folded one included).
 
     The old file name kept the key's original case, so on a case-sensitive
     volume `Order-42.json` is invisible to a lookup spelled `order-42`
-    unless the directory is searched by folded name — the legacy path alone
-    only ever matched the exact original spelling (Linux CI caught it).
-    Newest first: two spellings of one key are one key, and the store's
-    contract is last write wins."""
+    unless the directory is searched by folded name — a path built from
+    the key as spelled only ever matched the exact original spelling
+    (Linux CI caught it). Which of several spellings is the record is
+    decided by _newest, not here."""
     root = state_dir(cfg)
     want_type, want_key = _slug(str(type_)).casefold(), _slug(str(key)).casefold()
     found: list[Path] = []
@@ -94,24 +87,48 @@ def _legacy_files(cfg, type_: str, key: str) -> list[Path]:
         except OSError:
             continue
 
-    def age(f: Path):
-        try:
-            return (f.stat().st_mtime_ns, f.name)
-        except OSError:
-            return (0, f.name)
+    return found
 
-    return sorted(found, key=age, reverse=True)
+
+def _truncated(key: str) -> bool:
+    """A key whose old file name was cut at 80 characters — a name several
+    long keys shared, so it must never win over a record saved under its
+    own (collision-proof) name."""
+    return len(_slug(str(key))) >= _MAX_SEGMENT
+
+
+def _newest(files: list[Path], prefer: Path) -> Path | None:
+    """The most recently written of `files`, `prefer` first on a tie.
+
+    Before keys folded case, a case-sensitive volume could hold two
+    spellings of one key (task-1.json and Task-1.json). They are one key
+    now and the store's contract is last write wins: the newer write is
+    the record even when it is the differently-cased one and the folded
+    name exists as well."""
+    def rank(f: Path):
+        try:
+            return (f.stat().st_mtime_ns, f == prefer, f.name)
+        except OSError:
+            return (-1, f == prefer, f.name)
+
+    return max(files, key=rank) if files else None
+
+
+def _spellings(cfg, type_: str, key: str) -> list[Path]:
+    """Every file that holds this record: its current name plus whatever
+    spellings the old naming left (the folded name itself included when it
+    exists, which is the common case and then the only entry)."""
+    path = _record_path(cfg, type_, key)
+    files = _legacy_files(cfg, type_, key)
+    if _truncated(key):                 # the shared old name is not this key's record
+        files = [f for f in files if f != path]
+    return files + [path] if path.is_file() and path not in files else files
 
 
 def _existing(cfg, type_: str, key: str) -> Path | None:
-    """The file holding this record: its current name, else the legacy one."""
-    path = _record_path(cfg, type_, key)
-    if path.is_file():
-        return path
-    old = _legacy_path(cfg, type_, key)
-    if old is not None and old.is_file():
-        return old
-    return next(iter(_legacy_files(cfg, type_, key)), None)
+    """The file holding this record: its current name when that is all
+    there is, else the newest spelling of it."""
+    return _newest(_spellings(cfg, type_, key), _record_path(cfg, type_, key))
 
 
 def _same_file(a: Path, b: Path) -> bool:
@@ -201,9 +218,13 @@ def list_records(cfg, type_prefix: str = "") -> list[dict]:
 
 
 def delete(cfg, type_: str, key: str) -> bool:
-    """Remove one record. Returns whether it existed."""
-    path = _existing(cfg, type_, key)
-    if path is not None:
-        path.unlink()
-        return True
-    return False
+    """Remove one record — every spelling of it, or the newest would come
+    back as an older one. Returns whether it existed."""
+    removed = False
+    for victim in _spellings(cfg, type_, key):
+        try:
+            victim.unlink()
+            removed = True
+        except OSError:
+            pass
+    return removed
