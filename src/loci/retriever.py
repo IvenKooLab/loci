@@ -2,7 +2,6 @@
 LLM reranking and answer verification, and grounded answer synthesis."""
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 
@@ -371,7 +370,12 @@ def verify_answer(llm_cfg: dict, question: str, answer_text: str,
             ],
             temperature=0.0,
         )
-        claims = json.loads(resp.choices[0].message.content or "[]")
+        # a fenced reply reported "(verification unavailable: JSONDecodeError)"
+        # and an object reply died on .get() — the audit the user asked for
+        # did not happen either way
+        from loci.llm_json import parse_json
+        claims = [c for c in parse_json(resp.choices[0].message.content, expect=list) or []
+                  if isinstance(c, dict)]       # "junk" entries do not abort the audit
         if not claims:
             return "(verification returned no claims — answer not audited)"
         return format_verification(claims, hits)
