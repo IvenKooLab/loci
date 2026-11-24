@@ -556,12 +556,19 @@ class Brain:
         return "\n".join(lines)
 
     def governance(self, stale_days: int | None = None) -> str:
+        # every other index-backed tool answers setup guidance when loci is
+        # not configured; these two read self._cfg directly and used to die
+        # on None instead
+        if err := self._guard():
+            return err
         from loci import citations, governance
         findings = governance.scan(self._cfg, stale_days=stale_days,
                                    cited=citations.load_citations(self._cfg))
         return governance.report(findings)
 
     def quality(self, action: str = "report", window: int = 200) -> str:
+        if err := self._guard():
+            return err
         from loci import quality
         if action == "pin":
             snap = quality.pin(self._cfg, window)

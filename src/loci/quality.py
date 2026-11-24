@@ -37,8 +37,28 @@ def _store_dir(cfg) -> Path:
     return Path(str((cfg.store or {}).get("path", "./chroma_db"))).expanduser()
 
 
+def _window(window) -> int:
+    """A whole number of queries, at least 1. Anything else — not an int, 0
+    or a negative count (hosts do not all validate the schema, and those
+    sliced the log in surprising ways) — means "not given" and falls back to
+    the default."""
+    try:
+        count = int(window)
+    except (TypeError, ValueError):
+        return DEFAULT_WINDOW
+    return count if count >= 1 else DEFAULT_WINDOW
+
+
+def _num(value, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def load_queries(cfg, window: int = DEFAULT_WINDOW) -> list[dict]:
     """Last `window` query-log lines; empty when logging was never enabled."""
+    window = _window(window)
     path = _query_log_path(cfg)
     if not path or not path.exists():
         return []
@@ -49,9 +69,11 @@ def load_queries(cfg, window: int = DEFAULT_WINDOW) -> list[dict]:
             if not line:
                 continue
             try:
-                rows.append(json.loads(line))
+                row = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            if isinstance(row, dict):       # a hand-edited line that is valid JSON but not an object
+                rows.append(row)
     except OSError:
         return []
     return rows[-window:]
@@ -78,12 +100,13 @@ def load_feedback(cfg) -> list[dict]:
 
 def snapshot(cfg, window: int = DEFAULT_WINDOW) -> dict:
     """One window of observable retrieval health."""
+    window = _window(window)
     queries = load_queries(cfg, window)
     feedback = load_feedback(cfg)
     n = len(queries)
-    zero = sum(1 for q in queries if not q.get("hits"))
-    hits = [q.get("hits", 0) for q in queries]
-    ms = [q.get("ms", 0.0) for q in queries]
+    hits = [int(_num(q.get("hits"))) for q in queries]
+    zero = sum(1 for h in hits if not h)
+    ms = [_num(q.get("ms")) for q in queries]
     bad = sum(1 for f in feedback if f.get("verdict") == "bad")
     good = sum(1 for f in feedback if f.get("verdict") == "good")
 

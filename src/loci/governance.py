@@ -77,6 +77,14 @@ def _frontmatter(path: Path, limit: int = 4000) -> dict:
     return meta
 
 
+def _threshold(value) -> int | None:
+    """int(value), or None when it is not a whole number."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _stem(value: str) -> str:
     text = str(value or "").strip().strip("[]").split("|")[0].split("#")[0]
     text = text.replace("\\", "/").rsplit("/", 1)[-1]
@@ -115,8 +123,11 @@ def scan(cfg, *, stale_days: int | None = None, cited: dict | None = None) -> di
     stale: list[dict] = []
     by_title: dict[str, list[Path]] = {}
 
-    limit = stale_days if stale_days is not None \
-        else int(((getattr(cfg, "governance", None) or {}).get("stale_days") or 180))
+    # an override or a config value that is not a whole number falls back to
+    # the configured (then default) threshold instead of raising
+    limit = _threshold(stale_days)
+    if limit is None:
+        limit = _threshold((getattr(cfg, "governance", None) or {}).get("stale_days")) or 180
     cited = cited if cited is not None else {}
     now = time.time()
 
