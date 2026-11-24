@@ -579,7 +579,12 @@ class Brain:
     def ask(self, question: str, verify: bool = False) -> str:
         if err := self._guard():
             return err
-        question = question[:8000]   # whole thing lands in the LLM prompt
+        question = str(question if question is not None else "")[:8000]
+        if not question.strip():
+            # a blank question reaches the embedding endpoint as "" and comes
+            # back as a raw provider 400 — search_payload and the CLI already
+            # reject it before any work; this entry point did not
+            return "(empty question — pass `question` in the request body)"
 
         def _do() -> str:
             hits = self._retriever.search(question)
@@ -760,6 +765,13 @@ class Brain:
     def wiki(self, topic: str, k: int | None = None) -> str:
         if err := self._guard():
             return err
+        topic = str(topic if topic is not None else "")
+        if not topic.strip():         # same blank guard as ask / search_payload
+            return "(empty topic — pass the topic to write a page about)"
+        try:                          # hosts do not all validate the schema
+            k = int(k) if k is not None else None
+        except (TypeError, ValueError):
+            k = None
         from loci.wiki import generate_wiki_page
         try:
             r = generate_wiki_page(self._cfg, topic, k=k or 12)
