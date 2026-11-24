@@ -724,16 +724,25 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
             if not text:
                 return self._json(400, {"error": "text is required"})
             name = body.get("name")
-            if name:                              # update: keep frontmatter
+            if name:                              # update an existing note
                 p = self._safe_memory(str(name))
                 if not p:
                     return self._json(404, {"error": "not found"})
                 raw = p.read_text(encoding="utf-8", errors="replace")
-                fm = f"---{raw.split('---', 2)[1]}---" if raw.startswith("---") else ""
-                tmp = p.with_suffix(".md.tmp")
-                tmp.write_text(f"{fm}\n{text}\n" if fm else f"{text}\n",
-                               encoding="utf-8")
-                tmp.rename(p)
+                old_fm = f"---{raw.split('---', 2)[1]}---" if raw.startswith("---") else ""
+                # Keep exactly one frontmatter block. The console editor
+                # loads and saves the WHOLE file, frontmatter included; an
+                # API client sends just the new body. A save that still
+                # carries its own frontmatter is the whole document (the old
+                # block used to be prepended again, so tags and title were
+                # duplicated into the body and edits to them silently lost).
+                meta, _ = loaders_mod.parse_frontmatter(text)
+                new = (text.rstrip() + "\n") if meta else (
+                    f"{old_fm}\n{text}\n" if old_fm else f"{text}\n")
+                # atomic replace: Path.rename over an existing file raises
+                # FileExistsError on Windows (every console edit was a 500)
+                from loci import fsutil
+                fsutil.atomic_write(p, new)
                 self._reindex_file(p)
                 audit.add(self.entry, "memory.update", str(name))
                 return self._json(200, {"path": str(p)})
