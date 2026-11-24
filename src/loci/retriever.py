@@ -49,6 +49,8 @@ def identifier_terms(query: str) -> list[str]:
 
 
 class Retriever:
+    _RATING = 0.5   # what one `bad` verdict adds to a chunk's penalty
+
     def __init__(self, embedder, store, top_k: int,
                  hybrid: bool = True, rrf_k: int = 60,
                  rerank: bool = False, llm_cfg: dict | None = None,
@@ -71,18 +73,38 @@ class Retriever:
                     rec = _json.loads(line)
                     if rec.get("verdict") == "bad":
                         cid = rec["chunk_id"]
-                        self._penalties[cid] = self._penalties.get(cid, 0.0) + 0.5
+                        self._penalties[cid] = self._penalties.get(cid, 0.0) + self._RATING
                 except Exception:
                     pass
 
     def _apply_feedback(self, hits):
+        """Demote chunks that were rated bad: one result page per rating.
+
+        This only inflated `distance` and never reordered — and in hybrid
+        mode (the default) rank comes from RRF scores, not distance — so a
+        bad-rated chunk kept its place at the top with a worse-looking
+        score. It now moves down by `top_k` positions per bad rating, after
+        any reranking, so the rating is the last word. Demoted, not
+        erased: it is still returned when nothing else matches."""
         if not self._penalties:
             return hits
-        for h in hits:
+        page = max(self.top_k, 1)
+        ratings = {i: round(self._penalties[hits[i]["id"]] / self._RATING)
+                   for i in range(len(hits)) if self._penalties.get(hits[i]["id"])}
+        # move each rated chunk down the list, past `page` others per rating
+        # (a sort by "index + shift" is not the same thing: from the top,
+        # one page down collides with the item already at that index)
+        order = list(range(len(hits)))
+        for i in sorted(ratings):
+            pos = order.index(i)
+            order.remove(i)
+            order.insert(min(pos + ratings[i] * page, len(order)), i)
+        demoted = [hits[i] for i in order]
+        for h in demoted:
             p = self._penalties.get(h["id"], 0.0)
             if p:
                 h["distance"] = (h.get("distance") or 0.5) + p * 0.3
-        return hits
+        return demoted
 
     def search(self, query: str, tag: str | None = None,
                rerank: bool | None = None, path_contains: str | None = None,
@@ -91,8 +113,10 @@ class Retriever:
                rewrite: bool | None = None) -> list[dict]:
         limit = max(k if k is not None else self.top_k, 0)
         filtered = bool(tag or path_contains or since or exact or rerank)
-        # over-fetch so fusion and filtering still leave `limit` results
-        fetch = max(limit * 4, 1) if (self.hybrid or filtered) else max(limit, 1)
+        # over-fetch so fusion and filtering still leave `limit` results —
+        # and so a bad-rated chunk can be demoted out of them
+        fetch = max(limit * 4, 1) if (self.hybrid or filtered or self._penalties) \
+            else max(limit, 1)
         use_rw = False if rewrite is None else rewrite   # off unless asked
         queries = [query]
         if use_rw and self.llm_cfg:
@@ -120,7 +144,6 @@ class Retriever:
         if exact:
             e = exact.lower()
             fused = [h for h in fused if e in h["text"].lower()]
-        fused = self._apply_feedback(fused)   # bad-rated chunks sink
         use_rerank = self.rerank if rerank is None else rerank
         if use_rerank:
             provider = rerank_with or self.rerank_provider
@@ -128,6 +151,9 @@ class Retriever:
                 fused = local_rerank(query, fused, self.local_rerank_model)
             elif self.llm_cfg:
                 fused = rerank_hits(self.llm_cfg, query, fused)
+        # after any reranking: a reranker scores relevance only, and the
+        # user's rating of this very chunk is the last word
+        fused = self._apply_feedback(fused)   # bad-rated chunks sink
         return fused[:limit]
 
     @staticmethod
