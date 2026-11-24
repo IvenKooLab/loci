@@ -176,6 +176,7 @@ loci remember "演示使用预发布环境" --title "演示环境约定"
 loci search "演示环境" --tag memory
 loci ask "准备演示时要注意什么？" --verify
 loci harness                          # 查看各个 Agent 的记忆状态
+loci forget "演示环境"                 # 撤回一条记忆：文件移入 .trash，同时移出索引
 ```
 
 索引按文件变化增量更新，记忆始终是可读的 Markdown。跨机器同步时，同步原始文件与记忆笔记，再分别建立本地索引；不要把密钥放进仓库。

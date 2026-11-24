@@ -90,6 +90,26 @@ def _threshold(value) -> int | None:
         return None
 
 
+def _retire_hint(path: Path, cfg) -> str:
+    """How this note leaves the index while its file is kept.
+
+    The report used to say "loci forget" for every note — and for one that
+    lives in a source directory that command cannot reach it (it only
+    retires memories). The advice has to be true for the note it is
+    attached to."""
+    try:
+        mem_root = str(Path(str((getattr(cfg, "memories", None) or {}).get("path", "./memories")))
+                       .expanduser().resolve()).replace("\\", "/").rstrip("/").lower()
+        note = str(path.resolve()).replace("\\", "/").lower()
+    except (OSError, RuntimeError, ValueError):
+        mem_root, note = "", ""
+    if mem_root and (note == mem_root or note.startswith(mem_root + "/")):
+        return (f"retire it with `loci forget {path.stem}` (or brain_forget) — "
+                "the file moves to .trash and its chunks leave the index")
+    return ("move the file out of its source directory and run `loci ingest` — "
+            "its chunks are pruned and the file itself is kept")
+
+
 def _stem(value: str) -> str:
     text = str(value or "").strip().strip("[]").split("|")[0].split("#")[0].strip()
     text = text.replace("\\", "/").rsplit("/", 1)[-1]
@@ -149,8 +169,7 @@ def scan(cfg, *, stale_days: int | None = None, cited: dict | None = None) -> di
                 "superseded_by": target,
                 "target_exists": target in by_stem,
                 "reason": "frontmatter marks this note as replaced",
-                "action": "drop it from the index (loci forget) and keep the file "
-                          "for history" if target in by_stem
+                "action": _retire_hint(path, cfg) if target in by_stem
                           else "its replacement is missing — fix the reference first",
             })
         for key in ("supersedes", "supersedes_note"):

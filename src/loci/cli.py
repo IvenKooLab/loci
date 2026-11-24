@@ -314,6 +314,31 @@ def resolve_port(flag, cfg) -> int:
     return port
 
 
+def cmd_forget(cfg, query: str) -> None:
+    """Retire memories matching `query`: file to .trash, chunks out of the index.
+
+    The governance report kept pointing at this command ("drop it from the
+    index (loci forget) and keep the file for history") and it did not
+    exist. Same effect as brain_forget over MCP."""
+    if not str(query or "").strip():
+        # an empty query matches every memory
+        sys.exit("loci: forget needs a query — it retires the memories whose "
+                 "name or content match it")
+    from loci.memories import find_memories, forget_memory
+    mem_dir = (cfg.memories or {}).get("path", "./memories")
+    matches = find_memories(mem_dir, query)
+    if not matches:
+        print(f"(no memory matching '{query}')")
+        return
+    _, store = build(cfg)
+    moved = forget_memory(mem_dir, query)
+    for p in matches:                      # chunks are keyed by the note's original path
+        store.delete_file(str(p.resolve()))
+    print("forgot:")
+    for dest in moved:
+        print(f"  - {dest}")
+
+
 def cmd_wiki(cfg, topic: str, k: int | None = None) -> None:
     # `loci wiki` with no topic used to send None into the retriever
     if not str(topic or "").strip():
@@ -749,6 +774,10 @@ def main() -> None:
     p_remember.add_argument("--title", help="short title (defaults to first line)")
     p_remember.add_argument("--tags", help="comma-separated extra tags (a 'memory' tag is always added)")
 
+    p_forget = sub.add_parser(
+        "forget", help="retire memories matching a query (file to .trash, chunks out of the index)")
+    p_forget.add_argument("query", help="matches memory filenames or content")
+
     p_wiki = sub.add_parser("wiki", help="distill everything the index knows about a topic into a wiki page")
     p_wiki.add_argument("topic", nargs="?", help="the topic (omit with --suggest)")
     p_wiki.add_argument("--suggest", action="store_true", help="suggest wiki-worthy topics")
@@ -871,6 +900,8 @@ def main() -> None:
         cmd_links(cfg, args.note)
     elif args.cmd == "remember":
         cmd_remember(cfg, args.text, title=args.title, tags=args.tags)
+    elif args.cmd == "forget":
+        cmd_forget(cfg, args.query)
     elif args.cmd == "graph":
         cmd_graph(cfg, args.action, entity=args.entity, force=args.force)
     elif args.cmd == "governance":

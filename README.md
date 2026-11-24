@@ -243,6 +243,7 @@ loci remember "Use staging for demos" --title "Demo environment"
 loci search "demo environment" --tag memory
 loci ask "How should I prepare a demo?" --verify
 loci harness                          # inspect detected agent memories
+loci forget "demo environment"         # retire a memory: file to .trash, out of the index
 ```
 
 Indexing is incremental. Notes stay readable as Markdown. For multiple machines, sync source files and memory notes, then rebuild each local index; keep credentials out of the repository.

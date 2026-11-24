@@ -158,6 +158,7 @@ loci remember "デモにはステージング環境を使う" --title "デモ環
 loci search "デモ環境" --tag memory
 loci ask "デモの準備で注意することは？" --verify
 loci harness
+loci forget "デモ環境"
 ```
 
 変更されたファイルを差分でインデックス化し、記憶は読みやすい Markdown のまま保存します。複数のマシンでは元ファイルと記憶を同期し、インデックスは各マシンで再構築してください。認証情報はリポジトリに保存しないでください。

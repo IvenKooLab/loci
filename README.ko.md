@@ -158,6 +158,7 @@ loci remember "데모에는 스테이징 환경 사용" --title "데모 환경 �
 loci search "데모 환경" --tag memory
 loci ask "데모를 준비할 때 무엇을 확인해야 하나요?" --verify
 loci harness
+loci forget "데모 환경"
 ```
 
 변경된 파일을 증분 색인하며 기억은 읽기 쉬운 Markdown으로 유지됩니다. 여러 기기에서는 원본 파일과 기억을 동기화하고 인덱스는 각 기기에서 다시 만드세요. 키는 저장소에 넣지 마세요.

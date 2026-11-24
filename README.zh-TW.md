@@ -158,6 +158,7 @@ loci remember "展示使用預備環境" --title "展示環境約定"
 loci search "展示環境" --tag memory
 loci ask "準備展示時應注意什麼？" --verify
 loci harness
+loci forget "展示環境"
 ```
 
 索引會增量更新，記憶保留為可讀的 Markdown。跨機器請同步原始檔案與記憶，分別建立本機索引；不要將金鑰存入儲存庫。
