@@ -23,6 +23,7 @@ back to ``default`` with a warning.
 from __future__ import annotations
 
 import re
+import sys
 
 _TOKEN = re.compile(r"[a-z0-9]+|[\u4e00-\u9fff]")
 _CJK_RUN = re.compile(r"[\u4e00-\u9fff]+")
@@ -133,9 +134,11 @@ def jieba_tokenize(text: str) -> list[str]:
     except ImportError:
         if not _warned_jieba:
             _warned_jieba = True
+            # stderr: under MCP, stdout is the JSON-RPC stream — a prose line
+            # there reaches the host as a malformed reply
             print("[warn] bm25.tokenizer = 'jieba' but jieba is not installed — "
                   "falling back to the single-char tokenizer. "
-                  "Install it with: pip install 'loci-rag[zh]'")
+                  "Install it with: pip install 'loci-rag[zh]'", file=sys.stderr)
         return default_tokenize(text)
     jieba.setLogLevel(20)   # silence the "Building prefix dict" banner
     return [t for t in jieba.cut(text.lower()) if t.strip()]
