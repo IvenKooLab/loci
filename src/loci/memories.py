@@ -87,9 +87,21 @@ def extract_memories(llm_cfg: dict, transcript: str) -> list[dict]:
             ],
             temperature=0.0,
         )
-        import json as _json
-        items = _json.loads(resp.choices[0].message.content or "[]")
-        return [it for it in items if isinstance(it, dict) and it.get("text", "").strip()][:3]
+        # models routinely wrap the array in a ```json fence; a plain
+        # json.loads then failed, was swallowed below, and chat remembered
+        # nothing at all without saying so
+        from loci.llm_json import parse_json
+        items = parse_json(resp.choices[0].message.content, expect=list) or []
+        out = []
+        for it in items:
+            # one item with a non-string text used to cost the whole batch
+            if not isinstance(it, dict) or not isinstance(it.get("text"), str) \
+                    or not it["text"].strip():
+                continue
+            title = it.get("title")
+            out.append({"title": title.strip() if isinstance(title, str) and title.strip() else None,
+                        "text": it["text"].strip()})
+        return out[:3]
     except Exception:
         return []
 
