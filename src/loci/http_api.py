@@ -94,19 +94,36 @@ def _within(path: Path, root: Path) -> bool:
 
 
 def _auth_table(cfg) -> list[dict]:
-    """Merge [[auth.tokens]] entries with the legacy single [http] token."""
+    """Merge [[auth.tokens]] entries with the legacy single [http] token.
+
+    Malformed entries are skipped with a pointer: this runs while the server
+    is starting, and one bad line used to abort the start with a traceback."""
     entries = []
-    for t in getattr(cfg, "auth", None) or []:
-        token = str(t.get("token", "")).strip()
-        if not token:
+    configured = getattr(cfg, "auth", None) or []
+    if isinstance(configured, (str, bytes, dict)):
+        configured = [configured]       # one token / one table instead of an array
+    elif not isinstance(configured, (list, tuple)):
+        configured = []
+    for t in configured:
+        if isinstance(t, (str, bytes)):
+            t = {"token": t}
+        if not isinstance(t, dict):
+            print(f"[warn] [[auth.tokens]] entry is not a table, skipped: {t!r}",
+                  file=sys.stderr)
+            continue
+        token = t.get("token")
+        if not isinstance(token, str) or not token.strip():
+            print(f"[warn] [[auth.tokens]] entry without a token string, skipped: "
+                  f"{t!r}", file=sys.stderr)
             continue
         role = str(t.get("role", "viewer")).strip().lower()
-        entries.append({"token": token,
+        entries.append({"token": token.strip(),
                         "role": role if role in ROLES else "viewer",
-                        "label": str(t.get("label", "")) or "unnamed"})
+                        "label": str(t.get("label") or "") or "unnamed"})
     legacy = cfg.http.get("token")
-    if legacy:
-        entries.append({"token": legacy, "role": "admin", "label": "legacy"})
+    if legacy is not None and str(legacy).strip():
+        entries.append({"token": str(legacy).strip(), "role": "admin",
+                        "label": "legacy"})
     if not entries:                          # unconfigured: random admin token
         entries.append({"token": secrets.token_hex(16), "role": "admin",
                         "label": "auto-generated"})
@@ -119,7 +136,10 @@ def resolve_auth(entries: list[dict], authorization: str) -> dict | None:
         return None
     given = authorization[7:].strip()
     for e in entries:
-        if secrets.compare_digest(e["token"], given):
+        # compare_digest refuses non-ASCII *strings* (TypeError): one non-ASCII
+        # bearer header raised out of the handler instead of being rejected,
+        # and a non-ASCII token in the config broke every authenticated request
+        if secrets.compare_digest(e["token"].encode("utf-8"), given.encode("utf-8")):
             return e
     return None
 
