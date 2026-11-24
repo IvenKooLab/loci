@@ -175,6 +175,13 @@ def load(path: str = "config.toml") -> Config:
         cfg.top_k["search"] = max(int(cfg.top_k["search"]), 1)
     except (TypeError, ValueError):
         cfg.top_k["search"] = DEFAULTS["top_k"]["search"]
+    # rrf_k is the denominator of every fused score (1 / (rrf_k + rank + 1)):
+    # -1 made each search die with ZeroDivisionError, a string with TypeError
+    rrf_k = cfg.retrieval.get("rrf_k")
+    if not (isinstance(rrf_k, int) and not isinstance(rrf_k, bool) and rrf_k >= 0):
+        print(f"[warn] retrieval.rrf_k={rrf_k!r} is not a non-negative int — "
+              f"using {DEFAULTS['retrieval']['rrf_k']}", file=sys.stderr)
+        cfg.retrieval["rrf_k"] = DEFAULTS["retrieval"]["rrf_k"]
     # the registry is the source of truth: a hand-kept list here silently
     # rejected the `identifier` tokenizer
     from loci.tokenizers import known_tokenizers
