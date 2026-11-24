@@ -342,6 +342,31 @@ class Brain:
         name = type(e).__name__
         return "Connection" in name or "Timeout" in name
 
+    @staticmethod
+    def _stale_collection(e: BaseException) -> bool:
+        # chroma's answer once the collection a Store was opened on has been
+        # deleted and recreated (`ingest --force` after an embedding-model
+        # change, run from another process): every call on the old handle
+        # raises this until the pipeline is rebuilt
+        return type(e).__name__ == "NotFoundError" and "chroma" in type(e).__module__
+
+    def store(self):
+        """The live Store behind the pipeline (None when unconfigured).
+
+        Re-opens the pipeline when the collection it was opened on has been
+        replaced since — see _stale_collection."""
+        self._guard()
+        if self._store is None:
+            return None
+        try:
+            self._store.count()
+        except Exception as e:
+            if not self._stale_collection(e):
+                raise
+            self._reset()
+            self._guard()
+        return self._store
+
     def _reset(self):
         # drop the built pipeline (not the process): a long-lived serve-http
         # would otherwise pin clients created during a momentary network outage
@@ -361,10 +386,14 @@ class Brain:
             try:
                 return fn()
             except Exception as e:
-                if not self._transient(e):
+                if self._stale_collection(e):
+                    print(f"loci: index was rebuilt elsewhere ({type(e).__name__}) — "
+                          "rebuilding pipeline and retrying once", file=sys.stderr)
+                elif not self._transient(e):
                     raise
-                print(f"loci: transient API failure ({type(e).__name__}: {e}) — "
-                      "rebuilding pipeline and retrying once", file=sys.stderr)
+                else:
+                    print(f"loci: transient API failure ({type(e).__name__}: {e}) — "
+                          "rebuilding pipeline and retrying once", file=sys.stderr)
                 self._reset()
                 if err := self._guard():
                     return err
@@ -586,10 +615,20 @@ class Brain:
         try:
             with contextlib.redirect_stdout(buf):  # keep the protocol stream clean
                 cmd_ingest(cfg, force=force)
+            lines = [l for l in buf.getvalue().splitlines() if l.strip()]
+            out = "\n".join(lines[-3:]) or "ingest finished"
         except SystemExit as e:   # e.g. embedding model changed — surface, don't die
-            return f"ingest failed: {e}"
-        lines = [l for l in buf.getvalue().splitlines() if l.strip()]
-        return "\n".join(lines[-3:]) or "ingest finished"
+            out = f"ingest failed: {e}"
+        finally:
+            # cmd_ingest works through its own Store. A forced rebuild
+            # replaces the collection underneath this Brain's store and
+            # retriever: both handles then raise NotFoundError on every call
+            # until restart, and the embedder would still be the old model
+            # (same dimension: silently wrong queries). Drop the pipeline so
+            # the next call rebuilds it from the current config.
+            self._reset()
+            self._ensure()
+        return out
 
     def links(self, note: str) -> str:
         if err := self._guard():

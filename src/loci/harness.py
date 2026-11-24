@@ -295,7 +295,7 @@ def _stored_fingerprint(cfg, h: Harness) -> str | None:
 def stats(cfg, store, harnesses: list[Harness]) -> list[dict]:
     """Per-harness stats: file count, total chars, last update, indexed chunks,
     summary freshness. Zero LLM cost."""
-    per_source = store.per_source()
+    per_source = store.per_source() if store is not None else {}   # None: pipeline not built
     # realcase: on macOS APFS a root typed with different casing than the
     # volume's spelling would attribute 0 chunks to a live harness
     from loci.fsutil import realcase

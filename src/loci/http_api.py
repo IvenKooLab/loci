@@ -324,6 +324,13 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
     def _harnesses():
         return harness_mod.load_harnesses(cfg)
 
+    def _live_store():
+        """The Brain's Store, re-opened when the collection was rebuilt under
+        it (`ingest --force` from another process); stub brains expose a
+        plain `_store` attribute."""
+        getter = getattr(brain, "store", None)
+        return getter() if callable(getter) else getattr(brain, "_store", None)
+
     def _log_query(entry, kind: str, query: str, payload, ms: float) -> None:
         """Record one read. Logging must never be able to break a search, so
         every failure here is swallowed."""
@@ -446,16 +453,16 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
             if route == "/stats":
                 return self._guard(lambda: self._json(200, {
                     "stats": brain.stats(),
-                    "harness": harness_mod.stats(cfg, brain._store, _harnesses())
+                    "harness": harness_mod.stats(cfg, _live_store(), _harnesses())
                     if _harnesses() else []}))
             if route == "/harness":
                 return self._guard(lambda: self._json(
-                    200, {"harness": harness_mod.stats(cfg, brain._store, _harnesses())}))
+                    200, {"harness": harness_mod.stats(cfg, _live_store(), _harnesses())}))
             if route == "/graph":
                 def _graph_payload():
-                    store = brain._store
-                    per = store.per_source()
-                    link_map = store.link_map()
+                    store = _live_store()
+                    per = store.per_source() if store is not None else {}
+                    link_map = store.link_map() if store is not None else {}
                     # Nodes are indexed files only: a link target that is not a
                     # real note travels inside `links` and is reported by the
                     # UI as unresolved. Making it a node would double every note.
@@ -764,7 +771,9 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
                 dest = trash / f"{p.stem}-{n}{p.suffix}"
                 n += 1
             p.rename(dest)
-            brain._store.delete_file(str(p))      # drop its chunks immediately
+            live = _live_store()
+            if live is not None:
+                live.delete_file(str(p))         # drop its chunks immediately
             audit.add(self.entry, "memory.delete", str(name))
             return self._json(200, {"trashed": str(dest)})
 
