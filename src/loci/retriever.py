@@ -240,8 +240,19 @@ def rerank_hits(llm_cfg: dict, query: str, hits: list[dict]) -> list[dict]:
             ],
             temperature=0.0,
         )
-        pairs = json.loads(resp.choices[0].message.content or "[]")
-        scores = {int(idx): float(s) for idx, s in pairs}
+        # a fenced reply failed json.loads and the fail-open except kept the
+        # fused order — the rerank call was made, paid for, and not used
+        from loci.llm_json import parse_json
+        pairs = parse_json(resp.choices[0].message.content, expect=list)
+        if not isinstance(pairs, list):
+            return hits
+        scores = {}
+        for pair in pairs:
+            try:
+                idx, score = pair
+                scores[int(idx)] = float(score)
+            except (TypeError, ValueError):
+                continue                 # one malformed pair does not cost the rest
         if not scores:
             return hits
         return [h for _, _, h in sorted(
