@@ -705,11 +705,15 @@ class Brain:
             return self._forget_locked(query)
 
     def _forget_locked(self, query: str) -> str:
-        from loci.memories import forget_memory
+        from loci.memories import find_memories, forget_memory
         mem_dir = self._cfg.memories.get("path", "./memories")
+        # chunks are keyed by a note's ORIGINAL path; forget_memory returns
+        # the .trash destinations, and deleting by those never matched a
+        # chunk (the tool promises they "leave the index immediately")
+        originals = [str(p.resolve()) for p in find_memories(mem_dir, query)]
         moved = forget_memory(mem_dir, query)
-        for p in moved:
-            self._store.delete_file(str(Path(p).resolve()))
+        for src in originals:
+            self._store.delete_file(src)
         if not moved:
             return f"(no memory matching '{query}')"
         return "forgot:\n" + "\n".join(f"  - {m}" for m in moved)
