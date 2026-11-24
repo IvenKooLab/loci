@@ -442,8 +442,18 @@ class Brain:
                 fm_title = re.search(r"^title:\s*(.+)$", fm_zone, re.M)
                 fm_name = re.search(r"^name:\s*(.+)$", fm_zone, re.M)
         heading = re.search(r"^#\s+(.+)$", body_zone, re.M)
-        title = next((m.group(1).strip().strip('"')[:80]
-                      for m in (fm_title, heading, fm_name) if m), None)
+        from loci.loaders import strip_yaml_comment
+
+        def value_of(match, yaml: bool = True):
+            if not match:
+                return None
+            text = match.group(1).strip()
+            if yaml:                       # a frontmatter value may carry a trailing comment
+                text = strip_yaml_comment(text).strip()
+            return text.strip('"')[:80] or None
+
+        title = next((v for v in (value_of(fm_title), value_of(heading, yaml=False),
+                                  value_of(fm_name)) if v), None)
         cache[path] = (stamp, title)
         return title
 

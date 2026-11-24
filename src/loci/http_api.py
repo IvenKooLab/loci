@@ -826,7 +826,8 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
                     m = re.search(r"^title:\s*(.+)$",
                                   raw.split("---")[1] or "", re.M)
                     if m:
-                        title = m.group(1).strip().strip('"')[:80]
+                        # a frontmatter value may carry a trailing comment
+                        title = loaders_mod.strip_yaml_comment(m.group(1)).strip().strip('"')[:80]
                 rows.append({
                     "name": str(rel),
                     "group": group,

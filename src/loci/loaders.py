@@ -115,6 +115,26 @@ def file_hash(content: str) -> str:
     return hashlib.sha1(content.encode("utf-8")).hexdigest()
 
 
+def strip_yaml_comment(value: str) -> str:
+    """Drop a trailing YAML comment: a `#` that opens the value or follows
+    whitespace, outside quotes. `title: C# notes` and a URL fragment are not
+    comments and stay.
+
+    The comment used to become part of the value — the very format shown in
+    supersede's docstring (`supersedes: use-staging   # a note stem`) never
+    matched its target."""
+    quote = None
+    for i, ch in enumerate(value):
+        if quote:
+            if ch == quote:
+                quote = None
+        elif ch in "\"'":
+            quote = ch
+        elif ch == "#" and (i == 0 or value[i - 1].isspace()):
+            return value[:i].rstrip()
+    return value
+
+
 def parse_frontmatter(content: str) -> tuple[dict, str]:
     """Parse a minimal YAML subset from leading --- fences: scalars and lists.
     Returns ({meta}, body); malformed fences are left in the body untouched."""
@@ -134,22 +154,22 @@ def parse_frontmatter(content: str) -> tuple[dict, str]:
     current_list: str | None = None
     for line in lines[1:end]:
         stripped = line.strip()
-        if not stripped:
+        if not stripped or stripped.startswith("#"):   # blank or whole-line comment
             continue
         if stripped.startswith("- ") and current_list:
-            meta[current_list].append(stripped[2:].strip().strip('"\''))
+            meta[current_list].append(strip_yaml_comment(stripped[2:].strip()).strip("\"'"))
             continue
         if ":" not in stripped:
             continue
         key, _, value = stripped.partition(":")
-        key, value = key.strip(), value.strip()
+        key, value = key.strip(), strip_yaml_comment(value.strip())
         current_list = None
         if not value:
             meta[key] = []
             current_list = key
         elif value.startswith("[") and value.endswith("]"):
             inner = value[1:-1].strip()
-            meta[key] = [v.strip().strip("\"'") for v in inner.split(",")] if inner else []
+            meta[key] = [strip_yaml_comment(v.strip()).strip("\"'") for v in inner.split(",")] if inner else []
         else:
             meta[key] = value.strip("\"'")
     return meta, "\n".join(lines[end + 1:])

@@ -29,7 +29,7 @@ def _norm(value) -> str:
     text = str(value or "").strip().strip("\"'")
     text = text.strip("[]")
     text = text.split("|")[0]                      # [[target|alias]]
-    text = text.split("#")[0]                      # [[target#heading]]
+    text = text.split("#")[0].strip()              # [[target#heading]]; also drops a trailing comment
     text = text.replace("\\", "/").rsplit("/", 1)[-1]
     return text[:-3] if text.lower().endswith(".md") else text
 

@@ -24,6 +24,8 @@ import re
 import time
 from pathlib import Path
 
+from loci.loaders import strip_yaml_comment
+
 # Frontmatter keys that mark a note as replaced. `supersede` (lowercase) is the
 # canonical one; the aliases are what people actually type.
 _SUPERSEDED = ("superseded_by", "superseded-by", "replaced_by")
@@ -73,7 +75,10 @@ def _frontmatter(path: Path, limit: int = 4000) -> dict:
         if ":" not in line or line.lstrip().startswith("#"):
             continue
         key, _, value = line.partition(":")
-        meta[key.strip().lower()] = value.strip().strip("\"'")
+        # same YAML comment rule as the shared parser: a trailing comment
+        # used to leave trailing spaces on the reference, so a real target
+        # was reported as missing
+        meta[key.strip().lower()] = strip_yaml_comment(value).strip().strip("\"'")
     return meta
 
 
@@ -86,7 +91,7 @@ def _threshold(value) -> int | None:
 
 
 def _stem(value: str) -> str:
-    text = str(value or "").strip().strip("[]").split("|")[0].split("#")[0]
+    text = str(value or "").strip().strip("[]").split("|")[0].split("#")[0].strip()
     text = text.replace("\\", "/").rsplit("/", 1)[-1]
     return re.sub(r"\.(md|markdown)$", "", text, flags=re.I)
 
