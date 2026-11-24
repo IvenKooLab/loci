@@ -11,15 +11,32 @@ from pathlib import Path
 CHATLOG_NAMES = {"conversations.json"}
 
 
+def _obj(value) -> dict:
+    """`value` when it is an object, else an empty one."""
+    return value if isinstance(value, dict) else {}
+
+
+def _time(value):
+    """A sortable timestamp, or None when it is not a number.
+
+    An export is re-exported, trimmed by hand and pushed through other
+    tools: a create_time that arrived as a date string raised TypeError out
+    of the sort and cost the whole file."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
 def parse_chatlog(path: Path) -> list[dict] | None:
     """Return [{title, text}] for ChatGPT/Claude exports, or None if the file
     is not a recognized chat export (callers skip it silently)."""
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
-    if isinstance(data, list) and data and isinstance(data[0], dict) \
-            and "mapping" in data[0]:
+    # any element may identify the format: looking only at the first one
+    # made a stray leading string turn a real export into "unrecognized"
+    if isinstance(data, list) and any("mapping" in _obj(item) for item in data):
         return _parse_chatgpt(data)
     if isinstance(data, dict) and isinstance(data.get("chats"), list):
         return _parse_claude(data["chats"])
@@ -34,22 +51,26 @@ def _turn(role: str, text: str) -> str:
 def _parse_chatgpt(data: list) -> list[dict]:
     out = []
     for conv in data:
+        # one element that is not the expected shape must not cost the other
+        # conversations — ingest reads this file on every pass
+        conv = _obj(conv)
         title = str(conv.get("title") or "untitled conversation")
-        mapping = conv.get("mapping") or {}
+        mapping = _obj(conv.get("mapping"))
         turns = []
         for i, node in enumerate(mapping.values()):
-            msg = node.get("message") or {}
-            author = (msg.get("author") or {}).get("role", "")
+            msg = _obj(_obj(node).get("message"))
+            author = _obj(msg.get("author")).get("role", "")
             if author not in ("user", "assistant"):
                 continue  # system scaffolding and tool noise
-            content = msg.get("content") or {}
+            content = _obj(msg.get("content"))
             if content.get("content_type") not in (None, "text"):
                 continue
-            parts = [p for p in (content.get("parts") or [])
+            raw_parts = content.get("parts")
+            parts = [p for p in (raw_parts if isinstance(raw_parts, (list, tuple)) else [])
                      if isinstance(p, str) and p.strip()]
             if not parts:
                 continue
-            turns.append((msg.get("create_time"), i,
+            turns.append((_time(msg.get("create_time")), i,
                           _turn(author, "\n".join(parts))))
         # An untimed turn keeps its place: it takes the time of the turn
         # before it (in mapping order), so with the mapping index as the
@@ -74,18 +95,23 @@ def _parse_chatgpt(data: list) -> list[dict]:
 def _parse_claude(chats: list) -> list[dict]:
     out = []
     for conv in chats:
+        conv = _obj(conv)
         title = str(conv.get("name") or "untitled conversation")
         turns = []
-        for msg in conv.get("chat_messages") or []:
+        messages = conv.get("chat_messages") or []
+        for msg in (messages if isinstance(messages, list) else []):
+            msg = _obj(msg)
             sender = str(msg.get("sender", ""))
             role = "user" if sender == "human" else sender
             text = msg.get("text")
-            if not text and isinstance(msg.get("content"), list):
-                text = "\n".join(c.get("text", "") for c in msg["content"]
-                                 if isinstance(c, dict) and c.get("type") == "text")
+            blocks = msg.get("content")
+            if not text and isinstance(blocks, list):
+                text = "\n".join(str(_obj(block).get("text") or "") for block in blocks
+                                 if isinstance(block, dict) and block.get("type") == "text")
             if not text:
                 continue
-            turns.append((msg.get("created_at") or "", _turn(role, str(text))))
+            created = msg.get("created_at")
+            turns.append((str(created) if created is not None else "", _turn(role, str(text))))
         turns.sort(key=lambda t: t[0])
         if turns:
             out.append({"title": title,
