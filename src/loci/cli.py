@@ -315,6 +315,10 @@ def resolve_port(flag, cfg) -> int:
 
 
 def cmd_wiki(cfg, topic: str, k: int | None = None) -> None:
+    # `loci wiki` with no topic used to send None into the retriever
+    if not str(topic or "").strip():
+        sys.exit("loci: wiki needs a topic — `loci wiki <topic>`\n"
+                 "       (not sure where to start? `loci wiki --suggest` lists candidates)")
     from loci.wiki import generate_wiki_page
     embedder, store = build(cfg)
     try:
@@ -517,7 +521,10 @@ def cmd_state(cfg, action: str, type_: str, key: str, data: str) -> None:
             parsed = json.loads(raw)
         except ValueError as e:
             raise SystemExit(f"data is not valid JSON: {e}")
-        print(state.save(cfg, type_, key, parsed))
+        try:
+            print(state.save(cfg, type_, key, parsed))
+        except (ValueError, OSError) as e:   # a scalar, an oversized record, a full disk
+            raise SystemExit(f"loci: cannot save {type_}/{key or '?'}: {e}")
     elif action == "get":
         found = state.get(cfg, type_, key)
         if found is None:
