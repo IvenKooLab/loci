@@ -393,6 +393,11 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
 
     class Handler(BaseHTTPRequestHandler):
         entry: dict | None = None
+        # A connection that announces a body and never sends it used to hold
+        # its worker slot forever: there was no socket timeout, so sixteen
+        # stalled peers — a crashed upload, a laptop that slept mid-request,
+        # anyone on loopback — took the whole server to 503 until restart.
+        timeout = 60
 
         def _json(self, code: int, data):
             body = json.dumps(data, ensure_ascii=False).encode("utf-8")
@@ -611,6 +616,9 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
                     "error": f"body exceeds {limit // (1 << 20)} MiB"})
             try:
                 body = json.loads(self.rfile.read(length) or b"{}")
+            except TimeoutError:                       # the body never arrived (see Handler.timeout)
+                self.close_connection = True
+                return self._json(408, {"error": "request body not received in time"})
             except (json.JSONDecodeError, UnicodeDecodeError):
                 return self._json(400, {"error": "invalid JSON body"})
             if not isinstance(body, dict):
