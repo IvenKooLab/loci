@@ -383,13 +383,16 @@ def summarize(cfg, h: Harness, force: bool = False) -> dict:
                 "error": f"{type(e).__name__}: {e}", "path": str(out)}
     out.parent.mkdir(parents=True, exist_ok=True)
     iso = datetime.now().strftime("%Y-%m-%d %H:%M")
+    # name/display/icon/type come from config and the registry; quoted like
+    # any other caller input (a quote in an icon broke the frontmatter)
+    from loci.memories import frontmatter_scalar as _scalar
     front = ("---\n"
              "tags: [memory, harness, summary]\n"
-             f"title: {h.display or h.name} memory digest\n"
+             f"title: {_scalar(f'{h.display or h.name} memory digest')}\n"
              f"updated: {iso}\n"
-             f"harness: {h.name}\n"
-             f"type: {h.type}\n"
-             f'icon: "{h.icon}"\n'
+             f"harness: {_scalar(h.name)}\n"
+             f"type: {_scalar(h.type)}\n"
+             f"icon: {_scalar(h.icon)}\n"
              f"fingerprint: {fp}\n"
              f"files: {len(files)}\n"
              "---\n")

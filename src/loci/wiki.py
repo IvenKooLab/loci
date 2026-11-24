@@ -113,6 +113,7 @@ def generate_wiki_page(cfg, topic: str, k: int = 12) -> dict:
 
 def write_wiki_page(cfg, topic: str, body: str, hits: list[dict]) -> Path:
     """Compose frontmatter + LLM body + source list; atomic write."""
+    topic = str(topic)                 # callers pass JSON; a non-string title is stored, not refused
     slug = slugify(topic)
     wiki_dir = Path(cfg.wiki["path"]).expanduser()
     wiki_dir.mkdir(parents=True, exist_ok=True)
@@ -123,9 +124,12 @@ def write_wiki_page(cfg, topic: str, body: str, hits: list[dict]) -> Path:
         for h in hits)
     from datetime import datetime
     from loci import fsutil
+    from loci.memories import frontmatter_scalar
+    # the topic is caller input: bare, a ` #` truncated it and a newline
+    # ended the frontmatter early (anything after it became keys)
     front = ("---\n"
              f"tags: [wiki, {slug}]\n"
-             f"topic: {topic}\n"
+             f"topic: {frontmatter_scalar(topic)}\n"
              f"generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
              f"sources: {len(hits)}\n"
              "---\n")

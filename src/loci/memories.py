@@ -7,6 +7,7 @@ Write path is always safe (plain markdown, atomic); embedding/indexing is
 best-effort and can be replayed with `loci ingest` at any time."""
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -15,6 +16,41 @@ from datetime import datetime
 from pathlib import Path
 
 _MEMORY_TAG = "memory"
+
+# A value YAML reads back unchanged without quotes: one line, and none of
+# the characters that open a comment, a list, an anchor or a key.
+_PLAIN_SAFE = re.compile(r"""^[^\s"'\[\]{}#&*!|>%@`:,?~-][^"'\[\]{}#&*!|>%@`:,]*$""")
+_YAML_WORDS = {"true", "false", "null", "yes", "no", "on", "off"}
+
+
+def frontmatter_scalar(value) -> str:
+    """`value` as a frontmatter scalar that reads back as exactly `value`.
+
+    Tags and titles are caller input (JSON from MCP hosts and the console)
+    and used to be spliced in bare: a tag with a comma, bracket or newline
+    broke the whole tag list, a title with ` #` was cut off at the hash (a
+    YAML comment), and a newline in a title ended the frontmatter early —
+    `title: "x\\n---\\ninjected: true"` wrote a key nobody sent.
+
+    Plain when plainly safe; single-quoted when it holds double quotes
+    (`'Say "hi"'`); double-quoted otherwise. Always one line."""
+    value = " ".join(str(value).split())
+    if not value:
+        return '""'
+    if _PLAIN_SAFE.match(value) and value.lower() not in _YAML_WORDS:
+        return value
+    if '"' not in value:
+        return json.dumps(value, ensure_ascii=False)
+    if "'" not in value:
+        return "'" + value + "'"
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _tag_text(tag) -> str:
+    """A tag as loci can carry it: one line, no commas (they separate the
+    tags once a list is joined for the index), at most 60 characters."""
+    text = " ".join(str(tag).split()).replace(",", " ")
+    return " ".join(text.split())[:60].strip()
 
 
 def slugify(title: str) -> str:
@@ -27,10 +63,18 @@ def write_memory(mem_dir: str, text: str, title: str | None = None,
     """Write one memory note; returns the absolute file path."""
     d = Path(mem_dir).expanduser()
     d.mkdir(parents=True, exist_ok=True)
-    # a blank body has no first line to title itself from (agent callers do
-    # send one — an empty remember used to die on splitlines()[0])
-    first_line = text.strip().splitlines()[0] if text.strip() else ""
-    title = (title or first_line or "memory").strip()[:80]
+    if not isinstance(text, str):
+        # callers pass JSON: a number or object is stored in text form
+        # rather than refused with an AttributeError
+        text = json.dumps(text, ensure_ascii=False) if isinstance(text, (dict, list)) \
+            else str(text)
+    # A blank body has no first line to title itself from (an empty remember
+    # used to die on splitlines()[0]). The hashes are dropped: a body that
+    # opens with "# Heading" titled the note "# Heading", and
+    # `title: # Heading` reads back as no title at all (a YAML comment).
+    first_line = text.strip().splitlines()[0].lstrip("#").strip() if text.strip() else ""
+    explicit = "" if title is None else str(title).strip()
+    title = " ".join((explicit or first_line or "memory").split())[:80].strip()
     ts = datetime.now()
     base = f"{ts.strftime('%Y%m%d-%H%M%S')}-{slugify(title)}"
     # claim the name atomically (O_CREAT|O_EXCL): a check-then-create window
@@ -46,18 +90,23 @@ def write_memory(mem_dir: str, text: str, title: str | None = None,
             path = d / f"{base}-{n}.md"
             n += 1
     os.close(fd)
-    # callers (HTTP/MCP) pass user JSON: coerce each tag, an int/None item
-    # used to crash the whole write with AttributeError after the file… no —
-    # before it, leaving the note unwritten and the caller with a raw 500
-    tag_list = [_MEMORY_TAG] + [t2 for t2 in (str(t).strip()
-                                              for t in (tags or []) if t
-                                              is not None and str(t).strip())
-                                if t2]
+    # callers (HTTP/MCP) pass user JSON: coerce each tag — an int/None item
+    # used to crash the whole write, a bare string was iterated per character
+    if tags is None:
+        raw_tags: list = []
+    elif isinstance(tags, str):
+        raw_tags = tags.split(",")             # "rag, system": hosts do not all validate the schema
+    elif isinstance(tags, (list, tuple, set)):
+        raw_tags = list(tags)
+    else:
+        raw_tags = [tags]
+    tag_list = [_MEMORY_TAG] + [t for t in (_tag_text(tag) for tag in raw_tags
+                                             if tag is not None) if t]
     iso = ts.strftime("%Y-%m-%d %H:%M")
     front = ("---\n"
-             f"tags: [{', '.join(tag_list)}]\n"
+             f"tags: [{', '.join(frontmatter_scalar(t) for t in tag_list)}]\n"
              f"created: {iso}\n"
-             f"title: {title}\n"
+             f"title: {frontmatter_scalar(title)}\n"
              "---\n")
     tmp = path.with_suffix(f".md.{os.getpid()}.{threading.get_ident()}.tmp")
     tmp.write_text(f"{front}# {title}\n\n{text.strip()}\n", encoding="utf-8")
