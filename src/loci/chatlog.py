@@ -49,13 +49,22 @@ def _parse_chatgpt(data: list) -> list[dict]:
                      if isinstance(p, str) and p.strip()]
             if not parts:
                 continue
-            # secondary key = mapping insertion order: messages without a
-            # create_time (some tool calls, legacy exports) used to all
-            # become 0 and pile up at the top in dict order, scrambling the
-            # conversation
             turns.append((msg.get("create_time"), i,
                           _turn(author, "\n".join(parts))))
-        turns.sort(key=lambda t: (0 if t[0] is None else t[0], t[1]))
+        # An untimed turn keeps its place: it takes the time of the turn
+        # before it (in mapping order), so with the mapping index as the
+        # tiebreaker it sorts right after that turn. Sorting it as time 0
+        # hoisted every untimed turn above the whole conversation — in the
+        # common export, where user turns carry no create_time, a
+        # q1/a1/q2/a2 conversation read as q1 q2 a1 a2.
+        turns.sort(key=lambda t: t[1])
+        carry = float("-inf")
+        for n, (ts, i, text) in enumerate(turns):
+            if ts is None:
+                turns[n] = (carry, i, text)
+            else:
+                carry = ts
+        turns.sort(key=lambda t: (t[0], t[1]))
         if turns:
             out.append({"title": title,
                         "text": f"# {title}\n\n" + "\n\n".join(t[2] for t in turns)})
