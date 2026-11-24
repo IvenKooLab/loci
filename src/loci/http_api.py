@@ -170,6 +170,7 @@ def allowed(entry: dict | None, level: str) -> bool:
 
 # a single uploaded document, base64-expanded; 16 MiB is ~12 MiB of file
 UPLOAD_MAX_BYTES = 16 << 20
+_UPLOAD_NAME_MAX = 120
 
 
 class Audit:
@@ -305,26 +306,49 @@ def run_server(cfg, host: str, port: int) -> None:
     server.serve_forever()
 
 
+_INVALID_NAME_CHARS = re.compile(r'[<>:"|?*]')
+_RESERVED_DEVICES = frozenset(
+    {"con", "prn", "aux", "nul", "conin$", "conout$",
+     *(f"com{i}" for i in range(1, 10)), *(f"lpt{i}" for i in range(1, 10)),
+     # the superscript forms are reserved too
+     "com¹", "com²", "com³", "lpt¹", "lpt²", "lpt³"})
+
+
 def _safe_upload_name(name: str) -> str | None:
-    """A bare filename with no path parts, no traversal, no leading dot.
+    """A bare filename with no path parts, no traversal, no leading dot,
+    and one that can actually be created — with its extension intact.
 
     Uploads are user input landing on disk: take the basename only, refuse
-    anything that could escape the uploads directory, and keep the extension.
-    """
-    base = name.replace("\\", "/").rsplit("/", 1)[-1].strip()
+    anything that could escape the uploads directory or address a device,
+    and clean up what Windows cannot create."""
+    base = str(name).replace("\\", "/").rsplit("/", 1)[-1].strip()
     if not base or base.startswith(".") or base in (".", ".."):
         return None
-    if any(c in base for c in ("\x00", "\n", "\r")):
+    if any(ord(c) < 32 or ord(c) == 127 for c in base):
+        return None
+    # Windows cannot create `<>:"|?*` at all, and a colon is worse than
+    # forbidden: it names an alternate data stream, so "report:evil.pdf"
+    # is written as a hidden stream of a file called "report". Trailing
+    # dots and spaces are dropped by Windows, so the file on disk was not
+    # the name the caller was told.
+    cleaned = _INVALID_NAME_CHARS.sub("_", base).rstrip(" .")
+    if not cleaned:
         return None
     # Windows reserved device names are special even with an extension
     # (CON.md → the console) and on any share served to Windows clients;
     # keep such uploads from landing on disk at all.
-    stem = base.split(".", 1)[0].lower()
-    if stem in {"con", "prn", "aux", "nul",
-                *(f"com{i}" for i in range(1, 10)),
-                *(f"lpt{i}" for i in range(1, 10))}:
+    stem = cleaned.split(".", 1)[0].rstrip(" ").lower()
+    if stem in _RESERVED_DEVICES:
         return None
-    return base[:120]
+    # stay within 120 characters without cutting the extension off: a
+    # truncated "….pd" or extension-less file is then refused as an
+    # unsupported type
+    head, dot, ext = cleaned.rpartition(".")
+    if dot and head:
+        room = _UPLOAD_NAME_MAX - len(ext) - 1
+        if len(head) > room:
+            cleaned = head[:room].rstrip(" .") + "." + ext
+    return cleaned[:_UPLOAD_NAME_MAX]
 
 
 def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None):
