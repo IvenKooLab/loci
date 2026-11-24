@@ -26,6 +26,53 @@
   existing file) and duplicated the frontmatter into the body
 - **A single-file `[[sources]]` path broke `loci ingest` and the scanner**
 
+### Fixed (a full read-through of every module)
+- **MCP**: one valid-JSON-but-not-object line killed the server process for
+  the session; a blank `ask`/`wiki` input reached the embedding endpoint and
+  came back as a raw provider 400; `brain_governance` / `brain_quality`
+  crashed on an unconfigured instance and trusted their own inputs (window,
+  log rows, `stale_days`); the missing-jieba hint was printed to the protocol
+  stream
+- **Retrieval**: a model that wraps its JSON in a code fence silently
+  disabled chat auto-extract, query rewriting (`--rewrite`), LLM reranking
+  and answer verification — all four now go through one tolerant parser; bad
+  ratings never reordered anything (they only inflated `distance`), so a
+  bad-rated chunk kept its rank — it now moves down one result page per
+  rating, after any reranking
+- **Config**: the `identifier` tokenizer was registered but could not be
+  selected; one malformed `[[harness]]` or `[[auth.tokens]]` entry took down
+  every command that reads it (serve-http refused to start); a non-ASCII
+  bearer token raised instead of being rejected; `rrf_k` was unvalidated
+  (`-1` made every search fail with ZeroDivisionError)
+- **Notes read correctly**: files saved with a UTF-8 BOM (frontmatter,
+  first heading, supersession chains — and `config.toml`, which tomllib
+  rejected outright); a trailing YAML comment became part of the value (the
+  format shown in supersede's own docstring never matched its target);
+  surrounding quotes were stripped one-sided
+- **Notes written correctly**: tags and titles are caller input and were
+  spliced into frontmatter bare — a tag with a comma broke the list, a title
+  with ` #` was cut off, a newline in a title injected keys; the same for
+  wiki topics and harness digests
+- **ChatGPT exports**: turns without a timestamp were hoisted above the
+  whole conversation (`q1 q2 a1 a2`); one malformed element broke the parse
+  on every ingest pass
+- **serve-http**: `--port 0` was ignored; a stalled request held its worker
+  slot until restart (60 s socket timeout, 408 on a body that never
+  arrives); files under a glob harness root could not be opened; the Memories
+  tab of a brand-new install answered 500; upload names lost their extension
+  when long and reached the disk uncreatable; a record saved under the
+  pre-collision-proof state naming was not found under a differently-cased
+  key on Linux
+- **CLI**: `loci wiki` with no topic and `loci state save` with a scalar
+  answered with a traceback; **`loci forget` now exists** — the governance
+  report had been recommending a command that was not there, and its advice
+  is now true for the note it is attached to
+- **Harness**: chunk attribution had no directory boundary (`…/mini` claimed
+  `…/minimax-h3-turing`); the last two shared staging names (harness
+  digests, `.last_ask.json`); `.MD` notes could not be forgotten or
+  health-checked on macOS/Linux; a hand-edited `graph.json` missing a key
+  broke every graph reader
+
 ## v0.10.2 — 2026-11-22
 
 Two full hardening passes (black-box probing against a live instance, a
