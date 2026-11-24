@@ -881,6 +881,11 @@ def _err(req_id, code: int, message: str) -> dict:
 
 def handle_message(msg: dict, brain: Brain) -> dict | None:
     """Handle one JSON-RPC message. Returns None for notifications (no response)."""
+    if not isinstance(msg, dict):
+        # valid JSON but not a request object (an array, a number, null): the
+        # stdio loop used to die here with an AttributeError, so one such
+        # line ended the server for the whole session
+        return _err(None, -32600, "invalid request: expected a JSON object")
     method = msg.get("method", "")
     req_id = msg.get("id")
     if "id" not in msg:  # notification — never respond
