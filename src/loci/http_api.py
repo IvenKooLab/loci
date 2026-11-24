@@ -417,7 +417,12 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
                 return None
 
         def _safe_source(self, path: str) -> Path | None:
-            roots = [r for h in _harnesses() for r in h.roots] + [mem_dir]
+            # A glob root ("~/.claude/**/*.md") jails by its fixed part: the
+            # pattern resolved literally matches no directory, so every file
+            # reached through it 404'd here while discovery and search
+            # handled it fine.
+            roots = [Path(harness_mod._root_prefix(r)) if harness_mod._is_glob(str(r)) else r
+                     for h in _harnesses() for r in h.roots] + [mem_dir]
             try:
                 p = Path(path).expanduser().resolve()
                 if p.suffix.lower() not in (".md", ".txt") or not p.is_file():
