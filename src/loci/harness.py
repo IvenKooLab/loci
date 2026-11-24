@@ -307,6 +307,18 @@ def _stored_fingerprint(cfg, h: Harness) -> str | None:
     return m.group(1) if m else None
 
 
+def _under(source: str, root: str) -> bool:
+    """Is this chunk's source `root` itself, or something below it?
+
+    A plain startswith let a root `…/mini` claim every chunk of the sibling
+    `…/minimax-h3-turing`. On Windows the same directory may be spelled in
+    any case, so both sides fold first (a no-op on POSIX, where case is real)."""
+    if sys.platform == "win32":
+        source, root = os.path.normcase(source), os.path.normcase(root)
+    root = root.rstrip("\\/") or root
+    return source == root or source.startswith(root + os.sep)
+
+
 def stats(cfg, store, harnesses: list[Harness]) -> list[dict]:
     """Per-harness stats: file count, total chars, last update, indexed chunks,
     summary freshness. Zero LLM cost."""
@@ -320,7 +332,7 @@ def stats(cfg, store, harnesses: list[Harness]) -> list[dict]:
     for h, roots in roots_by_h:
         files = memory_files(h)
         chunks = sum(n for src, n in per_source.items()
-                     if any(src.startswith(r) for r in roots))
+                     if any(_under(src, r) for r in roots))
         last = max((p.stat().st_mtime for p in files if p.exists()), default=0.0)
         fp = fingerprint(files)
         stored = _stored_fingerprint(cfg, h)
