@@ -276,7 +276,10 @@ def run_server(cfg, host: str, port: int) -> None:
                             QueryLog(path=cfg.http.get("query_log")))
     try:
         server = Server((host, port), handler)
-    except OSError as e:
+    except (OSError, OverflowError) as e:
+        # a port outside 0-65535 raises OverflowError, which is not an OSError
+        if isinstance(e, OverflowError):
+            raise SystemExit(f"loci: port must be between 0 and 65535 (got {port})")
         # two loci instances (different LOCI_HOME) on one host is a normal
         # thing to do, and the traceback Chrome/uvicorn users see says nothing
         # useful — name the port, the likely cause and the two ways out
@@ -297,7 +300,7 @@ def run_server(cfg, host: str, port: int) -> None:
             f"  make it permanent: [http] port = {port + 1} in config.toml")
     bound = server.server_address[1]
     print(f"loci {__version__} — HTTP API: http://{host}:{bound}  (console at /ui)")
-    if bound != port:
+    if port and bound != port:                # port 0 asked for whatever was free
         print(f"port {port} was taken, listening on {bound} instead")
     server.serve_forever()
 

@@ -82,3 +82,69 @@ def _cfg():
         http={"host": "127.0.0.1", "port": 8765, "local_admin": True,
               "icons": "./icons", "query_log": ""},
         memories={"path": "/tmp"}, auth=[], sources=[], harnesses=[])
+
+
+# ---- `--port 0`: the escape hatch the bind-conflict message recommends ----
+
+def _fake_brain(monkeypatch, server_cls):
+    bound = {}
+    monkeypatch.setattr(http_api, "Server", server_cls(bound))
+    monkeypatch.setattr(http_api, "Brain", lambda: type(
+        "B", (), {"_ensure": lambda self: None})())
+    monkeypatch.setattr(http_api, "Audit", lambda: None)
+    monkeypatch.setattr(http_api, "_auth_table", lambda cfg: [
+        {"token": "t", "role": "admin", "label": "t"}])
+    monkeypatch.setattr(http_api, "_make_handler", lambda *a, **k: None)
+    return bound
+
+
+def test_cli_port_zero_is_honoured_not_replaced_by_the_configured_port():
+    """`--port 0` asks the OS for a free port. `args.port or <config>` is
+    falsy for 0, so the flag was silently replaced by the configured port —
+    the very port that was already taken."""
+    from types import SimpleNamespace
+    from loci import cli
+    cfg = SimpleNamespace(http={"port": 18765})
+    assert cli.resolve_port(0, cfg) == 0
+    assert cli.resolve_port(None, cfg) == 18765       # no flag: the configured port
+    assert cli.resolve_port(9000, cfg) == 9000
+
+
+@pytest.mark.parametrize("bad", ["abc", 70000, -1, [8765]])
+def test_a_port_that_cannot_be_listened_on_is_explained_not_traced(bad):
+    from types import SimpleNamespace
+    from loci import cli
+    with pytest.raises(SystemExit, match="port"):
+        cli.resolve_port(None, SimpleNamespace(http={"port": bad}))
+
+
+def test_run_server_with_port_zero_reports_the_port_it_got(monkeypatch, capsys):
+    class FakeServer:
+        def __init__(self, bound):
+            self.bound = bound
+
+        def __call__(self, addr, handler):
+            self.bound["asked"] = addr[1]
+            self.server_address = (addr[0], 43111)
+            return self
+
+        def serve_forever(self):
+            pass
+
+    bound = _fake_brain(monkeypatch, FakeServer)
+    http_api.run_server(_cfg(), "127.0.0.1", 0)
+    out = capsys.readouterr().out
+    assert bound["asked"] == 0                        # 0 reached the socket layer
+    assert "127.0.0.1:43111" in out                   # and the real port was printed
+    assert "was taken" not in out                     # 0 was not "taken"
+
+
+def test_an_out_of_range_port_is_explained_not_traced(monkeypatch):
+    monkeypatch.setattr(http_api, "Brain", lambda: type(
+        "B", (), {"_ensure": lambda self: None})())
+    monkeypatch.setattr(http_api, "Audit", lambda: None)
+    monkeypatch.setattr(http_api, "_auth_table", lambda cfg: [
+        {"token": "t", "role": "admin", "label": "t"}])
+    monkeypatch.setattr(http_api, "_make_handler", lambda *a, **k: None)
+    with pytest.raises(SystemExit, match="port"):
+        http_api.run_server(_cfg(), "127.0.0.1", 70000)   # OverflowError is not an OSError

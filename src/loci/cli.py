@@ -297,6 +297,23 @@ def cmd_remember(cfg, text: str, title: str | None = None,
         print(f"not indexed yet ({type(e).__name__}: {e}) — run `loci ingest` later")
 
 
+def resolve_port(flag, cfg) -> int:
+    """The port serve-http listens on: `--port` wins, else [http] port.
+
+    `--port 0` asks the OS for a free port — it is the escape hatch the
+    bind-conflict message recommends — and an `args.port or ...` fallback
+    is falsy for 0, so the flag used to be silently replaced by the
+    configured port: the very port that was already taken."""
+    raw = flag if flag is not None else cfg.http.get("port", 8765)
+    try:
+        port = int(raw)
+    except (TypeError, ValueError):
+        sys.exit(f"loci: [http] port must be an integer (got {raw!r})")
+    if not 0 <= port <= 65535:
+        sys.exit(f"loci: port must be between 0 and 65535 (got {port})")
+    return port
+
+
 def cmd_wiki(cfg, topic: str, k: int | None = None) -> None:
     from loci.wiki import generate_wiki_page
     embedder, store = build(cfg)
@@ -859,8 +876,7 @@ def main() -> None:
         cfg.validate()
         from loci.http_api import run_server
         host = args.host or cfg.http.get("host") or "127.0.0.1"
-        port = args.port or int(cfg.http.get("port") or 8765)
-        run_server(cfg, host, port)
+        run_server(cfg, host, resolve_port(args.port, cfg))
     elif args.cmd == "sync":
         cmd_sync(cfg, args.direction)
     elif args.cmd == "bench":
