@@ -144,6 +144,13 @@ def jieba_tokenize(text: str) -> list[str]:
     return [t for t in jieba.cut(text.lower()) if t.strip()]
 
 
+def known_tokenizers() -> tuple[str, ...]:
+    """Every registered name, sorted. config.load validates against this —
+    it used to keep its own tuple, which never listed `identifier`, so
+    opting into a shipped tokenizer produced a silent downgrade."""
+    return tuple(sorted(_registry))
+
+
 def get_tokenizer(name: str = "default"):
     fn = _registry.get(name or "default")
     if fn is None:
