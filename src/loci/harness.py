@@ -26,6 +26,7 @@ import glob
 import hashlib
 import os
 import re
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -134,7 +135,17 @@ def load_harnesses(cfg) -> list[Harness]:
         out[name] = Harness(name, spec["type"],
                             _icon_for(spec, icons_dir), roots,
                             display=spec.get("display", ""))
-    for h in getattr(cfg, "harnesses", None) or []:     # config overrides/adds
+    configured = getattr(cfg, "harnesses", None) or []
+    if isinstance(configured, dict):
+        configured = [configured]     # [harness] written as one table, not [[harness]]
+    for h in configured:              # config overrides/adds
+        # harness discovery sits behind `loci harness`, `loci stats`, the
+        # serve-http routes and MCP brain_harness: one malformed entry used
+        # to take all of them down with an AttributeError
+        if not isinstance(h, dict):
+            print(f"[warn] [[harness]] entry is not a table, skipped: {h!r}",
+                  file=sys.stderr)
+            continue
         name = str(h.get("name", "")).strip()
         if not name:
             continue
@@ -146,6 +157,10 @@ def load_harnesses(cfg) -> list[Harness]:
         # and every first-letter directory as harness roots)
         if isinstance(raw, str):
             raw = [raw]
+        elif not isinstance(raw, (list, tuple)):
+            print(f"[warn] [[harness]] paths for {name!r} is not a list, "
+                  f"ignored: {raw!r}", file=sys.stderr)
+            raw = []
         roots = [_root(str(p)) for p in raw
                  if isinstance(p, str) and p.strip()]
         prev = out.get(name)
