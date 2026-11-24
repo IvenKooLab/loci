@@ -251,7 +251,9 @@ def _read_html(p: Path) -> str | None:
     if m:
         encoding = m.group(1).decode("ascii", errors="ignore")
     try:
-        text = raw.decode(encoding)
+        # utf-8-sig: a BOM at the top of a saved page is not text
+        text = raw.decode("utf-8-sig" if encoding.lower().replace("-", "") == "utf8"
+                           else encoding)
     except (UnicodeDecodeError, LookupError):
         try:  # common for Chinese exports without a meta charset
             text = raw.decode("gb18030")
@@ -272,7 +274,7 @@ def _read_text(p: Path) -> str | None:
     suffix = p.suffix.lower()
     if suffix in SUFFIXES:
         try:
-            return p.read_text(encoding="utf-8")
+            return p.read_text(encoding="utf-8-sig")
         except UnicodeDecodeError:
             print(f"[warn] not UTF-8, skipping: {p.name}")
             return None
@@ -280,7 +282,7 @@ def _read_text(p: Path) -> str | None:
         return _ocr_image(p)          # needs the [ocr] extra; silent skip otherwise
     if suffix in ORG_SUFFIXES:
         try:
-            return _read_org(p.read_text(encoding="utf-8"))
+            return _read_org(p.read_text(encoding="utf-8-sig"))
         except UnicodeDecodeError:
             print(f"[warn] not UTF-8, skipping: {p.name}")
             return None

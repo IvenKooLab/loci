@@ -36,7 +36,7 @@ def _norm(value) -> str:
 
 def _meta_of(path: Path) -> dict:
     try:
-        head = path.read_text(encoding="utf-8", errors="ignore")
+        head = path.read_text(encoding="utf-8-sig", errors="ignore")
     except OSError:
         return {}
     if not head.startswith("---"):

@@ -427,7 +427,7 @@ class Brain:
             return hit[1]
         title = None
         try:
-            head = Path(path).read_text(encoding="utf-8", errors="ignore")[:4000]
+            head = Path(path).read_text(encoding="utf-8-sig", errors="ignore")[:4000]
         except OSError:
             head = ""
         # scope the metadata keys to a real frontmatter block (a body that

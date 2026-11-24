@@ -115,7 +115,7 @@ def build_graph(cfg, dirs: list[str] | None = None, force: bool = False) -> dict
     changed_files, new_edge_count = [], 0
     for f in files:
         try:
-            content = f.read_text(encoding="utf-8")
+            content = f.read_text(encoding="utf-8-sig")
         except (OSError, UnicodeDecodeError):
             continue
         h = hashlib.sha1(content.encode("utf-8")).hexdigest()

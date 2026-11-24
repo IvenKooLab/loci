@@ -87,7 +87,7 @@ def load(path: str = "config.toml") -> Config:
     p = Path(path)
     cfg.config_path = str(p)
     if p.exists():
-        raw = tomllib.loads(p.read_text(encoding="utf-8"))
+        raw = tomllib.loads(p.read_text(encoding="utf-8-sig"))
         for section in DEFAULTS:
             if isinstance(getattr(cfg, section), dict):
                 getattr(cfg, section).update(raw.get(section, {}))

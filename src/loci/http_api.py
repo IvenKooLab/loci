@@ -534,14 +534,14 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
                 if not p:
                     return self._json(404, {"error": "not found"})
                 return self._guard(lambda: self._json(
-                    200, {"name": q["name"], "text": p.read_text(encoding="utf-8",
+                    200, {"name": q["name"], "text": p.read_text(encoding="utf-8-sig",
                                                                  errors="replace")}))
             if route == "/source-file":
                 p = self._safe_source(q.get("path", ""))
                 if not p:
                     return self._json(404, {"error": "not found"})
                 return self._guard(lambda: self._json(200, {
-                    "path": str(p), "text": p.read_text(encoding="utf-8",
+                    "path": str(p), "text": p.read_text(encoding="utf-8-sig",
                                                         errors="replace")}))
             if route == "/queries":
                 if not allowed(self.entry, "read"):
@@ -755,7 +755,7 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
                 p = self._safe_memory(str(name))
                 if not p:
                     return self._json(404, {"error": "not found"})
-                raw = p.read_text(encoding="utf-8", errors="replace")
+                raw = p.read_text(encoding="utf-8-sig", errors="replace")
                 old_fm = f"---{raw.split('---', 2)[1]}---" if raw.startswith("---") else ""
                 # Keep exactly one frontmatter block. The console editor
                 # loads and saves the WHOLE file, frontmatter included; an
@@ -820,7 +820,7 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
                 # from the FULL frontmatter (a 400-char cap silently dropped
                 # the title: line whenever long description/tags lines
                 # preceded it)
-                raw = p.read_text(encoding="utf-8", errors="ignore")
+                raw = p.read_text(encoding="utf-8-sig", errors="ignore")
                 title = ""
                 if raw.startswith("---"):
                     m = re.search(r"^title:\s*(.+)$",

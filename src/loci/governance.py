@@ -60,7 +60,7 @@ def _paths(cfg) -> list[Path]:
 def _frontmatter(path: Path, limit: int = 4000) -> dict:
     """Parse the YAML subset loci already uses; cheap and tolerant."""
     try:
-        text = path.read_text(encoding="utf-8", errors="replace")[:limit]
+        text = path.read_text(encoding="utf-8-sig", errors="replace")[:limit]
     except OSError:
         return {}
     if not text.startswith("---"):
@@ -96,7 +96,7 @@ def _title(path: Path) -> str:
     if meta.get("title"):
         return meta["title"].strip().lower()
     try:
-        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        for line in path.read_text(encoding="utf-8-sig", errors="replace").splitlines():
             if line.startswith("# "):
                 return line[2:].strip().lower()
             if line.strip():

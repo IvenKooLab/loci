@@ -196,7 +196,7 @@ def index_memory_file(cfg, path: str) -> int:
 
     embedder, store = build(cfg)
     _ensure_vector_space(embedder, store, cfg)
-    raw = Path(path).read_text(encoding="utf-8")
+    raw = Path(path).read_text(encoding="utf-8-sig")
     meta, body = loaders.parse_frontmatter(raw)
     chunks = chunker.split_markdown(body, cfg.chunk["size"], cfg.chunk["overlap"])
     if not chunks:
