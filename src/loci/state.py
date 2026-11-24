@@ -70,13 +70,48 @@ def _legacy_path(cfg, type_: str, key: str):
     return None if old == _record_path(cfg, type_, key) else old
 
 
+def _legacy_files(cfg, type_: str, key: str) -> list[Path]:
+    """Records the old naming left for this key, newest first.
+
+    The old file name kept the key's original case, so on a case-sensitive
+    volume `Order-42.json` is invisible to a lookup spelled `order-42`
+    unless the directory is searched by folded name — the legacy path alone
+    only ever matched the exact original spelling (Linux CI caught it).
+    Newest first: two spellings of one key are one key, and the store's
+    contract is last write wins."""
+    root = state_dir(cfg)
+    want_type, want_key = _slug(str(type_)).casefold(), _slug(str(key)).casefold()
+    found: list[Path] = []
+    try:
+        folders = [d for d in root.iterdir()
+                   if d.is_dir() and d.name.casefold() == want_type]
+    except OSError:
+        return []
+    for folder in folders:
+        try:
+            found += [f for f in folder.iterdir()
+                      if f.suffix == ".json" and f.stem.casefold() == want_key]
+        except OSError:
+            continue
+
+    def age(f: Path):
+        try:
+            return (f.stat().st_mtime_ns, f.name)
+        except OSError:
+            return (0, f.name)
+
+    return sorted(found, key=age, reverse=True)
+
+
 def _existing(cfg, type_: str, key: str) -> Path | None:
     """The file holding this record: its current name, else the legacy one."""
     path = _record_path(cfg, type_, key)
     if path.is_file():
         return path
     old = _legacy_path(cfg, type_, key)
-    return old if old is not None and old.is_file() else None
+    if old is not None and old.is_file():
+        return old
+    return next(iter(_legacy_files(cfg, type_, key)), None)
 
 
 def _same_file(a: Path, b: Path) -> bool:
@@ -84,6 +119,21 @@ def _same_file(a: Path, b: Path) -> bool:
         return os.path.samefile(a, b)
     except OSError:
         return False
+
+
+def _fold_dir_name(wanted: Path) -> None:
+    """Spell the type directory on disk the way keys are spelled now.
+
+    On a case-insensitive volume an existing `Task/` is the same directory
+    as `task/`, so nothing ever renamed it and listings kept showing the
+    old spelling."""
+    try:
+        actual = next((d for d in wanted.parent.iterdir()
+                       if d.is_dir() and d.name.casefold() == wanted.name.casefold()), None)
+        if actual is not None and actual.name != wanted.name:
+            os.rename(actual, wanted)
+    except OSError:
+        pass                                   # cosmetic: never fail a save over it
 
 
 def save(cfg, type_: str, key: str, data) -> str:
@@ -98,13 +148,17 @@ def save(cfg, type_: str, key: str, data) -> str:
     # unique tmp per writer + replace retries on Windows (a concurrent reader
     # holds the target open and the rename fails WinError 5 without them)
     fsutil.atomic_write(path, blob)
-    # a record first saved under the collision-prone name moves with it
-    old = _legacy_path(cfg, type_, key)
-    if old is not None and old.is_file() and not _same_file(old, path):
-        try:
-            old.unlink()
-        except OSError:
-            pass
+    _fold_dir_name(path.parent)
+    # a record first saved under the collision-prone name moves with it —
+    # unless that name was a truncated one: two long keys shared it, and a
+    # save under one cannot prove the old file held that key's data
+    if len(_slug(str(key))) < _MAX_SEGMENT:
+        for stale in _legacy_files(cfg, type_, key):
+            if not _same_file(stale, path):
+                try:
+                    stale.unlink()
+                except OSError:
+                    pass
     return str(path)
 
 
