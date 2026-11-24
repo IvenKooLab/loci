@@ -203,10 +203,12 @@ def expand_queries(llm_cfg: dict, query: str) -> list[str]:
             ],
             temperature=0.0,
         )
-        import json
-        variants = json.loads(resp.choices[0].message.content or "[]")
-        if not isinstance(variants, list):
-            return [query]                 # a bare string/number iterates as
+        # a fenced or prose-wrapped reply used to fail json.loads and fall
+        # through to [query]: the rewrite silently did nothing
+        from loci.llm_json import parse_json
+        variants = parse_json(resp.choices[0].message.content, expect=list)
+        if variants is None:
+            return [query]
         valid = [v.strip() for v in variants   # junk single-char "variants"
                  if isinstance(v, str) and v.strip()]
         return [query] + valid if valid else [query]
