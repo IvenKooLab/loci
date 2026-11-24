@@ -135,6 +135,18 @@ def strip_yaml_comment(value: str) -> str:
     return value
 
 
+def unquote(value: str) -> str:
+    """Remove one matching pair of surrounding quotes — never just one side.
+
+    `str.strip("\\"'")` strips whatever quote characters sit at the ends,
+    paired or not: `Say "hi"` came back as `Say "hi` (its closing quote
+    eaten) and `"mismatched'` passed as a quoted value."""
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        return value[1:-1]
+    return value
+
+
 def parse_frontmatter(content: str) -> tuple[dict, str]:
     """Parse a minimal YAML subset from leading --- fences: scalars and lists.
     Returns ({meta}, body); malformed fences are left in the body untouched."""
@@ -157,7 +169,7 @@ def parse_frontmatter(content: str) -> tuple[dict, str]:
         if not stripped or stripped.startswith("#"):   # blank or whole-line comment
             continue
         if stripped.startswith("- ") and current_list:
-            meta[current_list].append(strip_yaml_comment(stripped[2:].strip()).strip("\"'"))
+            meta[current_list].append(unquote(strip_yaml_comment(stripped[2:].strip())))
             continue
         if ":" not in stripped:
             continue
@@ -169,9 +181,9 @@ def parse_frontmatter(content: str) -> tuple[dict, str]:
             current_list = key
         elif value.startswith("[") and value.endswith("]"):
             inner = value[1:-1].strip()
-            meta[key] = [strip_yaml_comment(v.strip()).strip("\"'") for v in inner.split(",")] if inner else []
+            meta[key] = [unquote(strip_yaml_comment(v.strip())) for v in inner.split(",")] if inner else []
         else:
-            meta[key] = value.strip("\"'")
+            meta[key] = unquote(value)
     return meta, "\n".join(lines[end + 1:])
 
 

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from loci.loaders import parse_frontmatter
+from loci.loaders import parse_frontmatter, unquote
 
 # frontmatter keys, and the wording each one points
 _FORWARD = ("supersedes", "superseded", "replaces")
@@ -26,7 +26,11 @@ _BACKWARD = ("superseded_by", "superseded-by", "replaced_by")
 
 def _norm(value) -> str:
     """Frontmatter value → bare note stem, tolerant of [[links]] and paths."""
-    text = str(value or "").strip().strip("\"'")
+    if isinstance(value, (list, tuple)):
+        # `supersedes: [use-staging]` parses as a list; str(list) would be
+        # "['use-staging']" and the stem would keep its quotes
+        value = value[0] if value else ""
+    text = unquote(str(value or "").strip())
     text = text.strip("[]")
     text = text.split("|")[0]                      # [[target|alias]]
     text = text.split("#")[0].strip()              # [[target#heading]]; also drops a trailing comment

@@ -24,7 +24,7 @@ import re
 import time
 from pathlib import Path
 
-from loci.loaders import strip_yaml_comment
+from loci.loaders import strip_yaml_comment, unquote
 
 # Frontmatter keys that mark a note as replaced. `supersede` (lowercase) is the
 # canonical one; the aliases are what people actually type.
@@ -78,7 +78,7 @@ def _frontmatter(path: Path, limit: int = 4000) -> dict:
         # same YAML comment rule as the shared parser: a trailing comment
         # used to leave trailing spaces on the reference, so a real target
         # was reported as missing
-        meta[key.strip().lower()] = strip_yaml_comment(value).strip().strip("\"'")
+        meta[key.strip().lower()] = unquote(strip_yaml_comment(value))
     return meta
 
 

@@ -442,7 +442,7 @@ class Brain:
                 fm_title = re.search(r"^title:\s*(.+)$", fm_zone, re.M)
                 fm_name = re.search(r"^name:\s*(.+)$", fm_zone, re.M)
         heading = re.search(r"^#\s+(.+)$", body_zone, re.M)
-        from loci.loaders import strip_yaml_comment
+        from loci.loaders import strip_yaml_comment, unquote
 
         def value_of(match, yaml: bool = True):
             if not match:
@@ -450,7 +450,7 @@ class Brain:
             text = match.group(1).strip()
             if yaml:                       # a frontmatter value may carry a trailing comment
                 text = strip_yaml_comment(text).strip()
-            return text.strip('"')[:80] or None
+            return unquote(text)[:80] or None
 
         title = next((v for v in (value_of(fm_title), value_of(heading, yaml=False),
                                   value_of(fm_name)) if v), None)
