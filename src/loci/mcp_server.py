@@ -905,8 +905,26 @@ def handle_message(msg: dict, brain: Brain) -> dict | None:
         return _err(req_id, -32603, f"{type(e).__name__}: {e}")
 
 
+def _utf8_protocol_streams() -> None:
+    """The stdio transport carries UTF-8, whatever the host's locale says.
+
+    A piped stdin/stdout is decoded with the ANSI code page on Windows
+    (cp936 on a Chinese install) unless UTF-8 mode happens to be on: every
+    CJK tool argument then arrived as mojibake (`任务A` read as `浠诲姟A`) and
+    the replies left in an encoding the host cannot parse. Force UTF-8 on
+    both protocol streams; undecodable bytes become U+FFFD, which the JSON
+    parser reports as a parse error instead of killing the loop."""
+    for stream in (sys.stdin, sys.stdout):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except (OSError, ValueError):
+                pass
+
+
 def serve() -> None:
     """stdio loop: one JSON-RPC message per line; only protocol JSON hits stdout."""
+    _utf8_protocol_streams()
     brain = Brain()
     for line in sys.stdin:
         line = line.strip()
