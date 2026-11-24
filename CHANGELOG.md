@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- **Console: memory titles were rendered as HTML** — the Memories list spliced
+  note titles (file content that any agent with write access can set through
+  `brain_remember`) into an `innerHTML` template, so a crafted title ran script
+  in the admin console; server data now reaches the page as text
+- **MCP stdio was decoded with the ANSI code page on Windows** — on a
+  non-UTF-8 locale every CJK tool argument arrived as mojibake and the replies
+  were not valid UTF-8; both protocol streams are forced to UTF-8
+- **A forced index rebuild left a long-lived server unable to search** — after
+  `ingest --force` replaced the collection, every later call on the old handles
+  raised `NotFoundError` until restart; the pipeline is rebuilt after an ingest
+  and on that error
+- **The watch loop pruned an offline source** — a vault that went offline had
+  its chunks wiped (`ingest` had the guard, `watch` did not)
+- **`brain_forget` never removed the forgotten notes from the index** — it
+  deleted by the `.trash` path instead of the note's original path
+- **Two different state keys could share one record** — keys past 80 characters
+  were truncated, and `Task-1` / `task-1` were one file on case-insensitive
+  volumes. Keys now fold to one case and long keys end in a digest; keys are
+  case-insensitive on every platform and listings show the folded key
+- **Editing a memory in the console failed on Windows** (`rename` over an
+  existing file) and duplicated the frontmatter into the body
+- **A single-file `[[sources]]` path broke `loci ingest` and the scanner**
+
 ## v0.10.2 — 2026-11-22
 
 Two full hardening passes (black-box probing against a live instance, a
