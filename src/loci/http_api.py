@@ -807,6 +807,11 @@ def _make_handler(brain, cfg, entries, audit, queries: "QueryLog | None" = None)
 
         def _list_memories(self):
             rows = []
+            # a fresh instance has no memories directory until its first
+            # remember: no notes yet, not a FileNotFoundError (a 500 on the
+            # console's Memories tab of a brand-new install)
+            if not mem_dir.is_dir():
+                return rows
             # name-suffix filter instead of *.md globs: pathlib matches
             # case-sensitively, the volumes this runs on may not
             harness_dir = mem_dir / "harness"
