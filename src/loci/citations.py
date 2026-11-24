@@ -17,6 +17,8 @@ import json
 import time
 from pathlib import Path
 
+from loci.memories import memory_notes
+
 STALE_DAYS = 30          # uncited for a month → candidate for review
 
 
@@ -103,9 +105,7 @@ def health(cfg) -> list[dict]:
     corrected = load_corrections(cfg)
     now = time.time()
     rows: list[dict] = []
-    if not mem_dir.is_dir():
-        return rows
-    for path in sorted(mem_dir.glob("*.md")):
+    for path in memory_notes(mem_dir):       # folded suffix: NOTE.MD is a note here too
         try:
             stat = path.stat()
         except OSError:

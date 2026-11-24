@@ -155,18 +155,33 @@ def extract_memories(llm_cfg: dict, transcript: str) -> list[dict]:
         return []
 
 
+def memory_notes(mem_dir) -> list[Path]:
+    """The memory notes directly under `mem_dir`, newest first.
+
+    Found by folded suffix, not `glob("*.md")`: pathlib's glob is
+    case-sensitive on macOS and Linux, while the index and the memory API
+    treat NOTE.MD as a note — so such a note was indexed and readable but
+    brain_forget could not find it and memory-health never listed it.
+    `._*` AppleDouble sidecars and `~$` Office lock files are skipped (they
+    are binary, not memories)."""
+    try:
+        d = Path(mem_dir).expanduser()
+        notes = [p for p in d.iterdir()
+                 if p.is_file() and p.suffix.lower() == ".md"
+                 and not p.name.startswith("._") and not p.name.startswith("~$")]
+    except OSError:                        # missing or unreadable: no notes
+        return []
+    return sorted(notes, key=lambda p: p.name, reverse=True)
+
+
 def find_memories(mem_dir: str, query: str) -> list[Path]:
     """Memory files whose filename or content mentions query (newest first).
     `._*` AppleDouble sidecars (Finder artifacts on exFAT/network copies)
     are skipped — they are binary, not memories."""
-    d = Path(mem_dir).expanduser()
-    if not d.exists():
-        return []
-    q = query.lower()
-    hits = [p for p in d.glob("*.md")
-            if not p.name.startswith("._")
-            and (q in p.stem.lower()
-                 or q in p.read_text(encoding="utf-8", errors="ignore").lower())]
+    q = str(query).lower()
+    hits = [p for p in memory_notes(mem_dir)
+            if q in p.stem.lower()
+            or q in p.read_text(encoding="utf-8", errors="ignore").lower()]
     return sorted(hits, key=lambda p: p.name, reverse=True)
 
 
