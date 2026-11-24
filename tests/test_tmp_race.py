@@ -133,3 +133,66 @@ def test_concurrent_write_memory_all_succeed(tmp_path):
     assert len(written) == 80                   # every write landed, none lost
     leftovers = list((tmp_path / "mem").glob("*.tmp"))
     assert leftovers == []                      # staging files all replaced
+
+
+def test_concurrent_harness_summaries_all_succeed(tmp_path, monkeypatch):
+    """harness.summarize was the last write path with a shared staging name
+    ('<digest>.md.tmp'): the console's regenerate button and a watch loop's
+    auto-summarize (or two clicks) stomped each other — 2 of 8 concurrent
+    summaries died with WinError 32 on Windows."""
+    from loci import harness
+
+    notes = tmp_path / "notes"
+    notes.mkdir()
+    for i in range(3):
+        (notes / f"n{i}.md").write_text(f"note {i}", encoding="utf-8")
+
+    class Cfg:
+        memories = {"path": str(tmp_path / "mem")}
+        llm = {"api_key": "k"}
+
+    tool = harness.Harness("z", "generic", "x", [notes])
+    monkeypatch.setattr(harness, "_llm_digest", lambda cfg, bundle: "digest body")
+    errors: list[str] = []
+
+    def worker():
+        try:
+            harness.summarize(Cfg, tool, force=True)
+        except Exception as e:                 # noqa: BLE001 — the point
+            errors.append(f"{type(e).__name__}: {e}")
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+
+    assert errors == [], errors[:3]
+    text = harness.summary_path(Cfg, tool).read_text(encoding="utf-8")
+    assert text.startswith("---") and "# z · memory digest" in text
+    assert list((tmp_path / "mem").rglob("*.tmp")) == []   # staging files all replaced
+
+
+def test_concurrent_last_ask_records_stay_whole(tmp_path):
+    """citations.save_last_ask staged through '.last_ask.json.tmp' as well;
+    it is documented as atomic."""
+    import json
+    import re
+    from loci import citations
+
+    store = tmp_path / "store"
+    errors: list[str] = []
+
+    def worker(i):
+        try:
+            for n in range(25):
+                citations.save_last_ask(str(store), f"q{i}-{n}", [{"id": f"c{i}-{n}"}])
+        except Exception as e:                 # noqa: BLE001 — the point
+            errors.append(f"{type(e).__name__}: {e}")
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(8)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+
+    assert errors == [], errors[:3]
+    data = json.loads((store / ".last_ask.json").read_text(encoding="utf-8"))
+    assert re.fullmatch(r"c[0-9]+-[0-9]+", data["chunk_ids"][0])   # one whole record, not a torn one
+    assert list(store.glob("*.tmp")) == []

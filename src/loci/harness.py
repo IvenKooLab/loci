@@ -408,10 +408,12 @@ def summarize(cfg, h: Harness, force: bool = False) -> dict:
              f"fingerprint: {fp}\n"
              f"files: {len(files)}\n"
              "---\n")
-    tmp = out.with_suffix(".md.tmp")
-    tmp.write_text(f"{front}# {h.display or h.name} · memory digest\n\n{body}\n",
-                   encoding="utf-8")
-    tmp.replace(out)
+    # shared atomic-write helper: a per-writer staging name plus the
+    # replace retry (the console's regenerate button and a watch loop's
+    # auto-summarize write the same digest)
+    from loci import fsutil
+    fsutil.atomic_write(
+        out, f"{front}# {h.display or h.name} · memory digest\n\n{body}\n")
     try:
         from loci.memories import index_memory_file
         index_memory_file(cfg, str(out))

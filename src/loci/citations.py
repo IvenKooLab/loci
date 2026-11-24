@@ -146,11 +146,12 @@ def save_last_ask(store_path, query: str, hits: list[dict]) -> None:
     try:
         d = _P(str(store_path))
         d.mkdir(parents=True, exist_ok=True)
-        tmp = d / ".last_ask.json.tmp"
-        tmp.write_text(_json.dumps(
+        # the shared atomic-write helper: a per-writer staging name (the old
+        # '.last_ask.json.tmp' was one name for every ask in the process)
+        from loci import fsutil
+        fsutil.atomic_write(d / ".last_ask.json", _json.dumps(
             {"query": str(query)[:300], "ts": _time.time(),
              "chunk_ids": [h["id"] for h in hits if h.get("id")]},
-            ensure_ascii=False), encoding="utf-8")
-        tmp.replace(d / ".last_ask.json")
-    except (OSError, KeyError, TypeError):
+            ensure_ascii=False))
+    except (OSError, KeyError, TypeError, ValueError):
         pass
