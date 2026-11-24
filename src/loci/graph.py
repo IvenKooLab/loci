@@ -28,14 +28,39 @@ def graph_path(cfg) -> Path:
     return Path(cfg.store["path"]) / "graph.json"
 
 
+def _empty_graph() -> dict:
+    return {"version": 1, "processed": {}, "entities": {}, "edges": []}
+
+
 def load_graph(cfg) -> dict:
+    """The saved graph, brought to shape.
+
+    graph.json is documented as human-readable and hand-editable, and every
+    reader trusted its shape: a hand edit that dropped a top-level key or
+    left a half-written file raised KeyError out of `loci graph show`,
+    brain_graph and the wiki page context alike."""
     p = graph_path(cfg)
     if p.exists():
         try:
-            return json.loads(p.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            pass
-    return {"version": 1, "processed": {}, "entities": {}, "edges": []}
+            saved = json.loads(p.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+            saved = None
+        if isinstance(saved, dict):
+            processed = saved.get("processed")
+            entities = saved.get("entities")
+            edges = saved.get("edges")
+            return {
+                "version": saved.get("version", 1),
+                "processed": processed if isinstance(processed, dict) else {},
+                "entities": {name: info for name, info in entities.items()
+                             if isinstance(info, dict) and isinstance(info.get("degree"), int)}
+                if isinstance(entities, dict) else {},
+                # an edge without all three sides is not a relation
+                "edges": [e for e in edges if isinstance(e, dict)
+                          and all(isinstance(e.get(k), str) for k in ("s", "p", "o"))]
+                if isinstance(edges, list) else [],
+            }
+    return _empty_graph()
 
 
 def save_graph(cfg, graph: dict) -> None:
@@ -158,6 +183,6 @@ def query_graph(cfg, entity: str) -> dict:
     out_edges = [e for e in graph["edges"] if e["s"].lower() == q]
     in_edges = [e for e in graph["edges"] if e["o"].lower() == q]
     hubs = sorted(graph["entities"].items(),
-                  key=lambda kv: -kv[1]["degree"])[:10] if not q else []
+                  key=lambda kv: -kv[1]["degree"])[:10] if not q else []   # records only: see load_graph
     return {"entity": entity, "out": out_edges, "in": in_edges,
             "hubs": [{"name": n, "degree": d["degree"]} for n, d in hubs]}
